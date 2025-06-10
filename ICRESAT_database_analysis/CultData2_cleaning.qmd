@@ -1,0 +1,817 @@
+---
+title: "Fichier 2 : Nettoyer la base Cultivation 2014"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r}
+#| message: false
+here::i_am("ICRESAT_database_analysis/CultData2_cleaning.qmd")
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(ggplot2)
+library(scales)
+library(stringr)    
+```
+
+
+```{r}
+Cultivation_2014 <- readRDS(here::here("Base de données générées", "Cultivation_2014", "Cultivation_2014.rds"))
+```
+
+```{r}
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(SEASON = toupper(SEASON))
+```
+
+## Premières analyses
+
+### Principales cultures
+
+```{r}
+# Tableau des principales cultures
+main_crops <- Cultivation_2014 |>
+  select(
+    VDS_ID, PLOT_CODE, SEASON,
+    starts_with("CROP_")
+  ) |>
+  distinct() |>
+  pivot_longer(
+    cols = c(CROP_1, CROP_2, CROP_3, CROP_4),
+    names_to = "CROP_POSITION",
+    values_to = "CROP"
+  ) |>
+  filter(!is.na(CROP) & CROP != "") |>
+  count(CROP, name = "nb_occurrences") |>
+  arrange(desc(nb_occurrences)) |>
+  inner_join(
+    Cultivation_2014 |>
+      select(CROP = CROP_1, CROP_ID = CROP_1_ID), by = "CROP"
+  ) |>
+  distinct()
+```
+
+### Salaire horaire
+
+```{r}
+Cultivation_2014 |>
+  filter(LAB_TYPE != "6", LAB_TYPE != "B", LAB_TYPE != "EB", LAB_TYPE != "HB", LAB_TYPE != "OB", LAB_TYPE != "FB") |>
+  filter(WAGE_PER_HR < 400) |>
+  ggplot(aes(x = LAB_TYPE, y = WAGE_PER_HR)) +
+  geom_boxplot(fill = "palegreen") +
+  theme_minimal() +
+  labs(
+    x = "",
+    y = "Salaire en roupies",
+    title = "Distribution du salaire horaire par type de main d'oeuvre"
+  )
+# Le filtre exclut 3 valeurs invraisemblables, au-dessous de 1000 roupies par heure. 
+```
+
+
+```{r}
+Cultivation_2014 |>
+  filter(LAB_TYPE != "6", LAB_TYPE != "B", LAB_TYPE != "RS") |>
+  filter(WAGE_PER_HR < 400) |>
+  mutate(Sous_Categorie = case_when(
+    substr(LAB_TYPE, 2, 2) == "M" ~ "Men",
+    substr(LAB_TYPE, 2, 2) == "F" ~ "Women",
+    substr(LAB_TYPE, 2, 2) == "C" ~ "Children",
+    substr(LAB_TYPE, 2, 2) == "B" ~ "Bullocks",
+    TRUE ~ "Autre"
+  )) |>
+  group_by(Sous_Categorie) |>
+  ggplot(aes(x = Sous_Categorie, y = WAGE_PER_HR)) +
+  geom_boxplot(fill = "lightpink") +
+  theme_minimal() +
+  labs(
+    x = "",
+    y = "Salaire en roupies",
+    title = "Distribution du salaire horaire par type de main d'oeuvre (regroupé)")
+```
+
+```{r}
+Cultivation_2014 |>
+  filter(LAB_TYPE != "6", LAB_TYPE != "B") |>
+  group_by(LAB_TYPE) |>
+  summarize(mean_wage_per_hr = mean(WAGE_PER_HR, na.rm = TRUE)) |>
+  ggplot(aes(x = LAB_TYPE, y = mean_wage_per_hr)) +
+  geom_col(fill = "lightskyblue") +
+  theme_minimal() +
+  labs(
+    x = "",
+    y = "Salaire en roupies",
+    title = "Moyenne du salaire horaire par type de main d'oeuvre")
+```
+
+```{r}
+# Filter pour le travail employé (hired)
+Cultivation_2014 |>
+  filter(LAB_TYPE %in% c("HF", "HM", "HC", "HB")) |>
+  mutate(Sous_Categorie = case_when(
+    substr(LAB_TYPE, 2, 2) == "M" ~ "Men",
+    substr(LAB_TYPE, 2, 2) == "F" ~ "Women",
+    substr(LAB_TYPE, 2, 2) == "C" ~ "Children",
+    substr(LAB_TYPE, 2, 2) == "B" ~ "Bullocks",
+    TRUE ~ "Autre"
+  )) |>
+  group_by(Sous_Categorie) |>
+  summarize(mean_wage_per_hr = mean(WAGE_PER_HR, na.rm = TRUE)) |>
+  ggplot(aes(x = Sous_Categorie, y = mean_wage_per_hr)) +
+  geom_col(fill = "lightslateblue") +
+  theme_minimal() +
+  labs(
+    x = "",
+    y = "Salaire en roupies",
+    title = "Moyenne du salaire horaire des travailleurs employés")
+```
+
+```{r}
+tableau_valeurs <- Cultivation_2014 |>
+  summarize(
+    Supérieur_50 = sum(WAGE_PER_HR > 50, na.rm = TRUE),
+    Supérieur_100 = sum(WAGE_PER_HR > 100, na.rm = TRUE),
+    Supérieur_1000 = sum(WAGE_PER_HR > 1000, na.rm = TRUE)
+  )
+
+tableau_valeurs
+```
+
+## Pivoter Cultivation : mettre les CROP en ligne
+
+```{r}
+# Diviser PLOT_AREA pour chaque culture, selon les variables PRCT_AREA
+Cultivation_cult_distinctes <- Cultivation_2014 |>
+  mutate(
+    AREA_CROP_1 = PLOT_AREA * PRCT_AREA_1 / 100,
+    AREA_CROP_2 = if_else(!is.na(PRCT_AREA_2), PLOT_AREA * PRCT_AREA_2 / 100, NA_real_),
+    AREA_CROP_3 = if_else(!is.na(PRCT_AREA_3), PLOT_AREA * PRCT_AREA_3 / 100, NA_real_),
+    AREA_CROP_4 = if_else(!is.na(PRCT_AREA_4), PLOT_AREA * PRCT_AREA_4 / 100, NA_real_)
+  )
+
+# Diviser IRRI_AREA pour chaque culture, selon les variables PRCT_AREA
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    IRRI_CROP_1 = IRRI_AREA * PRCT_AREA_1 / 100,
+    IRRI_CROP_2 = if_else(!is.na(PRCT_AREA_2), IRRI_AREA * PRCT_AREA_2 / 100, NA_real_),
+    IRRI_CROP_3 = if_else(!is.na(PRCT_AREA_3), IRRI_AREA * PRCT_AREA_3 / 100, NA_real_),
+    IRRI_CROP_4 = if_else(!is.na(PRCT_AREA_4), IRRI_AREA * PRCT_AREA_4 / 100, NA_real_)
+  )
+```
+
+```{r Calculer le nombre d'heures de travail et la variable heure par hectare selon la proportion de chaque culture}
+# Recalculer la variable WORK_HR selon les variables PRCT_CROP
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+WORK_HR_1 = if_else(PRCT_AREA_1 == 0, NA_real_, WORK_HR * PRCT_AREA_1 / 100),
+WORK_HR_2 = if_else(PRCT_AREA_2 == 0, NA_real_, WORK_HR * PRCT_AREA_2 / 100),
+WORK_HR_3 = if_else(PRCT_AREA_3 == 0, NA_real_, WORK_HR * PRCT_AREA_3 / 100),
+WORK_HR_4 = if_else(PRCT_AREA_4 == 0, NA_real_, WORK_HR * PRCT_AREA_4 / 100),
+  )
+```
+
+```{r}
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  select(-WORK_HR, -WAGE_PER_HR, -WAGE, -IRRI_AREA, -PLOT_AREA, -OPER_ID)
+
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  rename(CROP_ID_1 = CROP_1_ID) |>
+  rename(CROP_ID_2 = CROP_2_ID) |>
+  rename(CROP_ID_3 = CROP_3_ID) |>
+  rename(CROP_ID_4 = CROP_4_ID)
+```
+
+```{r}
+# Pivoter Cultivation en lignes pour les variables CROP, CROP_ID, PRCT_AREA, VAR_NAME, VAR_TYPE, AREA_CROP, HR_WORK, HR_PER_ACRE
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  pivot_longer(
+    cols = matches("^(CROP|CROP_ID|PRCT_AREA|VAR_NAME|VAR_TYPE|AREA_CROP|IRRI_CROP|WORK_HR)_[1-4]$"),
+    names_to = c(".value", "NB"),
+    names_pattern = "(.*)_(\\d)"
+  )
+```
+
+```{r}
+# Supprimer les lignes qui n'ont pas de crop, soit PRCT_AREA == 0
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  filter(!PRCT_AREA == 0) |>
+  select(-NB, -PRCT_AREA) |>
+  relocate(AREA_CROP, .after = PLOT_CODE) |>
+  relocate(IRRI_CROP, .after = AREA_CROP) |>
+  relocate(VAR_TYPE, .before = VAR_NAME)
+```
+
+## Nouvelles variables
+
+### Recatégoriser Opération
+
+```{r}
+# Nouvelles catégories OPERATION
+cat_operations <- tribble(
+  ~OLD_OPERATION,        ~OPERATION,
+
+  "HAND WEEDING",        "HAND WEEDING",
+  "HARVESTING",          "HARVESTING & THRESHING",
+  "THRESHING",           "HARVESTING & THRESHING",
+  "HARVESTING/THRESHING","HARVESTING & THRESHING",
+  "WINNOWING",           "HARVESTING & THRESHING",
+  "INTERCULTURE",        "INTERCULTURE",
+  "THINNING",            "INTERCULTURE",
+  "PINCHING/CUTTING",    "INTERCULTURE",
+  "MULCHING",            "INTERCULTURE",
+  "FENCE TRIMMING",      "INTERCULTURE",
+  "GIRDLING",            "INTERCULTURE",
+  "IRRIGATION",          "IRRIGATION",
+  "LAND PREPARATION",    "LAND PREPARATION",
+  "BUNDING",             "LAND PREPARATION",
+  "DIGGING",             "LAND PREPARATION",
+  "LEVELING",            "LAND PREPARATION",
+  "FIELD CLEANING",      "LAND PREPARATION",
+  "MARKETING",           "MARKETING",
+  "ABELING",             "MARKETING",
+  "BY PRODUCT MAKING",   "MARKETING",
+  "TRANSFORMATION",      "MARKETING",
+  "GRADING/TAGGING",     "MARKETING",
+  "SOWING",              "SEED SOWING",
+  "DIPPING",             "SEED SOWING",
+  "TRANSPLANTING",       "TRANSPLANTING",
+  "UPROOTING",           "TRANSPLANTING",
+  "PLANT PROTECTION",    "PLANT PROTECTION MEASURES",
+  "PESTICIDE",           "PLANT PROTECTION MEASURES",
+  "HERBICIDE",           "PLANT PROTECTION MEASURES",
+  "FUMIGATION",          "PLANT PROTECTION MEASURES",
+  "FERTILIZER",          "CHEMICAL FERTILIZER APPL.",
+  "SUPERVISION",         "SUPERVISION",
+  "TRANSPORT",           "TRANSPORT",
+  "LOADING",             "TRANSPORT",
+  "NURSERY RAISING",     "NURSERY RAISING",
+  "POD COLLECTION",      "OTHERS",
+  "CURING",              "OTHERS",
+  "TRANSFORMATION",      "OTHERS",
+  "BY PRODUCT MAKING",   "OTHERS"
+)
+```
+
+```{r, warning=FALSE}
+# Ajouter les nouvelles catégories d'OPERATION dans Cultivation_cult_distinctes
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  rename(OLD_OPERATION = OPERATION) |>
+  left_join(cat_operations, by = "OLD_OPERATION") |>
+  relocate(OPERATION, .after = DT_OPER) |>
+  select(-OLD_OPERATION)
+```
+
+### Variable Month
+
+```{r}
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(MONTH = substr(SUR_MON_YR, 1, 2)) |>
+  mutate(
+    MONTH = recode(MONTH,
+                      `01` = "janv",
+                      `02` = "feb",
+                      `03` = "march",
+                      `04` = "april",
+                      `05` = "may",
+                      `06` = "june",
+                      `07` = "july",
+                      `08` = "aug",
+                      `09` = "sept",
+                      `10` = "oct",
+                      `11` = "nov",
+                      `12` = "dec")
+  )
+```
+
+### Variable Gender
+
+J'intégre le travail fait par les bullocks dans le travail des hommes, puisque cela inclut le conducteur. 
+
+```{r}
+# Créer la variable GENDER à partir de LAB_TYPE
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    GENDER = case_when(
+      LAB_TYPE %in% c("HF", "FF", "EF") ~ "Female",
+      LAB_TYPE %in% c("HM", "FM", "EM", "OB", "HB", "EB") ~ "Male",
+      LAB_TYPE %in% c("HC", "FC", "EC") ~ "Child",
+      TRUE ~ "Other"
+    )
+  )
+```
+
+### Variable Employment
+
+```{r}
+# Créer la variable EMPLOYMENT à partir de LAB_TYPE
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    EMPLOYMENT = case_when(
+      LAB_TYPE %in% c("HF", "HM", "HC") ~ "Hired",
+      LAB_TYPE %in% c("FM", "FF", "FC") ~ "Family",
+      LAB_TYPE %in% c("EM", "EF", "EC") ~ "Exchange",
+      TRUE ~ "Other"
+    )
+  )
+```
+
+### Variable Fertilizer
+
+```{r}
+# Créer la variable FERTILIZER qui précise si l'opération a nécessité de l'engrais ou non
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(FERTILIZER = str_detect(OPERATION, "FERTILIZ|FERTIGATION")) |>
+  relocate(FERTILIZER, .after = OPERATION)
+```
+
+### Variable Multi-cropping
+
+```{r}
+# Créer une variable MULTI_CROPING pour identifier les champs ayant plusieurs cultures sur une même saison
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, DT_OPER, OPERATION, LAB_TYPE, SUR_MON_YR, NAME_MAT, TYPE_MAT) |>
+  mutate(MULTI_CROPING = n() > 1) |>
+  ungroup()
+```
+
+```{r}
+nb_multi_croping <- Cultivation_cult_distinctes |>
+  group_by(across(everything())) |>
+  filter(MULTI_CROPING) |>
+  summarise(nb_multi_croping = n(), .groups = "drop")
+
+nb_champ <- Cultivation_cult_distinctes |>
+  group_by(across(everything())) |>
+  summarise(nb_champ = n(), .groups = "drop")
+
+cat("Nombre de lignes incluant le multi-croping :", nrow(nb_multi_croping), "\n")
+cat("Sur un total de", nrow(nb_champ), "lignes soit", round(100 * nrow(nb_multi_croping) / nrow(nb_champ), 1), "%\n")
+```
+
+### Variable Human labor
+
+```{r}
+# Créer la variable HUMAN_LABOR à partir de LAB_TYPE
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    HUMAN_LABOR = case_when(
+      LAB_TYPE %in% c("HF", "FF", "EF", "HM", "FM", "EM", "FC", "HC", "EC") ~ TRUE,
+      TRUE ~ FALSE
+    )
+  )
+```
+
+
+### Variable Machinery
+
+On se concentre sur la méchanisation du travail. Je crée la variable MACHINERY à partir de TYPE_MAT, qui indique si l'opération est méchanisée. 
+
+L'opération est dite mécanisée si l'une des deux conditions est remplie. 
+
+```{r}
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    MACHINERY = case_when(
+      NAME_MAT == "Machinery" |
+        NAME_MAT %in% c("TR", "SP", "DS", "SM", "PT", "ET", "CH", "TH", "SD", "MK", "DP") ~ "Mécanisé",
+      TRUE ~ "Non mécanisé"
+    )
+  )
+```
+
+Je suppose pour tous les ménages qui n'ont pas indiqué si l'opération était méchanisée ou non (variable NAME_MAT vide), que l'opération est non mécanisée. Si on souhaite plutôt mettre n/a, il suffit d'ajouter : is.na(NAME_MAT) ~ NA_character_. 
+
+
+A voir si je le fais ?
+
+Je harmonise les noms des machines (TYPE_MAT = Machinery) en me basant sur le code indiqué dans le questionnaire :  
+- TR = Tractor
+- PT = Power Tiller
+- CH = Combined harvester
+- SP = Sprayer
+- SD = Seed drill
+- MK = BBF Maker
+- DS = Duster
+- ET = Electric motor
+- SM = Submersible pump
+- TH = Thresher
+
+Tableau de correspondances des opérations regoupant plusieurs catégories
+harmonise_NAME_MAT <- tribble(
+~MAT_VARIANT,                                  ~NAME_MAT,
+)
+
+
+### Cultures par saison
+
+```{r}
+# Modifier la saison dans le cas de cultures annuelles et sélectionner seulement les saisons Kharif et Rabi.
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    SEASON = if_else(CROP %in% c("MANGO", "KAZILIME", "POMOGRANATE", "SUGARCANE", "GUAVA"), "PERENNIAL", SEASON)
+  ) |>
+  filter(SEASON %in% c("KHARIF", "RABI"))
+```
+
+Etudier quelles cultures sont terminées en une saison.
+
+1ère méthode : vérifier que toutes les opérations pour une même culture soient faites dans la même saison (de LAND PREPARATION jusqu'à HARVESTING / THRESHING).
+
+2ème méthode: comparer entre les deux saisons quelles sont les cultures mises en place pour un même champ, incluant SEASONAL FALLOW.
+
+```{r 1ère méthode}
+verif_operations <- Cultivation_cult_distinctes |>
+  filter(CROP != "SEASONAL FALLLOW") |>
+  filter(OPERATION %in% c("HARVESTING", "LAND PREPARATION")) |>
+  distinct(VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION) |>
+  group_by(VDS_ID, PLOT_CODE, CROP, SEASON) |>
+  summarise(n_ops = n_distinct(OPERATION), .groups = "drop") |>
+  filter(n_ops > 1)
+```
+Liste des cultures ayant uniquement une des deux opérations (HARVESTING ou LAND PREPARATION) par saison : JUTE, PILLI PESARA, KOLLA GANJERU, GUVAR GUM, PAPAYA, GAJARJ GRASS, BERSEEM, RABDA
+
+En plus des cultures Perennial/Annual: GRAPE, SUBABUL, BER, POMOGRANATE, LEMON, JASMINE, BANANA, CITRUS, SAPOTA, ARECANUT, GUAVA, MANGO, CUSTARD APPLE, COCONUT, KAZILIME, TURMURIC, SWEET ORANGE, LUCERN GRASS, NAPIER GRASS
+
+```{r 2ème méthode: avec Cultivation_2014}
+cultures_per_season <- Cultivation_2014 |>
+  filter(SEASON %in% c("KHARIF", "RABI")) |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP_1, CROP_2, CROP_3, CROP_4) |>
+  distinct() |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  slice(1) |>  # Garde une seule ligne par champ et saison
+  ungroup() |>
+  pivot_wider(
+    names_from = SEASON,
+    values_from = c(CROP_1, CROP_2, CROP_3, CROP_4),
+    names_sep = "_"
+  ) |>
+  mutate(
+    diff_crop_1 = CROP_1_KHARIF != CROP_1_RABI,
+    diff_crop_2 = CROP_2_KHARIF != CROP_2_RABI,
+    diff_crop_3 = CROP_3_KHARIF != CROP_3_RABI,
+    diff_crop_4 = CROP_4_KHARIF != CROP_4_RABI,
+    has_diff_crop = diff_crop_1 | diff_crop_2 | diff_crop_3 | diff_crop_4
+  ) |>
+  filter(has_diff_crop) |>
+  select(VDS_ID, PLOT_CODE, starts_with("CROP"), has_diff_crop)
+```
+
+```{r}
+cultures_per_season <- cultures_per_season |>
+  select(starts_with("CROP_")) |>
+  pivot_longer(cols = everything(), values_to = "CROP") |>
+  filter(!is.na(CROP) & CROP != "") |>
+  distinct(CROP) |>
+  arrange(CROP)
+```
+
+Liste des cultures cultivée sur les deux saisons par année (liste faite avec Cultivation_2014) : JUTE, SUNFLOWER, SAFFFLOWER, TOBACCAO, VARIGA, MOONG, BANANA, DRUMSTICK, CASTOR, KAZILIME, GUVAR GUM, MARUA, SWEET POTATO, KOLLA GANJERU, GARLIC, BEANS, GAJRAJ GRASS, PILLI PESARA, MATKI, SARGUJA, CUCUMBER, TEAK, BERSEEM, GUAVA, RABDA
+
+#### Sélectionner les cultures saisonnières
+
+Je sélectionne les cultures qui ont deux récoltes par an, donc deux saisons (Rabi et Kharif), dans le but d'analyser les heures de travail effectués dans chaque culture sur une saison donnée. 
+
+seasonal_crops <- Cultivation_cult_distinctes |>
+  distinct(CROP, SEASON) |>
+  group_by(CROP) |>
+  summarise(nb_saisons = n_distinct(SEASON), .groups = "drop") |>
+  filter(nb_saisons > 1)
+
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(SEASONAL = CROP %in% seasonal_crops$CROP) |>
+  filter(SEASONAL)
+
+FAUX: Cette méthode n'indique pas les cultures saisonnières, mais les cultures avec deux moissons, qui seront donc présentes dans les deux saisons. 
+
+```{r}
+seasonal_cultures <- union(verif_operations$CROP, cultures_per_season$CROP)
+
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  filter(CROP != "SEASONAL FALLOW") |>
+  mutate(SEASONAL = CROP %in% seasonal_cultures) |>
+  filter(SEASONAL) |>
+  select(-SEASONAL)
+```
+
+```{r}
+# J'enlève la culture GREEN FODDER puisque cela réfère à plusieurs plantes (sorghum, maize, oats). Certaines de ces plantes sont sur une saison, d'autres sur une année, donc je peux pas catégoriser GREEN FODDER. 
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  filter(CROP != "GREEN FODDER")
+```
+
+
+#### Graph: Nombre de champs par culture et par saison
+
+Combien de champs y a-t-il par culture et par saison ? 
+
+```{r}
+cultures_per_season <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP) |>
+  group_by(SEASON, CROP) |>
+  summarise(NB_PLOTS = n(),
+            .groups = "drop")
+```
+
+```{r}
+cultures_per_season |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  ggplot(aes(x = CROP, y = NB_PLOTS, fill = SEASON)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Nombre de champs par culture selon la saison",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 9)
+  )
+```
+
+
+## Verifs
+
+### Enquêtes par ménage
+
+On vérifie comment a été remplie la variable OPERATION, variable mensuelle.
+Est-ce qu'il y a exactement 12 enquêtes (SUR_MON_YR) faites par ménage (identifié par VDS_ID) en 2014 ? 
+
+```{r}
+test_nb_survey <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, SUR_MON_YR) |> 
+  count(VDS_ID, name = "nb_survey")
+```
+
+```{r}
+test_nb_survey |>
+  ggplot(aes(x = nb_survey)) +
+  geom_bar(fill = "seagreen3", width = 0.7) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.4) +
+  scale_x_continuous(
+    breaks = seq(0, 12, by = 1) 
+  ) +
+  labs(
+    title = "Nombre d'enquêtes faites par ménage",
+    x = ""
+  ) +
+  theme_minimal()
+```
+
+
+### Enquêtes par mois
+
+On vérifie sur quels mois ont été faites les enquêtes à partir de la variable MONTH.
+
+Le graphique suiavnt montre le nombre d'enquêtes par mois en considèrant les ménages distincts (soit une enquête maximum par ménage et par mois).
+
+```{r}
+month_levels <- c("janv", "feb", "march", "april", "may", "june", 
+                  "july", "aug", "sept", "oct", "nov", "dec")
+
+test_nb_survey <- Cultivation_cult_distinctes |>
+  group_by(MONTH) |> 
+  count(VDS_ID, name = "nb_survey") |>
+  mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
+```
+
+```{r}
+test_nb_survey |>
+  ggplot(aes(x = nb_survey, y = MONTH)) +
+  geom_col(fill = "darkgreen", width = 0.7) +
+  coord_flip() +
+  scale_x_continuous() +
+  labs(
+    title = "Nombre d'enquêtes faites par mois (ménages distincts)",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal()
+```
+On constate que les enquêtes faites auprès des ménages sont plus nombreuses lors des mois avec le plus de travail (juillet, août), au contraire des mois creux (mai, juin). Cela justifie l'hypothèse que les opérations ne sont pas indiquées comme vide lorsqu'aucun travail n'est fait. 
+
+#### Selon les saisons
+
+Je refais le même graphique séparement pour les champs en Kharif et ceux en Rabi. 
+
+```{r Kharif}
+test_nb_survey <- Cultivation_cult_distinctes |>
+  filter(SEASON == "KHARIF") |>
+  group_by(MONTH) |> 
+  count(VDS_ID, name = "nb_survey") |>
+  mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
+
+test_nb_survey |>
+  ggplot(aes(x = nb_survey, y = MONTH)) +
+  geom_col(fill = "darkgreen", width = 0.7) +
+  coord_flip() +
+  scale_x_continuous() +
+  labs(
+    title = "Kharif- Nombre d'enquêtes faites par mois (ménages distincts)",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal()
+```
+
+```{r Rabi}
+test_nb_survey <- Cultivation_cult_distinctes |>
+  filter(SEASON == "RABI") |>
+  group_by(MONTH) |> 
+  count(VDS_ID, name = "nb_survey") |>
+  mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
+
+test_nb_survey |>
+  ggplot(aes(x = nb_survey, y = MONTH)) +
+  geom_col(fill = "darkgreen", width = 0.7) +
+  coord_flip() +
+  scale_x_continuous() +
+  labs(
+    title = "Rabi- Nombre d'enquêtes faites par mois (ménages distincts)",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal()
+```
+
+
+### Distinguer heures de travail des humains et des boeufs
+
+On vérifie si les heures de travail (et le salaire) indiqué pour les boeufs (bullocks) incluent le travail humain  qui a nécessité pour conduire le boeuf. 
+
+L'hypothèse est que les heures de travail faites par le conducteur ne sont pas comprises dans les heures de travail des beoufs et sont écrites sur une deuxième ligne. Pour vérifier cela, on compare si, pour une même opération dans un même champ (pour une date précise) les heures de travail par acre (h/acre) cumulé des humains sont supérieures aux h/acre des boeufs. 
+
+```{r}
+bullocks_work <- Cultivation_cult_distinctes |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, SUR_MON_YR, AREA_CROP, CROP, OPERATION, DT_OPER) |>
+  mutate(
+    total_human = sum(WORK_HR[LAB_TYPE %in% c("HF", "FF", "EF", "HM", "FM", "EM", "FC", "HC", "EC")], na.rm = TRUE),
+    total_bullocks = sum(WORK_HR[LAB_TYPE %in% c("HB", "OB", "EB")], na.rm = TRUE),
+    .groups = "drop"
+  ) 
+
+nb_total_bullocks <- bullocks_work |>
+  filter(LAB_TYPE %in% c("HB", "OB", "EB")) |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, SUR_MON_YR, AREA_CROP, CROP, OPERATION, DT_OPER) |>
+  nrow() 
+
+nb_bullocks_domine <- bullocks_work |> filter(total_bullocks > total_human) |> nrow()
+
+tibble(
+  `Total champs/opérations distincts` = nrow(bullocks_work |> distinct(VDS_ID, PLOT_CODE, SEASON, SUR_MON_YR, AREA_CROP, CROP, OPERATION, DT_OPER)),
+  `Opérations incluant des boeufs` = nb_total_bullocks,
+  `Boeufs > humain` = nb_bullocks_domine,
+  `Proportion (%)` = round(100 * nb_bullocks_domine / nb_total_bullocks, 1)
+)
+```
+
+
+## Modifier Cultivation : créer les lignes pour les opérations non complétées
+
+On estime que si une opération n'est pas complétée pour un mois et un champ donnés, alors son temps de travail est égal à 0. Le but est de créer une base qui indique WORK_HR = 0 pour toutes les opérations pas complétées pour un mois (MONTH) et un champ donnée (VDS_ID, PLOT_CODE, SEASON)
+
+### Version sans Month
+
+La base full_operation regroupe tous les couples existants VDS_ID / PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
+
+J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que je souhaite indiquer dans tous les lignes d'un même champ. 
+
+```{r}
+plots_by_household <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CROP_ID, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME, MULTI_CROPING, REGION, STATE, VILLAGE)
+
+full_operation <- expand_grid(
+  plots_by_household,
+  OPERATION = unique(Cultivation_cult_distinctes$OPERATION)
+)
+```
+
+Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliqués dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
+
+```{r, message=FALSE, warning=FALSE}
+base_to_join <- Cultivation_cult_distinctes |>
+  select(
+    VDS_ID, PLOT_CODE, SEASON, CROP, OPERATION,
+    MONTH, GENDER, EMPLOYMENT, HUMAN_LABOR, MACHINERY, DT_OPER, SUR_MON_YR,
+    FERTILIZER, LAB_TYPE, WORK_HR, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, NAME_MAT, TYPE_MAT, MACHINERY
+  )
+
+# Jointure sans conflit de colonnes
+Cultivation_expand <- full_operation |>
+  left_join(base_to_join, by = c("VDS_ID", "PLOT_CODE", "SEASON", "CROP", "OPERATION")) |>
+  mutate(WORK_HR = replace_na(WORK_HR, 0))
+```
+
+
+Les prochains test visent à inclure MONTH dans la base Cultivation_expand. 
+
+### 1er test: Créer des lignes pour tous les mois (même manquants)
+
+Je regroupe toutes les combinaisons possibles de MONTH / OPERATION et tous les couples existants VDS_ID / PLOT_CODE.
+
+Pas besoin d'ajouter SEASON pour identifier le champs parce qu'on a déjà le mois qui sous-entend donc la saison ? Faux car les deux saisons se superposent sur certains mois
+
+```{r}
+plots_by_household <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, PLOT_CODE)
+
+full_operation <- expand_grid(
+  plots_by_household,
+  MONTH = unique(Cultivation_cult_distinctes$MONTH),
+  OPERATION = unique(Cultivation_cult_distinctes$OPERATION)
+)
+```
+
+Puis l'idée de créer la base Cultivation_expand en joignant avec "MONTH", "VDS_ID", "PLOT_CODE", "OPERATION"
+
+Ma méthode de faire pour tous les mois est fausse, parce que certains champs n'existent que pour une saison donnée, notamment en jachère ? donc associer un WORK_HR = 0 à ces champs revient à créer des valeurs qui n'existent pas
+
+### 2ème test: Créer des lignes seulement pour les mois existants
+
+Je refais la base full_operations en identifiant les champs existants par les variables (VDS_ID, PLOT_CODE, SEASON, MONTH)
+
+Ce choix repose sur l'hypothèse qu'un champ qui n'a pas fait une opération en un mois est un champ en jachère. Mais ça peut être faux si on voit des champs cultivés les mois précédents et suivants (ex: nov, janv sans dec)
+
+et faux si l'enquête n'a pas été faite pendant un mois entier (mais dans ce cas, faut mieux supposer NA que mettre 0 qui n'est pas nécessairement juste)
+
+```{r}
+plots_by_household <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, MONTH)
+
+full_operation <- expand_grid(
+  plots_by_household,
+  OPERATION = unique(Cultivation_cult_distinctes$OPERATION)
+)
+```
+
+Dans ce cas, je joindrais Cultivation_cult_distinctes et full_operation2 avec "MONTH", "VDS_ID", "PLOT_CODE", "SEASON", "OPERATION"
+
+### Ordre des variables
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  select(
+    SUR_MON_YR, MONTH, SEASON, VDS_ID, PLOT_CODE, AREA_CROP, IRRI_CROP, CROP, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, everything()  # place les colonnes restantes à la fin
+  )
+```
+
+
+## Liens extérieurs
+
+### Enregistrer Cultivation_cult_distinctes dans le document partagé
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_cult_distinctes"
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer le fichier CSV
+write.csv(
+  Cultivation_cult_distinctes,
+  file = file.path(folder_path, "Cultivation_cult_distinctes.csv"),
+  row.names = FALSE
+)
+
+# Enregistrer le fichier RDS
+saveRDS(
+  Cultivation_cult_distinctes,
+  file = file.path(folder_path, "Cultivation_cult_distinctes.rds"),
+)
+```
+
+### Enregistrer Cultivation_expand dans le document partagé
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_expand"
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer le fichier CSV
+write.csv(
+  Cultivation_expand,
+  file = file.path(folder_path, "Cultivation_expand.csv"),
+  row.names = FALSE
+)
+
+# Enregistrer le fichier RDS
+saveRDS(
+  Cultivation_expand,
+  file = file.path(folder_path, "Cultivation_expand.rds"),
+)
+```

@@ -1,0 +1,804 @@
+---
+title: "Fichier 3 : Analyse de la base Cultivation 2014 (partie 1)"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/CultData3_analysis_1.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(readxl)
+library(tibble)
+library(tidyverse)
+library(gt)
+```
+
+Le première modèle théorique repose sur ...
+
+Hypothèses : 
+- On considère qu'il y a qu'un seul salaire par genre. Le salaire qu'une personne pourrait obtenir en étant employé est égal à celui du travail familial. 
+
+
+## Ajout de la caste à la base Cultivation_expand
+
+### Joindre les deux régions de la base Household_info
+
+```{r}
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+J'importe les tables Household_info des deux régions (EAST et SAT) pour l'année 2014, pour intégrer la variable CASTE à chaque ménage. 
+
+```{r, message=FALSE, warning=FALSE}
+EAST_Household_info <- read_excel(here::here("raw_data", "EAST_Household_info_2014.xlsx"))
+SAT_Household_info <- read_excel(here::here("raw_data", "SAT_Household_info_2014.xlsx"))
+```
+
+```{r}
+# Sélectionner les variables VDS_ID et CASTE pour chaque table 
+EAST_Household_info <- EAST_Household_info |>
+  select(VDS_ID, CASTE, CASTE_GROUP)
+
+SAT_Household_info <- SAT_Household_info |>
+  select(VDS_ID, CASTE, CASTE_CATEGORY) |>
+  rename(CASTE_GROUP = CASTE_CATEGORY)
+
+# Joindre les deux régions
+Household_info <- bind_rows(EAST_Household_info, SAT_Household_info)
+```
+
+### Vérifier la correspondance de VDS_ID
+
+Les identifiants des ménages ne correspondent pas entre les deux bases, parce que dans la base Household_info, VDS_ID est majoritairement indiqué pour l'année 2013 plutôt que 2014. 
+
+```{r}
+Household_info <- Household_info |>
+  mutate(VDS_ID = ifelse(substr(VDS_ID, 5, 5) != "4",
+                         paste0(substr(VDS_ID, 1, 4), "4", substr(VDS_ID, 6, nchar(VDS_ID))),
+                         VDS_ID))
+```
+
+Je vérifie la correspondance des ménages entre Cultivation_expand et Household_info, une fois les années harmonisées. 
+
+```{r Correspondance Cultivation_expand -> Household_info}
+household_keys <- Household_info |>
+  select(VDS_ID) |>
+  distinct()
+
+cultivation_keys <- Cultivation_expand |>
+  select(VDS_ID) |>
+  distinct()
+
+# Identifier les ménages de Cultivation_expand non trouvés dans Household_info
+non_match <- anti_join(cultivation_keys, household_keys, by = "VDS_ID")
+
+n_non_matched <- nrow(non_match)
+n_hh <- nrow(cultivation_keys)
+prop_non_matched <- round(n_non_matched / n_hh * 100, 2)
+
+cat(" - Ménages totaux dans Cultivation_expand :", n_hh, "\n")
+cat(" - Ménages sans équivalent dans Household_info :", n_non_matched, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+```
+
+```{r Correspondance des régions}
+# Faire ressortir les codes de chaque village pour comparer les bases
+household_village <- Household_info |> 
+  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
+  group_by(VILLAGE) |>
+  distinct(VDS_ID) |>
+  summarise(n = n(), .groups = "drop")
+
+cultivation_village  <- Cultivation_expand  |> 
+  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
+  group_by(VILLAGE) |>
+  distinct(VDS_ID) |>
+  summarise(n = n(), .groups = "drop")
+```
+
+Le village TS, qui comprend 64 ménages dans Cultivation_expand, n'est pas présent dans Household_info, ce qui explique une partie des ménages manquants. 
+
+### Ajout de Caste et Caste_group
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
+  mutate(
+    CASTE_GROUP = recode(CASTE_GROUP, 
+                         `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER"),
+    )
+```
+
+Je regarde le nombre de n/a pour la caste dans Cultivation.  
+
+```{r}
+Cultivation_expand |>
+  summarise(
+    na_caste = sum(is.na(CASTE_GROUP)),
+    total = n(),
+    pct_na = round(100 * na_caste / total, 2)
+  )
+```
+
+
+## Lien: Travail des femmes familial et employé
+
+On veut représenter le temps de travail féminin familial (LAB_TYPE = FF) par rapport au temps de travail féminin total ou employé. On se concentre sur la culture de riz en Kharif. 
+
+```{r, message=FALSE, warning=FALSE}
+female_work_hours <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  group_by(VDS_ID, PLOT_CODE, CROP, SEASON) |>
+  summarise(
+    WORK_HF = sum(WORK_HR[LAB_TYPE == "HF"], na.rm = TRUE),
+    WORK_FF = sum(WORK_HR[LAB_TYPE == "FF"], na.rm = TRUE),
+    WORK_F = WORK_HF + WORK_FF
+  ) |>
+  ungroup()
+```
+
+Graphique avec nuage de points + courbe de régression locale : loess (locally estimated scatterplot smoothing)
+
+Ce graphique montre l'effet de substitution entre le travail féminin employé et celui familial champ par champ, avec chaque point représentant une observation individuelle. 
+
+```{r, message=FALSE}
+# 1ère méthode avec le travail employé en abscisse 
+point_female_work_hr <- female_work_hours |>
+  ggplot(aes(x = WORK_HF, y = WORK_FF)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  coord_cartesian(xlim = c(0, 500), ylim = c(0, 500)) +
+  labs(
+    title = "Relation champ par champ entre travail féminin employé et familial",
+    x = "Heures de travail employé",
+    y = "Heures de travail familial",
+    caption = "Chaque point représente un champ ; la courbe montre la tendance locale (loess) entre les deux types de travail"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+
+point_female_work_hr
+```
+
+```{r, message=FALSE}
+# 2ème méthode avec le travail total en abscisse 
+female_work_hours |>
+  ggplot(aes(x = WORK_F, y = WORK_FF)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  coord_cartesian(xlim = c(0, 200), ylim = c(0, 200)) +
+  labs(
+    title = "Relation champ par champ entre travail féminin total et familial",
+    x = "Heures de travail total",
+    y = "Heures de travail familial",
+    caption = "Chaque point représente un champ ; la courbe montre la tendance locale (loess) entre les deux types de travail"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+```
+
+```{r}
+ggsave("figures/Point_female_work_hr.png", 
+       plot = point_female_work_hr, 
+       width = 8, height = 6, dpi = 300,
+       create.dir = TRUE)
+```
+
+essayer de faire ce graph par caste : soit un graph par caste, soit tout dans le même
+
+
+
+Graphique par catégories agrégées du travail employé
+
+```{r}
+# Créer des catégories pour le travail des femmes employées
+female_work_hours <- female_work_hours |>
+  mutate(HF_cat = cut(WORK_HF,
+                      breaks = c(-1, 0, 10, 20, 50, 100, 200, 300, 400, 500, Inf),
+                      labels = c("0", "1-10", "11-20", "21-50", "51-100", "100", "200", "300", "400", "+500")))
+
+# Pour ce graphique, je calcule la somme des heures de travail familial pour chaque catgéorie des heures de travail employé. 
+resume_cat <- female_work_hours |>
+  group_by(HF_cat) |>
+  summarise(
+    MEAN_FF = mean(WORK_FF, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+On regarde comment le travail familial varie avec la quantité de travail employé par champ. 
+
+La moyenne des heures de travail familial est calculée pour chaque tranche d’heures de travail employé. La somme des heures de travail féminin correspond au résultat du fichier CultData3_analysis, une fois qu'on filtre pour le riz et Kahrif. 
+
+```{r}
+histogram_female_work_hr <- ggplot(resume_cat, aes(x = HF_cat, y = MEAN_FF)) +
+  geom_col(fill = "yellowgreen") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Travail féminin familial moyenne selon les niveaux de travail employé",
+    x = "Tranches d'heures de travail employé",
+    y = "Moyenne d'heures de travail familial",
+    caption = "La moyenne des heures de travail familial est calculée pour chaque tranche d’heures de travail employé."
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+
+histogram_female_work_hr
+```
+```{r}
+ggsave("figures/Histogram_female_work_hr.png", plot = histogram_female_work_hr, width = 8, height = 6, dpi = 300)
+```
+
+
+## Etude par caste
+
+### Nombre de ménages par caste
+
+```{r, message=FALSE, warning=FALSEd}
+nb_caste <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP)) |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    `Nombre de ménages` = n_distinct(VDS_ID),
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")),
+    .groups = "drop"
+  ) |>
+  arrange(desc(`Nombre de ménages`)) |>
+  gt() |>
+  tab_header(
+    title = "Nombre de ménages et de champs par caste"
+  ) |>
+  cols_label(
+    CASTE_GROUP = "Caste"
+  )
+
+nb_caste
+```
+
+
+### Cultures par caste
+
+#### En nombre de champs
+
+Je comptabilise le nombre de champs distincts pour les principales cultures selon la caste. 
+
+```{r}
+nb_champs_caste_crop <- Cultivation_expand |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN"),
+         !is.na(CASTE_GROUP)) |>
+  mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
+  distinct(CASTE_GROUP, CROP, CHAMP_ID) |>
+  count(CASTE_GROUP, CROP, name = "NB_CHAMPS") |>
+  pivot_wider(
+    names_from = CROP,
+    values_from = NB_CHAMPS,
+    values_fill = 0
+  ) |>
+  mutate(
+    TOTAL_CHAMPS = PADDY + WHEAT + MAIZE + COTTON + SOYBEAN
+  ) |>
+  arrange(desc(TOTAL_CHAMPS))
+
+nb_champs_caste_crop
+```
+
+```{r}
+nb_champs_caste_crop_pct <- nb_champs_caste_crop |>
+  mutate(
+    PADDY_PCT = round(100 * PADDY / TOTAL_CHAMPS, 0),
+    WHEAT_PCT = round(100 * WHEAT / TOTAL_CHAMPS, 0),
+    MAIZE_PCT = round(100 * MAIZE / TOTAL_CHAMPS, 0),
+    COTTON_PCT = round(100 * COTTON / TOTAL_CHAMPS, 0),
+    SOYBEAN_PCT = round(100 * SOYBEAN / TOTAL_CHAMPS, 0)
+  ) |>
+  select(CASTE_GROUP, PADDY_PCT, WHEAT_PCT, MAIZE_PCT, COTTON_PCT, SOYBEAN_PCT)
+
+nb_champs_caste_crop_pct
+```
+
+#### En temps de travail
+
+Sur quelles cultures chaque caste travaillent le plus ? 
+
+```{r}
+work_hr_caste_crop <- Cultivation_expand |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN"),
+         !is.na(CASTE_GROUP)) |>
+  group_by(CASTE_GROUP, CROP) |>
+  summarise(WORK_HR_CROP = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+  tidyr::pivot_wider(
+    names_from = CROP,
+    values_from = WORK_HR_CROP,
+    values_fill = 0
+  ) |>
+  mutate(TOTAL_WORK_HR = PADDY + WHEAT + MAIZE + COTTON + SOYBEAN) |>
+  mutate(
+    PADDY_PCT = round(100 * PADDY / TOTAL_WORK_HR, 0),
+    WHEAT_PCT = round(100 * WHEAT / TOTAL_WORK_HR, 0),
+    MAIZE_PCT = round(100 * MAIZE / TOTAL_WORK_HR, 0),
+    COTTON_PCT = round(100 * COTTON / TOTAL_WORK_HR, 0),
+    SOYBEAN_PCT = round(100 * SOYBEAN / TOTAL_WORK_HR, 0)
+  ) |>
+  select(CASTE_GROUP, PADDY_PCT, WHEAT_PCT, MAIZE_PCT, COTTON_PCT, SOYBEAN_PCT)
+
+work_hr_caste_crop
+```
+
+
+### Superficie des champs
+
+```{r, messag=FALSE, warning=FALSE}
+# Filtre pour le riz en Kharif
+area_by_caste <- Cultivation_expand |>
+  filter(CROP == "PADDY",
+         SEASON == "KHARIF",
+         !is.na(CASTE_GROUP), 
+         ) |>
+  mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
+  group_by(CASTE_GROUP, CHAMP_ID) |>
+  summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  summarise(MEAN_AREA = mean(AREA, na.rm = TRUE), .groups = "drop")
+
+area_by_caste |>
+  ggplot(aes(x = reorder(CASTE_GROUP, -MEAN_AREA), y = MEAN_AREA, fill = CASTE_GROUP)) +
+  geom_col(width = 0.6, alpha = 0.8) +
+  labs(
+    title = "Superficie moyenne des champs par caste",
+    x = "Caste",
+    y = "Superficie moyenne (en acres)",
+    fill = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12),
+    legend.position = "none"
+  )
+```
+
+
+### Travail féminin par champ, selon la caste
+
+On regarde la moyenne par champ des heures de travail faites par les femmes selon la caste (travail familial et employé).
+
+On se concentre sur la culture du riz en Kharif. 
+
+```{r}
+# 1. Somme des heures de travail par champ, caste et lab_type
+labor_caste <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP),
+         CROP == "PADDY", 
+         SEASON == "KHARIF",
+         LAB_TYPE %in% c("HF", "FF", "HM", "FM")) |>
+  group_by(VDS_ID, PLOT_CODE, CROP, SEASON, CASTE_GROUP, LAB_TYPE, AREA_CROP) |>
+  summarise(TOTAL_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = TOTAL_HOURS,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF,
+    WORK_M = HM + FM
+  )
+```
+
+#### Total des heures
+
+Moyenne des heures de travail selon la caste : 
+
+```{r}
+mean_hr_caste <- labor_caste |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_WORK_F = mean(WORK_F),
+    MEAN_HF = mean(HF),
+    MEAN_FF = mean(FF)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_WORK_F, MEAN_HF, MEAN_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+mean_hr_caste |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Temps de travail féminin moyen par caste",
+    x = "",
+    y = "Moyenne des heures de travail par champ",
+    fill = "Type de travail"
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_WORK_F" = "lightblue4",
+               "MEAN_HF" = "lightblue2", 
+               "MEAN_FF" = "violet"),
+        labels = c(
+      "MEAN_WORK_F" = "Travail total",
+      "MEAN_HF" = "Travail employé",
+      "MEAN_FF" = "Travail familial"
+    ),
+    name = "Travail féminin"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10)
+  )
+```
+#### Heures par acre
+
+Ensuite, on regarde la moyenne de heures de travail (féminin puis masculin) par acre (Hr/acre) selon la caste. 
+
+```{r}
+# Calculer le ratio Hr/acre selon le type de travail
+hr_acre_caste <- labor_caste |>
+  filter(AREA_CROP != 0) |>
+  mutate(
+    HR_ACRE_HF = HF/AREA_CROP,
+    HR_ACRE_FF = FF/AREA_CROP,
+    HR_ACRE_F = WORK_F/AREA_CROP,
+    HR_ACRE_FM = FM/AREA_CROP,
+    HR_ACRE_HM = HM/AREA_CROP,
+    HR_ACRE_M = WORK_M/AREA_CROP
+  )
+```
+
+##### Seulement les femmes
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+hr_acre_caste_F <- hr_acre_caste |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HF = mean(HR_ACRE_HF, na.rm = TRUE),
+    MEAN_HACRE_FF = mean(HR_ACRE_FF, na.rm = TRUE),
+    MEAN_HACRE_WORK_F = mean(HR_ACRE_F, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_F, MEAN_HACRE_HF, MEAN_HACRE_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+plot_hr_acre_caste_F <- hr_acre_caste_F |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Female labor time per acre, by employment and caste",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_F" = "lightblue4",
+               "MEAN_HACRE_HF" = "lightblue2", 
+               "MEAN_HACRE_FF" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_F" = "Total labor",
+      "MEAN_HACRE_HF" = "Hired labor",
+      "MEAN_HACRE_FF" = "Family labor"
+    ),
+    name = "Female labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10)
+  )
+
+plot_hr_acre_caste_F
+```
+
+```{r}
+ggsave("figures/Hr_acre_caste_F.png", plot = plot_hr_acre_caste_F, width = 8, height = 6, dpi = 300)
+```
+
+##### Seulement les hommes
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+hr_acre_caste_M <- hr_acre_caste |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_FM = mean(HR_ACRE_FM, na.rm = TRUE),
+    MEAN_HACRE_HM = mean(HR_ACRE_HM, na.rm = TRUE),
+    MEAN_HACRE_WORK_M = mean(HR_ACRE_M, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_M, MEAN_HACRE_HM, MEAN_HACRE_FM),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+plot_hr_acre_caste_M <- hr_acre_caste_M |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Male labor time per acre, by employment and caste",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_M" = "lightblue4",
+               "MEAN_HACRE_HM" = "lightblue2", 
+               "MEAN_HACRE_FM" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_M" = "Total labor",
+      "MEAN_HACRE_HM" = "Hired labor",
+      "MEAN_HACRE_FM" = "Family labor"
+    ),
+    name = "Male labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10)
+  )
+
+plot_hr_acre_caste_M
+```
+```{r}
+ggsave("figures/Hr_acre_caste_M.png", plot = plot_hr_acre_caste_M, width = 8, height = 6, dpi = 300)
+```
+
+
+#### Travail féminin familial selon la superficie
+
+```{r, message=FALSE}
+# Toutes les castes confondues ; seulement travail familial
+labor_caste |>
+  ggplot(aes(x = AREA_CROP, y = FF)) +
+  geom_point(alpha = 0.3, color = "limegreen") +
+  geom_smooth(method = "loess", se = FALSE, color = "deepskyblue3", linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 4), ylim = c(0, 200)) +
+  labs(
+    title = "Relation entre travail féminin familial et superficie (toutes castes)",
+    x = "Superficie (en acre)",
+    y = "Heures de travail féminin familial"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+    )
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Différencié par caste ; seulement travail familial
+plot_work_FF_area <- labor_caste |>
+  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "gam", formula = y ~ s(x), se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 200)) +
+  labs(
+    title = "Relationship between family female labor and plot size, by caste",
+    x = "Plot size (in acres)",
+    y = "Family female labor hours",
+    color = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+    )
+
+plot_work_FF_area 
+```
+```{r}
+ggsave("figures/Work_FF_superficie.png", plot = plot_work_FF_area, width = 8, height = 6, dpi = 300)
+```
+
+
+### Productivité selon la caste
+
+L'idée est de comprendre pourquoi la caste supérieure (FC) a un ratio Hr/acre total inférieur aux autres castes, que ce soit pour le travail des hommes et celui des femmes. 
+
+#### Production par acre
+
+On regarde la production de riz (en kg) par acre, en fonction de la caste. 
+
+
+
+#### Irrigation
+
+On regarde le pourcenatge de champs irrigués dans la culture du riz (en Kharif) selon la caste.
+
+```{r}
+# Variable IRRIGATION
+Cultivation_expand <- Cultivation_expand |>
+  mutate(PER_IRRI = round(100 * IRRI_CROP / AREA_CROP, 2)) |>
+  mutate(PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI))
+
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    IRRIGATION = case_when(
+      PER_IRRI>70 ~ "Irrigué",
+      PER_IRRI<20 ~ "Non irrigué",
+      TRUE ~ "Autre"
+    )
+  ) |>
+  select(-PER_IRRI)
+```
+
+```{r}
+Cultivation_expand |>
+  filter(!is.na(IRRIGATION),
+         !is.na(CASTE_GROUP),
+         CROP == "PADDY",
+         SEASON == "KHARIF") |>
+  group_by(CASTE_GROUP, IRRIGATION) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(CASTE_GROUP, IRRIGATION, proportion) |>
+  pivot_wider(
+    names_from = IRRIGATION,
+    values_from = proportion,
+    values_fill = 0
+  ) |>
+  arrange(desc(Irrigué))
+```
+
+#### Méchanisation
+
+On regarde la part de méchanisation dans la culture du riz (en Kharif) selon la caste.
+
+```{r}
+Cultivation_expand |>
+  filter(!is.na(MACHINERY),
+         !is.na(CASTE_GROUP),
+         CROP == "PADDY",
+         SEASON == "KHARIF") |>
+  group_by(CASTE_GROUP, MACHINERY) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(CASTE_GROUP, MACHINERY, proportion) |>
+  pivot_wider(
+    names_from = MACHINERY,
+    values_from = proportion,
+    values_fill = 0
+  ) |>
+  arrange(desc(Mécanisé))
+```
+
+#### HYV
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    VAR_TYPE = recode(VAR_TYPE,
+                      `1` = "Local",
+                      `2` = "High-yielding variety",
+                      `3` = "Hybrid",
+                      `4` = "BT",
+                      `5` = "Others")
+  )
+```
+
+```{r}
+Cultivation_expand |>
+  filter(!is.na(VAR_TYPE),
+         !is.na(CASTE_GROUP),
+         CROP == "PADDY",
+         SEASON == "KHARIF") |>
+  group_by(CASTE_GROUP, VAR_TYPE) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(CASTE_GROUP, VAR_TYPE, proportion) |>
+  pivot_wider(
+    names_from = VAR_TYPE,
+    values_from = proportion,
+    values_fill = 0
+  ) |>
+  arrange(desc(`High-yielding variety`))
+```
+
+## Enregistrer Cultivation_expand dans le document partagé
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_expand"
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer le fichier CSV
+write.csv(
+  Cultivation_expand,
+  file = file.path(folder_path, "Cultivation_expand.csv"),
+  row.names = FALSE
+)
+
+# Enregistrer le fichier RDS
+saveRDS(
+  Cultivation_expand,
+  file = file.path(folder_path, "Cultivation_expand.rds"),
+)
+```
+
+A faire : 
+
+comprendre pourquoi FC a moins d'Hr/acre pour le travail des femmes
+explications potentielles : regarder productivité par acre en regardant la production de riz
+
+

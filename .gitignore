@@ -1,0 +1,21 @@
+# Fichiers R à ignorer
+.Rhistory
+*-*.Rhistory
+.RData
+.Rproj.user
+.Ruserdata
+
+# Données
+raw_data/
+*.csv
+*.xlsx
+
+# renv (ne pas versionner la bibliothèque locale)
+renv/library/
+
+# Figures reproductibles ggplot
+figures/
+
+# Fichiers système
+.DS_Store
+Thumbs.db

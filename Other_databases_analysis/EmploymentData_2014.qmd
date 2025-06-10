@@ -1,0 +1,704 @@
+---
+title: "Analyse de la base Employment (VLS_K) pour l'année 2014"
+format: html
+editor: source
+---
+
+```{r}
+#| message: false
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r}
+#| message: false
+here::i_am("Other_databases_analysis/EmploymentData_2014.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(stringr)
+library(stringdist)
+library(ggplot2)
+library(gt)
+```
+
+On vérifie si tous les ménages ont été interviewés chaque mois dans la base Employment_2014 qui est censée être mensuelle (comme Cultivation_2014)
+
+## Importer les données
+
+```{r, message=FALSE, warning=FALSE}
+EAST_Employment_2014 <- read_excel(here::here("raw_data", "EAST_Employment_2014.xlsx"))
+SAT_Employment_2014 <- read_excel(here::here("raw_data", "SAT_Employment_2014.xlsx"))
+```
+
+```{r Harmoniser les types de chaque colonne}
+common_cols_employment <- intersect(names(EAST_Employment_2014), names(SAT_Employment_2014))
+for (col in common_cols_employment) {
+    EAST_Employment_2014[[col]] <- as.character(EAST_Employment_2014[[col]])
+    SAT_Employment_2014[[col]] <- as.character(SAT_Employment_2014[[col]])
+}
+```
+
+```{r}
+Employment_2014 <- bind_rows(EAST_Employment_2014, SAT_Employment_2014)
+```
+
+
+## Vérifications 
+### Compter le nombre d'enquêtes par ménage
+
+Pour cela, j'utilise la variable SUR_MON_YR, en regroupant par ménage (donc j'enlève les doublons dûs au nombre de personnes dans chaque ménage)
+
+```{r}
+survey_per_hh <- Employment_2014 |>
+  distinct(VDS_ID, SUR_MON_YR) |>
+  group_by(VDS_ID) |>
+  summarise(n_surveys = n(), .groups = "drop")
+```
+
+```{r}
+n_12 <- nrow(survey_per_hh |> filter(n_surveys == 12))
+n_moins <- nrow(survey_per_hh |> filter(n_surveys < 12))
+n_plus <- nrow(survey_per_hh |> filter(n_surveys > 12))
+
+cat(" - Ménages ayant eu 12 enquêtes :", n_12, "soit", round(100 * n_12 / nrow(survey_per_hh), 1), "% de tous les ménages \n")
+cat(" - Plus 12 enquêtes :", n_plus, "soit", round(100 * n_plus / nrow(survey_per_hh), 1), "% de tous les ménages \n")
+cat(" - Moins 12 enquêtes :", n_moins, "soit", round(100 * n_moins / nrow(survey_per_hh), 1), "% de tous les ménages \n")
+```
+
+```{r}
+survey_per_hh |>
+  count(n_surveys, name = "n_households")
+```
+
+La majorité des ménages ont fait 12 enquêtes (ou plus, mais certainement des fautes de frappe). Donc on peut dire que Employment_2014 est complété par mois, donc Cultivation_2014 doit l'être aussi. 
+
+## Ajouts de variables
+
+Je regarde la répartition du travail agricole et non-agricole selon le genre. Il faut ajouter la variable GENRE à la table Employment depuis les bases Household_details. 
+
+### Importer la base Household_info
+
+J'importe les tables Household_details des deux régions (EAST et SAT) pour l'année 2014. 
+
+```{r, message=FALSE, warning=FALSE}
+EAST_Household_details <- read_excel("raw_data/EAST INDIA_Household details_2014.xlsx")
+SAT_Household_details <- read_excel("raw_data/SAT INDIA_Household details_2014.xlsx")
+```
+
+```{r}
+# Sélectionner les identifidants (VDS_ID, PRE_MEM_ID) + variables d'intérêt dans chaque table 
+EAST_Household_details <- EAST_Household_details |>
+  select(VDS_ID, PRE_MEM_ID, GENDER, AGE, REL, REL_OT, CH_STAT, MARI_STAT)
+
+SAT_Household_details <- SAT_Household_details |>
+  select(VDS_ID, PRE_MEM_ID, GENDER, AGE, REL, REL_OT, CH_STAT, MARI_STAT)
+
+# Harmoniser les types de chaque colonne
+common_cols_household <- intersect(names(EAST_Household_details), names(SAT_Household_details))
+for (col in common_cols_household) {
+    EAST_Household_details[[col]] <- as.character(EAST_Household_details[[col]])
+    SAT_Household_details[[col]] <- as.character(SAT_Household_details[[col]])
+}
+
+# Joindre les deux régions
+Household_details <- bind_rows(EAST_Household_details, SAT_Household_details)
+```
+
+#### Vérifier la correspondance de VDS_ID + PRE_MEM_ID
+
+Je vérifie la correspondance des individus entre Employment et Household_details. 
+
+```{r Correspondance Employment -> Household_details}
+household_keys <- Household_details |>
+  select(VDS_ID, PRE_MEM_ID) |>
+  distinct()
+
+employment_keys <- Employment_2014 |>
+  select(VDS_ID, PRE_MEM_ID) |>
+  distinct()
+
+# Identifier les individus de Employment non trouvés dans Household_details
+non_match <- anti_join(employment_keys, household_keys, by = c("VDS_ID", "PRE_MEM_ID"))
+
+n_non_matched <- nrow(non_match)
+n_hh <- nrow(employment_keys)
+prop_non_matched <- round(n_non_matched / n_hh * 100, 2)
+
+cat(" - Individus distincts dans Employment :", n_hh, "\n")
+cat(" - Individus sans équivalent dans Household_details :", n_non_matched, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+```
+Tous les villages sont présents dans les deux tables, donc cela n'explique pas les individus manquants. 
+
+
+#### Ajouter les variables dans Employment
+
+```{r, warning=FALSE}
+Employment_2014 <- Employment_2014 |>
+  left_join(Household_details, by = c("VDS_ID", "PRE_MEM_ID")) |>
+  mutate(
+    WORK_TYPE = recode(WORK_TYPE, `1` = "Farm work", `2` = "Non-farm work")
+  )
+```
+
+Je regarde le nombre de n/a pour le genre dans Employment.  
+
+```{r}
+Employment_2014 |>
+  summarise(
+    na_gender = sum(is.na(GENDER)),
+    total = n(),
+    pct_na = round(100 * na_gender / total, 2)
+  )
+```
+
+### Ajouter la caste depuis la base Household_info
+
+J'importe la base Household_info pour récupérer la caste de chaque ménage et l'ajouter à Employment_2014. 
+
+#### Importer Household_info
+
+```{r, message=FALSE, warning=FALSE}
+EAST_Household_info <- read_excel("raw_data/EAST_Household_info_2014.xlsx")
+SAT_Household_info <- read_excel("raw_data/SAT_Household_info_2014.xlsx")
+```
+
+```{r}
+# Sélectionner les variables VDS_ID et CASTE pour chaque table 
+EAST_Household_info <- EAST_Household_info |>
+  select(VDS_ID, CASTE, CASTE_GROUP)
+
+SAT_Household_info <- SAT_Household_info |>
+  select(VDS_ID, CASTE, CASTE_CATEGORY) |>
+  rename(CASTE_GROUP = CASTE_CATEGORY)
+
+# Joindre les deux régions
+Household_info <- bind_rows(EAST_Household_info, SAT_Household_info)
+```
+
+```{r}
+Household_info <- Household_info |>
+  mutate(VDS_ID = ifelse(substr(VDS_ID, 5, 5) != "4",
+                         paste0(substr(VDS_ID, 1, 4), "4", substr(VDS_ID, 6, nchar(VDS_ID))),
+                         VDS_ID))
+```
+
+#### Ajouter la caste
+
+```{r}
+Employment_2014 <- Employment_2014 |>
+  left_join(Household_info |> distinct(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
+  mutate(
+    CASTE_GROUP = recode(CASTE_GROUP, 
+                         `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER"),
+    )
+```
+
+Je regarde le nombre de n/a pour la caste dans Cultivation.  
+
+```{r}
+Employment_2014 |>
+  summarise(
+    na_caste = sum(is.na(CASTE_GROUP)),
+    total = n(),
+    pct_na = round(100 * na_caste / total, 2)
+  )
+```
+
+### Conserver uniquement les personnes présentes dans le ménage
+
+On conserve seulement les personnes toujours présentes dans le ménage, en filtrant avec la variable CH_STAT (change in status). 
+
+J'exclue quand CH_STAT : 
+- 0 : Present in HH
+- 5 : Joined the HH due to birth
+- 6 : Joined the HH due to marriage
+- 7 : Rejoined the family
+- 8 : Joined the HH due to other reason
+
+```{r}
+Employment_2014 <- Employment_2014 |>
+  filter(CH_STAT %in% c("0", "5", "6", "7", "8"))
+```
+
+
+## Identifier les relations dans le ménage
+
+```{r}
+cat("Nombre de personnes sans REL indiqué :", nrow(Employment_2014 |> filter(is.na(REL)) |> distinct(VDS_ID, PRE_MEM_ID)), "\n")
+```
+
+On identifie la relation de chaque membre du ménage au chef de famille et selon le genre, à partir de la variable REL : 
+- 1 : Head/Self
+- 2 : Father
+- 3 : Mother
+- 4 : Spouse
+- 5 : Son
+- 6 : Daughter
+- 7 : Son-in-law
+- 8 : Daughter-in-law
+- 9 : Grand son
+- 10 : Grand daughter
+- 11 : Brother
+- 12 : Sister
+- 13 : Brother's wife
+- 14 : Brother's children 
+- 15 : Others
+
+Il faut uniformiser les schémas familiaux entre chaque ménage, car celui qui est considéré comme le chef de famille est le père, parfois le fils. On veut harmoniser pour toujours considérer le père (code 2) comme le chef de famille (code 1). 
+
+D'abord, je compte le nombre de personnes distinctes par relation, notamment pour regarder le nombre de cas où le head n'ets pas le père. 
+
+```{r}
+Employment_2014 |>
+  mutate(PERSON_ID = paste(VDS_ID, PRE_MEM_ID, sep = "_")) |>
+  distinct(PERSON_ID, REL) |>
+  count(REL, name = "NB_PERSONNES")
+```
+
+Il y a 59 personnes qui sont pères de famille mais ne sont pas head. 
+
+```{r}
+Employment_2014 |>
+  select(VDS_ID, PRE_MEM_ID, REL) |>
+  group_by(VDS_ID, PRE_MEM_ID) |>
+  filter(n_distinct(REL) > 1) |>
+  arrange(VDS_ID, PRE_MEM_ID)
+```
+
+Il y a 9 individus (donc possiblement 18 personnes différentes) pour lesquels PRE_MEM_ID et REL diffèrent. La variable REL semble plus précise, donc je vais plutôt cette variable. 
+
+```{r}
+test_hh <- Employment_2014 |>
+  mutate(PERSON_ID = paste(VDS_ID, PRE_MEM_ID, sep = "_")) |>
+  distinct(VDS_ID, PERSON_ID, REL)
+```
+
+### Modifier les relations : variable REL
+
+D'abord, je modifie la variable REL_OT qui indique le lien de la personne quand la relation est autre que les principales indiquées (REL = 15). 
+
+Je crée d'autres codes de REL en plus de ceux indiqués dans le questionnaire :
+- 16 pour Grand grand-son
+- 17 pour Grand grand-daughter
+- 18 pour Grand son-in-law
+- 19 pour Grand daughter-in-law 
+- 20 pour Grand grand-daughter-in-law (équivalent à Grand son's wife)
+- 21 pour Grand mother
+
+```{r}
+# Modifier les codes et créer 20 et 22
+Employment_2014 <- Employment_2014 |>
+  mutate(
+    REL = as.integer(REL),
+    REL = case_when(
+      REL == 15 & str_detect(REL_OT, regex("ADOPTED SON|SISTER'S SON", ignore_case = TRUE)) ~ 5L,
+      REL == 15 & str_detect(REL_OT, regex("DAUGHTER", ignore_case = TRUE)) ~ 6L,
+      REL == 15 & str_detect(REL_OT, regex("GRAND DAUG", ignore_case = TRUE)) ~ 19L,
+      REL == 15 & str_detect(REL_OT, regex("GRAND SON|GRANDSON", ignore_case = TRUE)) ~ 20L,
+      REL == 15 & str_detect(REL_OT, regex("GRAND MOTHER", ignore_case = TRUE)) ~ 21L,
+      TRUE ~ REL
+    )
+  )
+```
+
+Pour les ménages où le chef de famille n'est pas le père mais le fils (donc qu'il y a un code 2 "Father"), je modifie les codes de REL tel que :
+- Father (2) devient Head (1)
+- Mother (3) = Spouse (4)
+- Head (1) = Son (5)
+- Spouse (4) = Daughter-in-law (8)
+- Son (5) = Grand-son (9)
+- Daughter (6) = Grand-daughter (10)
+- Brother (11) = Son (5)
+- Sister (12) = Daughter (6)
+- Brother's wife (13) = Daughter-in-law (8)
+- Brother's children (14) = Grand-children (23)
+- Son-in-law (7) = Grand son-in-law (18)
+- Daughter-in-law (8) = Grand daughter-in-law (19)
+- Grand son (9) = Grand grand-son (16)
+- Grand daughter (10) = Grand grand-daughter (17)
+- Grand daughter-in-law (19) = Grand grand-daughter-in-law (20)
+
+Pour les autres ménages, les codes restent inchangés. 
+
+```{r}
+menages_chef_fils <- Employment_2014 |>
+  group_by(VDS_ID) |>
+  summarise(
+    has_father = any(REL == 2),
+    head_is_son = any(REL == 1 & GENDER == "M" & any(REL == 5))
+  ) |>
+  filter(has_father) |>
+  pull(VDS_ID)
+
+# 2. Appliquer le recodage
+Employment_2014 <- Employment_2014 |>
+  mutate(
+    REL = case_when(
+      VDS_ID %in% menages_chef_fils & REL == 2 ~ 1L,   # Father -> Head
+      VDS_ID %in% menages_chef_fils & REL == 3 ~ 4L,   # Mother -> Spouse
+      VDS_ID %in% menages_chef_fils & REL == 1 ~ 5L,   # Head -> Son
+      VDS_ID %in% menages_chef_fils & REL == 4 ~ 8L,   # Spouse -> Daughter-in-law
+      VDS_ID %in% menages_chef_fils & REL == 5 ~ 9L,   # Son -> Grand-son
+      VDS_ID %in% menages_chef_fils & REL == 6 ~ 10L,  # Daughter -> Grand-daughter
+      VDS_ID %in% menages_chef_fils & REL == 11 ~ 5L,  # Brother -> Son
+      VDS_ID %in% menages_chef_fils & REL == 12 ~ 6L,  # Sister -> Daughter
+      VDS_ID %in% menages_chef_fils & REL == 13 ~ 8L,  # Brother's wife -> Daughter-in-law
+      VDS_ID %in% menages_chef_fils & REL == 14 ~ 23L, # Brother's children -> Grand-children
+      VDS_ID %in% menages_chef_fils & REL == 7 ~ 18L,  # Son-in-law -> Grand son-in-law
+      VDS_ID %in% menages_chef_fils & REL == 8 ~ 19L,  # Daughter-in-law -> Grand daughter-in-law
+      VDS_ID %in% menages_chef_fils & REL == 9 ~ 16L,  # Grand son -> Grand grand-son
+      VDS_ID %in% menages_chef_fils & REL == 10 ~ 17L, # Grand daughter -> Grand grand-daughter
+      VDS_ID %in% menages_chef_fils & REL == 19 ~ 20L, # Grand daughter-in-law -> Grand grand-daughter-in-law
+      TRUE ~ REL                                       # Autres cas : inchangé
+    )
+  )
+```
+
+
+## Analyse
+### Nombre d'étudiants par genre
+
+```{r}
+# Créer la variable STUDENT à partir de REMARKS
+Employment_2014 <- Employment_2014 |>
+  mutate(
+    STUDENT = if_else(
+      is.na(REMARKS),
+      FALSE,
+      str_detect(
+        str_to_upper(REMARKS),
+      "STUD|CLASS|EDUCATION|STUEENT"
+    )
+  )
+)
+```
+
+```{r}
+Employment_2014 |>
+  filter(!is.na(GENDER)) |>
+  ggplot(aes(x = STUDENT, fill = GENDER)) +
+  geom_bar(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    stat = "count",
+    aes(label = after_stat(count), y = after_stat(count)),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 3
+    ) +
+  labs(
+    title = "Nombre d'étudiants par genre",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+### Farm / Non-farm work par genre
+#### Total d'heures
+
+On regarde quelle est la répartition du travail agricole et non-agricole par genre. L'idée est de voir si les hommes sont plus présents dans le travail non-agricole, pour expliquer la forte présence des femmes dans le travail agricole employé. 
+
+Je regarde le travail de tous les individus entre 18 et 60 ans. 
+
+```{r}
+labor_table <- Employment_2014 |>
+  filter(AGE >= 18 & AGE <= 60) |>
+  filter(!(is.na(GENDER))) |>
+  mutate(
+    WORK_DAYS = as.numeric(WORK_DAYS),
+    AVG_WORK_HRS = as.numeric(AVG_WORK_HRS),
+    WORK_DAYS = replace_na(WORK_DAYS, 0),
+    AVG_WORK_HRS = replace_na(AVG_WORK_HRS, 0),
+    HOURS = WORK_DAYS * AVG_WORK_HRS
+  )
+```
+
+
+```{r}
+labor_table |>
+  distinct(VDS_ID, PRE_MEM_ID, WORK_TYPE, GENDER, AGE, DT_INT) |>
+  ggplot(aes(x = WORK_TYPE, fill = GENDER)) +
+  geom_bar(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  labs(
+    title = "Nombre de travaux déclarés par type de travail et genre",
+    x = "Type de travail",
+    y = "",
+    fill = "Genre"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+Je regarde maintenant le total d'heures réalisées pour le travail agricole et non-agricole par genre. 
+
+```{r}
+gender_hours <- labor_table |>
+  distinct(VDS_ID, PRE_MEM_ID, WORK_TYPE, GENDER, AGE, HOURS, DT_INT) |>
+  group_by(WORK_TYPE, GENDER) |>
+  summarise(TOTAL_HR = sum(HOURS), .groups = "drop")
+
+gender_hours |>
+  filter(!is.na(WORK_TYPE)) |>
+  ggplot(aes(x = WORK_TYPE, y = TOTAL_HR, fill = GENDER)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  labs(
+    title = "Total d'heures travaillées par genre et type de travail",
+    x = "Type de travail",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+#### Heures par individu
+
+On regarde le total d'heures réalisées par individu (peu importe le type de travail). Pour les individus n'ayant travaillé aucune heure en 2014, j'indique 0. 
+
+```{r}
+ind_hours <- labor_table |>
+  group_by(VDS_ID, PRE_MEM_ID, GENDER) |>
+  summarise(SUM_HOURS = sum(HOURS), .groups = "drop") |>
+  group_by(GENDER) |>
+  mutate(MEAN_HOURS = mean(SUM_HOURS), .groups = "drop")
+```
+
+Je calcule maintenant la moyenne des heures réalisées par individu, selon le genre. 
+
+```{r}
+mean_hours_table <- ind_hours |>
+  group_by(GENDER) |>
+  summarise(
+    `Moyenne d'heures travaillées sur l'année` = round(mean(SUM_HOURS, na.rm = TRUE), 0),
+    .groups = "drop"
+  ) |>
+  rename(Genre = GENDER)
+
+mean_hours_table
+```
+
+
+```{r}
+ind_hours |>
+  ggplot(aes(x = GENDER, y = SUM_HOURS, fill = GENDER)) +
+  geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  coord_flip() +
+  labs(
+    title = "Total d'heures travaillées par individu, selon le genre",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+```{r}
+ind_summary <- ind_hours |> 
+  distinct(VDS_ID, PRE_MEM_ID, GENDER, SUM_HOURS) |>
+  group_by(GENDER) |>
+  summarise(
+    total = n(),
+    zero_hours = sum(SUM_HOURS == 0),
+    percent_zero = round(100 * zero_hours / total, 1),
+    .groups = "drop"
+  ) |>
+  rename(
+    Genre = GENDER,
+    `Nombre total` = total,
+    `Ne travaille pas` = zero_hours,
+    `% ne travaillant pas` = percent_zero
+  )
+
+ind_summary
+```
+
+### Travail selon la relation
+
+On regarde comment varie le travail agricole des femmes selon leur relation avec le chef de famille. Je refait le graphique sur le total d'heures travaillée par individu en 2014, en filtrant seulement pour le travail agricole et en différenciant les individus selon leur relation. 
+
+```{r}
+ind_hours_rel <- labor_table |>
+  filter(REL %in% c("3", "4", "6", "8", "10", "12", "13")) |>
+  group_by(VDS_ID, PRE_MEM_ID, REL) |>
+  summarise(SUM_HOURS = sum(if_else(WORK_TYPE == "Farm work", HOURS, 0), na.rm = TRUE), 
+                            .groups = "drop")             ## Seulement travail agricole
+```
+
+```{r}
+ind_hours_rel <- ind_hours_rel |>
+  mutate(
+    REL = recode(REL,
+                      `3` = "Mother",
+                      `4` = "Spouse",
+                      `6` = "Daughter",
+                      `8` = "Daughter-in-law",
+                      `10` = "Grand daughter",
+                      `12` = "Sister",
+                      `13` = "Sister-in-law"
+                 )
+  )
+```
+
+```{r, message=FALSE, warning=FALSE}
+ind_hours_rel |>
+  ggplot(aes(x = reorder(REL, SUM_HOURS), y = SUM_HOURS, fill = REL)) +
+  geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  coord_flip() +
+  labs(
+    title = "Total d'heures de travail agricole des femmes, selon leur status familial",
+    x = "",
+    y = "",
+    fill = "Relation au chef de famille"
+  ) +
+  ylim(0, 2000) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+Je regarde le pourcentage de femmes ne travaillant pas, selon leur status familial.
+
+```{r}
+ind_summary_rel <- ind_hours_rel |> 
+  distinct(VDS_ID, PRE_MEM_ID, REL, SUM_HOURS) |>
+  group_by(REL) |>
+  summarise(
+    total = n(),
+    zero_hours = sum(SUM_HOURS == 0),
+    percent_zero = round(100 * zero_hours / total, 1),
+    .groups = "drop"
+  ) |>
+  rename(
+    `Status familial` = REL,
+    `Nombre total` = total,
+    `Sans travail agricole` = zero_hours,
+    `% sans travail agricole` = percent_zero
+  ) |>
+  arrange(desc(`% sans travail agricole`))
+
+ind_summary_rel
+```
+### Caste + relation 
+
+```{r, message=FALSE, warning=FALSEd}
+nb_caste <- Employment_2014 |>
+  filter(!is.na(CASTE_GROUP)) |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    `Nombre de ménages` = n_distinct(VDS_ID),
+    .groups = "drop"
+  ) |>
+  arrange(desc(`Nombre de ménages`)) |>
+  gt() |>
+  tab_header(
+    title = "Nombre de ménages par caste"
+  ) |>
+  cols_label(
+    CASTE_GROUP = "Caste"
+  )
+
+nb_caste
+```
+
+Je regarde pour les épouses spécifiquement, dans quelle proportion font-elles du travail agricole, en fonction de leur caste. 
+
+```{r}
+ind_hours_caste <- labor_table |>
+  filter(REL == "4", !is.na(CASTE_GROUP)) |>
+  mutate(REL = recode(REL, `4` = "Spouse")) |>
+  group_by(VDS_ID, PRE_MEM_ID, CASTE_GROUP) |>
+  summarise(SUM_HOURS = sum(if_else(WORK_TYPE == "Farm work", HOURS, 0), na.rm = TRUE), 
+                            .groups = "drop")            ## Seulement travail agricole
+  
+```
+
+```{r}
+ind_hours_caste |>
+  ggplot(aes(x = reorder(CASTE_GROUP, SUM_HOURS), y = SUM_HOURS, fill = CASTE_GROUP)) +
+  geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  coord_flip() +
+  labs(
+    title = "Total d'heures de travail agricole des épouses, selon leur caste",
+    x = "",
+    y = "",
+    fill = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+
+
+## Enregistrer Employment_2014 dans le document partagé
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Employment_2014"
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer le fichier CSV
+write.csv(
+  Employment_2014,
+  file = file.path(folder_path, "Employment_2014.csv"),
+  row.names = FALSE
+)
+
+# Enregistrer le fichier RDS
+saveRDS(
+  Employment_2014,
+  file = file.path(folder_path, "Employment_2014.rds"),
+)
+```
+
+
+Employment: 
+
+2. Faire des stats des sur les heures de travail des femmes dans la ferme familiale selon leur relation avec le chef de famille (mère, belle-fille, fille non mariée). 
+--> Faire des graphs, du temps de travail (en filtrant pour la relation) total, par opération, par culture. 
+
+Puis regarder la différence de travail des femmes (selon leur relation) par caste
+
+3. Regarder selon l'âge et le genre dde chaque personne dans le ménage, sa probabilité à travailler à la ferme familial (heures de travail agricole différent de 0). il faut donc conserver la variable age associée à chaque personne. 
+
+
+
+
+
+
+
+
+

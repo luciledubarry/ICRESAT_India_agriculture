@@ -1,0 +1,768 @@
+---
+title: "District level database"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("Other_databases_analysis/District_level_database_Analysis.qmd")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(readxl)
+library(tibble)
+library(tidyverse)
+```
+
+# Analyse de la base de données ICRISAT District Level
+
+J'utilise les données 'apportioned' disponibles de 1966 à 2017. 
+
+L'idée est de regarder l'évolution de certaines pratiques (utilisation des variétés à hauts rendements, culture du soja, utilisation des puits tubulaires/tubewell).
+
+## HYV expansion 
+
+Données disponible dans Crops -> High yielding varieties
+
+District-wise yearly area, yield and production. 
+
+This file group has two files: 
+- 1. Area, production and yield : includes data on 20 major crops that include cereals, pulses, oilseeds, cotton, sugarcane, total fruits and vegetables.
+- 2. High yielding varieties : data on area under HYVs for 5 major cereal crops. The data on HYVs has a number of gaps in recent years implying that the area is completely under HYVs and hence no longer reported / some states do not publish this data.
+
+The data are for the annual area and production under the crops. The percent area under each crop is calculated by dividing crop area by Gross Cropped Area (GCA variable generated using a defined methodology).
+
+For season wise crop area and production data refer to season wise area and production of crops under additional data); for breakup of fruits and vegetables data by type also see files aon area and vegetables under additional data.
+
+```{r, message=FALSE}
+HYV_database <- read_csv(here::here("raw_data", "ICRISAT District Level Database", "High_Yielding_Varieties_apportioned.csv"))
+Area_production_database <- read.csv(here::here("raw_data", "ICRISAT District Level Database", "Area_production_yield_apportioned.csv"))
+```
+
+La variable AREA de HYV est le total de hectares utilisant des HYV, donc une sous-partie (parfois l'ensemble) des hectares cultivés par culture. Je dois extraire les 2 tables HYV et Area production pour calculer le pourcentage d'HYV par culture. 
+
+
+```{r Area production database}
+# Je conserve seulement les variables concernant la superficie (AREA) et les 6 cultures présentes dans HYV. 
+Area_production_database <- Area_production_database |>
+  select(
+    1:5,
+    contains("AREA")
+  ) |>
+  select(
+    1:5,
+    matches("MAIZE|SORGHUM|PEARL.MILLET|FINGER.MILLET|RICE|WHEAT"),
+    -RABI.SORGHUM.AREA..1000.ha., -KHARIF.SORGHUM.AREA..1000.ha.
+)
+```
+
+Il me semble qu'il est indiqué -1 quand l'information est manquante. Je remplace donc tous les -1 par n/a. 
+
+```{r}
+Area_production_database <- Area_production_database |>
+  mutate(across(everything(), ~ ifelse(.x == -1, NA, .x)))
+
+HYV_database <- HYV_database |>
+  mutate(across(everything(), ~ ifelse(.x == -1, NA, .x)))
+```
+
+
+### HYV par area (valeur absolue)
+
+Pour HYV database : 
+
+Je calcule la somme des hectares avec HYV par an (toutes cultures confondues).
+
+```{r}
+# Au niveau du state
+HYV_database <- HYV_database |>
+  group_by(Year, `State Code`, `State Name`) |>
+  mutate(HYV_STATE = sum(`TOTAL AREA (1000 ha)`, na.rm = TRUE), .groups = "drop")
+
+# Au niveau du pays
+HYV_database <- HYV_database |>
+  group_by(Year) |>
+  mutate(HYV_NAT = sum(`TOTAL AREA (1000 ha)`, na.rm = TRUE), .groups = "drop")
+```
+
+#### Au niveau du pays
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(HYV_database, aes(x = Year, y = HYV_NAT)) +
+  geom_line(color = "indianred3", size = 1) +
+  geom_point(color = "indianred4", size = 2) +
+  labs(
+    title = "Évolution de la superficie cultivée en HYV (toutes cultures, niveau national)",
+    x = "",
+    y = "Superficie des HYV (1000 ha)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11)
+  )
+```
+
+Il est précisé que les années les plus récentes sont moins remplies, ce qui peut expiquer la baisse observée, notamment après 2007. 
+
+#### Par Etats
+
+Pour éviter cela, je me concentre sur les Etats qui ont des données pour les dernières années.
+
+```{r}
+HYV_database |>
+  filter(!is.na(HYV_STATE)) |>
+  group_by(`State Code`) |>
+  summarise(n_year = n_distinct(Year)) |>
+  arrange(desc(n_year))
+```
+
+Sachant qu'il y a 51 années entre 1966 et 2017. 
+
+```{r, message=FALSE, warning=FALSE}
+HYV_database |>
+  filter(`State Code` %in% c("4", "8", "9", "10", "11", "5")) |>
+  ggplot(aes(x = Year, y = HYV_STATE, color = as.factor(`State Name`))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Évolution de la superficie cultivée en HYV (toutes cultures)",
+    x = "",
+    y = "Superficie des HYV (1000 ha)",
+    color = "États"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+J'ajoute la production totale par culture et par année indiquée dans Area.production dans HYV database. 
+
+```{r}
+# Harmoniser les noms de variables entre les 2 bases
+HYV_database <- HYV_database |>
+  rename(
+    State.Code = `State Code`,
+    Dist.Code = `Dist Code`,
+    State.Name = `State Name`,
+    Dist.Name = `Dist Name`,
+    RICE.HYV.AREA = `RICE AREA (1000 ha)`,
+    WHEAT.HYV.AREA = `WHEAT AREA (1000 ha)`,
+    MAIZE.HYV.AREA = `MAIZE AREA (1000 ha)`,
+    SORGHUM.HYV.AREA = `SORGHUM AREA (1000 ha)`,
+    FINGER.MILLET.HYV.AREA = `FINGER MILLET AREA (1000 ha)`,
+    PEARL.MILLET.HYV.AREA = `PEARL MILLET AREA (1000 ha)`,
+    HYV_DIST = `TOTAL AREA (1000 ha)`
+  )
+
+Area_production_database <- Area_production_database |>
+  rename(
+    RICE.ALL.AREA = RICE.AREA..1000.ha.,
+    MAIZE.ALL.AREA = MAIZE.AREA..1000.ha.,
+    WHEAT.ALL.AREA = WHEAT.AREA..1000.ha.,
+    SORGHUM.ALL.AREA = SORGHUM.AREA..1000.ha.,
+    FINGER.MILLET.ALL.AREA = FINGER.MILLET.AREA..1000.ha.,
+    PEARL.MILLET.ALL.AREA = PEARL.MILLET.AREA..1000.ha.
+  ) 
+```
+
+```{r}
+# Joindre les deux bases
+HYV_total <- HYV_database |>
+  left_join(
+    Area_production_database,
+    by = c("State.Name", "Dist.Name", "Year", "Dist.Code", "State.Code")
+  )
+```
+
+```{r}
+# Calculer le total des hectares cultivés au niveau du district
+HYV_total <- HYV_total |>
+  mutate(
+    ALL_DIST = rowSums(across(c(
+    RICE.ALL.AREA, MAIZE.ALL.AREA, WHEAT.ALL.AREA, SORGHUM.ALL.AREA,
+    FINGER.MILLET.ALL.AREA, PEARL.MILLET.ALL.AREA)), na.rm = TRUE),
+  ) |>
+
+# Au niveau de l'Etat
+  group_by(Year, State.Code, State.Name) |>
+  mutate(ALL_STATE = sum(ALL_DIST, na.rm = TRUE), .groups = "drop") |>
+  
+# Au niveau du pays
+  group_by(Year) |>
+  mutate(ALL_NAT = sum(ALL_DIST, na.rm = TRUE), .groups = "drop")
+```
+
+Je compare la superficie (en valeur absolue) entre HYV et le total pour certains Etats.
+
+```{r}
+# Pivoter en format long les variables de superficie par Etat
+HYV_state <- HYV_total |>
+  select(Year, State.Code, State.Name, HYV_STATE, ALL_STATE) |>
+  pivot_longer(
+    cols = c(HYV_STATE, ALL_STATE),
+    names_to = "Type",
+    values_to = "Area"
+  )
+```
+
+```{r Comparaison des superficies entre HYV et total (valeurs absolues)}
+HYV_state |>
+  filter(State.Code == "5") |>
+  ggplot(aes(x = Year, y = Area, color = Type)) +
+  geom_line(size = 1) +
+  geom_point() +
+  labs(
+    title = "Évolution de la superficie cultivée (HYV vs total)",
+    x = "",
+    y = "Superficie (1000 ha)",
+    color = "Type"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11)
+  )
+```
+
+On peut voir sur ce graph que, pour tous les Etats, les données sur ALL_STATE et HYV_STATE s'arrêtent à la même année. Cela nous permet de calculer la superficie en % de manière cohérente, puisqu'on ne prendra pas en compte les Etats pour qui l'info n'est pas indiquée. 
+
+
+### HYV en pourcentage
+
+Calcul des pourcentages : 
+
+```{r}
+HYV_prct <- HYV_total |>
+  mutate(
+    PRCT.RICE.AREA = RICE.HYV.AREA / RICE.ALL.AREA * 100,
+    PRCT.MAIZE.AREA = MAIZE.HYV.AREA / MAIZE.ALL.AREA * 100,
+    PRCT.WHEAT.AREA = WHEAT.HYV.AREA / WHEAT.ALL.AREA * 100,
+    PRCT.SORGHUM.AREA = SORGHUM.HYV.AREA / SORGHUM.ALL.AREA * 100,
+    PRCT.FINGER.MILLET.AREA = FINGER.MILLET.HYV.AREA / FINGER.MILLET.ALL.AREA * 100,
+    PRCT.PEARL.MILLET.AREA = PEARL.MILLET.HYV.AREA / PEARL.MILLET.ALL.AREA * 100,
+    PRCT.TOTAL.AREA = HYV_DIST / ALL_DIST * 100
+  )
+```
+
+```{r}
+# Calcul du % de la superficie des HYV, au niveau de l'Etat
+HYV_prct <- HYV_prct |>
+  group_by(Year, State.Code, State.Name) |>
+  mutate(PRCT.STATE = mean(PRCT.TOTAL.AREA, na.rm = TRUE), .groups = "drop") |>
+
+# Au niveau du pays
+  group_by(Year) |>
+  mutate(PRCT.NAT = mean(PRCT.TOTAL.AREA, na.rm = TRUE), .groups = "drop")
+```
+
+Je replace toutes les poucentages supérieurs à 100 par des n/a. 
+
+```{r}
+HYV_prct <- HYV_prct |>
+  mutate(across(
+    .cols = starts_with("PRCT"),
+    .fns = ~ ifelse(.x > 100, NA, .x)
+  ))
+```
+
+
+#### Au niveau du pays
+
+```{r, mesage=FALSE, warning=FALSE}
+plot_prct_HYV_India <- HYV_prct |>
+  ggplot(aes(x = Year, y = PRCT.NAT)) +
+  geom_line(color = "indianred3", size = 1) +
+  geom_point(color = "indianred4", size = 2) +
+  labs(
+    title = "Part des HYV en superficie par an (toutes cultures, niveau national)",
+    x = "",
+    y = "% de superficie des HYV"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+
+plot_prct_HYV_India
+```
+```{r}
+ggsave("figures/District_Level/Prct_HYV_India.png", 
+       plot = plot_prct_HYV_India, 
+       width = 8, height = 6, dpi = 300,
+       create.dir = TRUE)
+```
+
+La superficie en % permet de ne pas prendre en compte les Etats qui n'ont pas complété toutes les années (puisque dans ce cas l'info est manquante pour HYV_AREA et ALL_AREA). On n'observe pas de baisse comme avec la superficie en valeur absolue. 
+
+
+#### Par Etats
+
+```{r, message=FALSE, warning=FALSE}
+plot_prct_HYV_States <- HYV_prct |>
+  filter(State.Code %in% c("4", "8", "9", "10", "11", "5")) |>
+  ggplot(aes(x = Year, y = PRCT.STATE, color = as.factor(State.Name))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Superficie moyenne des HYV par an (toutes cultures, par Etats)",
+    x = "",
+    y = "Superficie moyenne des HYV (%)",
+    color = "Etats"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+
+plot_prct_HYV_States
+```
+```{r}
+ggsave("figures/District_Level/Prct_HYV_States.png", plot = plot_prct_HYV_States, width = 8, height = 6, dpi = 300)
+```
+
+
+## Soybean expansion
+
+Données Crop -> Area production yield -> Items : SOYABEAN
+Données 'apportioned' disponibles de 1966 à 2017
+
+```{r, message=FALSE}
+crops_production <- read_csv(here::here("raw_data", "ICRISAT District Level Database", "Crops_Production_apportioned.csv"))
+```
+
+Comme pour les autres bases, il est indiqué -1 quand l'information est manquante. je remplace donc tous les -1 par n/a. 
+
+```{r}
+crops_production <- crops_production |>
+  mutate(across(everything(), ~ ifelse(.x == -1, NA, .x)))
+```
+
+### Au niveau du pays
+
+```{r}
+# Faire la somme pour l'Inde pour la superficie et la production
+crops_India_production <- crops_production |>
+  group_by(Year) |>
+  summarise(across(
+    .cols = c(contains("AREA"), contains("PRODUCTION")),
+    .fns = ~ sum(.x, na.rm = TRUE),
+    .names = "{.col}_INDIA"
+  )) |>
+  ungroup()
+```
+
+#### Superficie
+
+Je veux comparer dans un même graphique la superficie cultivée pour le riz, mais, blé et soja, au niveau du pays entier. 
+
+```{r}
+# Réorganiser les données au format long, en prennant en compte la superficie
+crops_India_long <- crops_India_production |>
+  select(Year,
+         `RICE AREA (1000 ha)_INDIA`,
+         `WHEAT AREA (1000 ha)_INDIA`,
+         `MAIZE AREA (1000 ha)_INDIA`,
+         `SOYABEAN AREA (1000 ha)_INDIA`) |>
+   pivot_longer(
+    cols = ends_with("_INDIA"),
+    names_to = "Crop",
+    values_to = "Area"
+  ) |>
+  mutate(
+    Crop = gsub(" AREA \\(1000 ha\\)_INDIA", "", Crop)
+  )
+```
+
+```{r}
+plot_soybean_prod_India <- crops_India_long |>
+  filter(Area > 0) |>
+  ggplot(aes(x = Year, y = Area, color = Crop)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Évolution des superficies par culture (au niveau du pays)",
+    x = "",
+    y = "Superficie (1000 ha)",
+    color = "Cultures principales"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 11, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+
+plot_soybean_prod_India
+```
+
+```{r}
+ggsave("figures/District_Level/Soybean_area_India.png", plot = plot_soybean_prod_India, width = 8, height = 6, dpi = 300)
+```
+
+#### Production
+
+```{r}
+# Réorganiser les données au format long, en prennant en compte la production
+crops_India_long <- crops_India_production |>
+  select(Year,
+         `RICE PRODUCTION (1000 tons)_INDIA`,
+         `WHEAT PRODUCTION (1000 tons)_INDIA`,
+         `MAIZE PRODUCTION (1000 tons)_INDIA`,
+         `SOYABEAN PRODUCTION (1000 tons)_INDIA`) |>
+   pivot_longer(
+    cols = ends_with("_INDIA"),
+    names_to = "Crop",
+    values_to = "Production"
+  ) |>
+  mutate(
+    Crop = gsub(" PRODUCTION \\(1000 tons\\)_INDIA", "", Crop)
+  )
+```
+
+```{r}
+plot_soybean_prod_India <- crops_India_long |>
+  filter(Production > 0) |>
+  ggplot(aes(x = Year, y = Production, color = Crop)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Évolution de la production par culture (au niveau du pays)",
+    x = "",
+    y = "Production (1000 tons)",
+    color = "Cultures principales"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 11, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+
+plot_soybean_prod_India
+```
+
+```{r}
+ggsave("figures/District_Level/Soybean_prod_India.png", plot = plot_soybean_prod_India, width = 8, height = 6, dpi = 300)
+```
+
+#### Rendement
+
+```{r}
+# Faire la moyenne pour l'Inde du rendement
+crops_India_yield <- crops_production |>
+  group_by(Year) |>
+  summarise(across(
+    .cols = contains("YIELD"),
+    .fns = ~ mean(.x, na.rm = TRUE),
+    .names = "{.col}_INDIA"
+  )) |>
+  ungroup()
+```
+
+```{r}
+# Réorganiser les données au format long, en prennant en compte le rendement
+crops_India_long <- crops_India_yield |>
+  select(Year,
+         `RICE YIELD (Kg per ha)_INDIA`,
+         `WHEAT YIELD (Kg per ha)_INDIA`,
+         `MAIZE YIELD (Kg per ha)_INDIA`,
+         `SOYABEAN YIELD (Kg per ha)_INDIA`) |>
+   pivot_longer(
+    cols = ends_with("_INDIA"),
+    names_to = "Crop",
+    values_to = "Yield"
+  ) |>
+  mutate(
+    Crop = gsub(" YIELD \\(Kg per ha\\)_INDIA", "", Crop)
+  )
+```
+
+```{r}
+crops_India_long |>
+  filter(Yield > 0) |>
+  ggplot(aes(x = Year, y = Yield, color = Crop)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Évolution du rendement par culture (au niveau du pays)",
+    x = "",
+    y = "Rendement (Kg per ha)",
+    color = "Cultures principales"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11),
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10)
+  )
+```
+
+### Au niveau des Etats
+
+```{r, message=FALSE, warning=FALSE}
+crops_state <- crops_production |>
+  group_by(Year, `State Code`, `State Name`) |>
+  summarise(across(
+    .cols = 3:37,
+    .fns = ~ sum(.x, na.rm = TRUE),
+    .names = "{.col}_STATE"
+  )) |>
+  ungroup()
+```
+
+Je fais la même comparaisn qu'au-dessus (superficie cultivée pour le riz, mais, blé et soja) mais par Etat. 
+
+```{r}
+# Réorganiser les données au format long
+crops_state_long <- crops_state |>
+  select(Year, `State Code`, `State Name`,
+         `RICE AREA (1000 ha)_STATE`,
+         `WHEAT AREA (1000 ha)_STATE`,
+         `MAIZE AREA (1000 ha)_STATE`,
+         `SOYABEAN AREA (1000 ha)_STATE`) |>
+   pivot_longer(
+    cols = ends_with("_STATE"),
+    names_to = "Crop",
+    values_to = "Area"
+  ) |>
+  mutate(
+    Crop = gsub(" AREA \\(1000 ha\\)_STATE", "", Crop)
+  )
+```
+
+
+## Tube well expansion
+
+Données 'apportioned' disponible depuis de 1966 à 2020 dans: 
+- Categories: Irrigation
+- Sub categories: Sourcewise irrigated area
+- Items: Tube wells
+
+La seule variable disponible est la surface (AREA, pas de distinction selon la culture. 
+
+District-wise yearly irrigated area. 
+
+This file group has two files: 
+- 1. Crop wise irrigation: Crop wise irrigated area includes gross irrigated area by crops. Crop wise irrigation by source is not available.
+- 2. Source wise irrigation: includes data on sources of irrigation (canals, tanks, wells etc.) for each district besides gross and net irrigated area. The file also provides data on percent area irrigated by different sources. A few states do not report data for different sources and hence data is available for net or gross irrigated area only.
+
+```{r, message=FALSE}
+source_irrigation_database <- read_csv(here::here("raw_data", "ICRISAT District Level Database", "Source_Irrigation_apportioned.csv"))
+```
+
+Comme dans les autres bases, il est indiqué -1 quand l'information est manquante. je remplace donc tous les -1 par n/a. 
+
+```{r}
+source_irrigation_database <- source_irrigation_database |>
+  mutate(across(everything(), ~ ifelse(.x == -1, NA, .x)))
+```
+
+```{r}
+na_tubewell <- source_irrigation_database |>
+  filter(is.na(`TUBE WELLS AREA (1000 ha)`)) |>
+  summarise(n = n()) |>
+  pull(n)
+
+cat("Nombre d'Etats n'ayant pas indiqué Tube well:", na_tubewell, "\n")
+cat("Soit", round(na_tubewell / nrow(source_irrigation_database) * 100, 2), "% des lignes \n")
+```
+```{r}
+states_all_na <- source_irrigation_database |>
+  group_by(`State Code`, `State Name`) |>
+  summarise(all_na = all(is.na(`TUBE WELLS AREA (1000 ha)`)), .groups = "drop") |>
+  filter(all_na)
+
+cat("Nombre d'États n'ayant jamais renseigné de données pour Tube well:", nrow(states_all_na), "\n")
+```
+
+### Superficie des tube wells (valeur absolue)
+
+Je calcule la superficie totale des tube wells au niveau du pays et des Etats. 
+
+```{r}
+# Au niveau des Etats
+irrigation_area <- source_irrigation_database |>
+  group_by(Year, `State Code`, `State Name`) |>
+  mutate(TUBEWELL_AREA_STATE = sum(`TUBE WELLS AREA (1000 ha)`, na.rm = TRUE), .groups = "drop") |>
+
+# Au niveau deu pays
+  group_by(Year) |>
+  mutate(TUBEWELL_AREA_NAT = sum(`TUBE WELLS AREA (1000 ha)`, na.rm = TRUE), .groups = "drop") |>
+  
+  select(Year, `State Code`, `State Name`, TUBEWELL_AREA_STATE, TUBEWELL_AREA_NAT) |>
+  distinct()
+```
+
+#### Au niveau du pays
+
+```{r, message=FALSE, warning=FALSE}
+irrigation_area |>
+  ggplot(aes(x = Year, y = TUBEWELL_AREA_NAT)) +
+  geom_line(color = "indianred3", size = 1) +
+  geom_point(color = "indianred4", size = 2) +
+  labs(
+    title = "Évolution de la superficie des tube wells (toutes cultures, niveau national)",
+    x = "",
+    y = "Superficie des tube wells (1000 ha)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11)
+  )
+```
+
+#### Par Etats
+
+```{r}
+source_irrigation_database |>
+  filter(
+    !is.na(`TUBE WELLS AREA (1000 ha)`),
+    `TUBE WELLS AREA (1000 ha)` != 0
+    ) |>
+  group_by(`State Code`) |>
+  summarise(n_year = n_distinct(Year)) |>
+  arrange(desc(n_year))
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+irrigation_area |>
+  filter(`State Code` %in% c("4", "8", "9", "10", "11", "5")) |>
+  ggplot(aes(x = Year, y = TUBEWELL_AREA_STATE, color = as.factor(`State Name`))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Évolution de la superficie des tube wells (toutes cultures)",
+    x = "",
+    y = "Superficie des tube wells (1000 ha)",
+    color = "États"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+```
+
+### Pourcentage des tube wells
+
+L'Etat du West Bengal (code 13) a des valeurs de GROSS_AREA anormalemnt petites qui fausse la calcul du pourcentage, j'enlève donc cet Etat de la table irrigation_prct. 
+
+Calcul des pourcentages : 
+
+```{r}
+irrigation_prct <- source_irrigation_database |>
+  filter(`State Code` != 13) |>
+  mutate(PRCT.TUBEWELL.AREA = `TUBE WELLS AREA (1000 ha)` / `GROSS AREA (1000 ha)` * 100)
+```
+
+```{r}
+# Calcul du % de la superficie des tube wells, au niveau de l'Etat
+irrigation_prct <- irrigation_prct |>
+  group_by(Year, `State Code`, `State Name`) |>
+  mutate(PRCT.STATE = mean(PRCT.TUBEWELL.AREA, na.rm = TRUE), .groups = "drop") |>
+
+# Au niveau du pays
+  group_by(Year) |>
+  mutate(PRCT.NAT = mean(PRCT.TUBEWELL.AREA, na.rm = TRUE), .groups = "drop") |>
+
+  select(Year, `State Code`, `State Name`, PRCT.TUBEWELL.AREA, PRCT.NAT, PRCT.STATE, `GROSS AREA (1000 ha)`) |>
+  distinct()
+```
+
+Je remplace toutes les pourcentages supérieurs à 100 par des n/a (plus nécessaire une fois le West Bengal enlevé)
+
+```{r}
+irrigation_prct <- irrigation_prct |>
+  mutate(across(
+    .cols = starts_with("PRCT"),
+    .fns = ~ ifelse(.x > 100, NA, .x)
+  ))
+```
+
+#### Au niveau du pays
+
+```{r, mesage=FALSE, warning=FALSE}
+plot_prct_Tube_India <- irrigation_prct |>
+  ggplot(aes(x = Year, y = PRCT.NAT)) +
+  geom_line(color = "indianred3", size = 1) +
+  geom_point(color = "indianred4", size = 2) +
+  labs(
+    title = "Part de la superficie des tube wells (toutes cultures, niveau national)",
+    x = "",
+    y = "Superficie des tube wells (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 11, color = "gray20")
+  )
+
+plot_prct_Tube_India
+```
+```{r}
+ggsave("figures/District_Level/Prct_Tube_India.png", plot = plot_prct_Tube_India, width = 8, height = 6, dpi = 300)
+```
+
+
+#### Par Etats
+
+```{r, message=FALSE, warning=FALSE}
+plot_prct_Tube_States <- irrigation_prct |>
+  filter(`State Code` %in% c("4", "8", "9", "10", "11", "5")) |>
+  ggplot(aes(x = Year, y = PRCT.STATE, color = as.factor(`State Name`))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Part de la superficie des tube wells (toutes cultures, par Etats)",
+    x = "",
+    y = "Superficie des tube wells (%)",
+    color = "Etats"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 11, color = "gray20"),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12)
+  )
+
+plot_prct_Tube_States
+```
+
+```{r}
+ggsave("figures/District_Level/Prct_Tube_States.png", 
+       plot = plot_prct_Tube_States, 
+       width = 8, height = 6, dpi = 300,
+       create.dir = TRUE)
+```
+

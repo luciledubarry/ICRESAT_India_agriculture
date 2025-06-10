@@ -1,0 +1,187 @@
+---
+title: "Graph- Gendered allocation of tasks and decisions"
+format: html
+editor: source
+---
+
+```{r}
+#| message: false
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r}
+#| message: false
+here::i_am("INCRESAT_Micro_database.Rproj")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+```
+
+## Importer les données
+
+```{r Importer les données, message=FALSE, warning=FALSE}
+EAST_Gend_Cultivation_2014 <- read_excel("raw_data/EAST_Gendered_Cultivation_2014.xlsx")
+SAT_Gend_Cultivation_2014 <- read_excel("raw_data/SAT_Gendered_Cultivation_2014.xlsx")
+```
+
+```{r}
+EAST_Gend_Cultivation_2014 <- EAST_Gend_Cultivation_2014 |>
+  mutate(activity = toupper(activity)) |>
+  rename(VDS_ID = Vdsid) |>
+  rename(ACTIVITY = activity) |>
+  rename(WOMEN = women) |>
+  rename(MEN = men) |>
+  rename(BOTH = men_women)
+
+SAT_Gend_Cultivation_2014 <- SAT_Gend_Cultivation_2014 |>
+  mutate(ACTIVITY = toupper(ACTIVITY)) |>
+  rename(BOTH = MEN_WOMEN)
+```
+
+```{r}
+common_cols <- intersect(names(EAST_Gend_Cultivation_2014), names(SAT_Gend_Cultivation_2014))
+for (col in common_cols) {
+    EAST_Gend_Cultivation_2014[[col]] <- as.character(EAST_Gend_Cultivation_2014[[col]])
+    SAT_Gend_Cultivation_2014[[col]] <- as.character(SAT_Gend_Cultivation_2014[[col]])
+}
+```
+
+```{r Importer les données, message=FALSE, warning=FALSE}
+Gend_Cultivation_2014 <- bind_rows(EAST_Gend_Cultivation_2014, SAT_Gend_Cultivation_2014)
+```
+
+## Harmoniser les données
+
+```{r}
+Gend_Cultivation_2014 <- Gend_Cultivation_2014 |>
+  mutate(across(c(WOMEN, MEN, BOTH), ~ ifelse(. == "*", "Y", "N"))) |>
+  mutate(across(c(WOMEN, MEN, BOTH), ~ ifelse(is.na(.), "N", "Y")))
+```
+
+```{r}
+# Harmoniser les valeurs d'ACTIVITY
+correspondances_act <- tribble(
+  ~ACTIVITY_VARIANT,                             ~ACTIVITY,
+  "CHEMICAL FERTILIZER APPLICATION",            "CHEMICAL FERTILIZER APPL.",
+  "LAND PREPRATION",                            "LAND PREPARATION",
+  "SEED SELECTION ANS STORAGE",                 "SEED SELECTION AND STORAGE",
+  "TRANSPORT OF FYM AND APPLICATION",           "TRANSPORT OF FYM & APPL.",
+  "TRANSPORT OF FYM AND APPL.",                 "TRANSPORT OF FYM & APPL."
+  )
+  
+Gend_Cultivation_2014 <- Gend_Cultivation_2014 |>
+  rename(ACTIVITY_VARIANT = ACTIVITY) |>
+  left_join(correspondances_act |> select(ACTIVITY_VARIANT, ACTIVITY),
+          by = "ACTIVITY_VARIANT") |>
+  mutate(ACTIVITY = coalesce(ACTIVITY, ACTIVITY_VARIANT)) |>
+  select(-ACTIVITY_VARIANT)
+```
+
+## Vérifier les données
+
+On vérifie que la base initiale Gend_Cultivation_2014 soit représentative de l'ensemble des ménages. Pour cela, on vérifie la correspondance des ménages présents dans cette base avec la base Cultivation_2014.
+
+Egalement, on vérifie que tous les ménages aient répondu à l'ensemble des opérations (16 opérations distinctes).
+
+```{r}
+# Compter le nombre d'opérations par ménage, le but étant que tous les ménages aient 16 opérations distinctes.
+nb_oper_per_hh <- Gend_Cultivation_2014 |>
+  group_by(VDS_ID) |>
+  summarise(nb_oper = n(), .groups = "drop")
+
+nb_diff_16 <- nb_oper_per_hh |>
+  filter(nb_oper != 16)
+
+cat("Nombre de ménages avec un nombre d'opérations différent de 16 :", nrow(nb_diff_16), "\n")
+cat("Sur un total de", nrow(nb_oper_per_hh), "ménages soit", round(100 * nrow(nb_diff_16) / nrow(nb_oper_per_hh), 1), "%\n")
+```
+
+## Graph: Participation par genre
+
+```{r}
+proportions <- tibble(
+  Categorie = c("WOMEN", "MEN", "BOTH"),
+  Proportion = c(
+    mean(Gend_Cultivation_2014$WOMEN == "Y"),
+    mean(Gend_Cultivation_2014$MEN == "Y"),
+    mean(Gend_Cultivation_2014$BOTH == "Y")
+  )
+)
+
+ggplot(proportions, aes(x = Categorie, y = Proportion, fill = Categorie)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal() +
+  labs(
+      title = "Participation par genre aux tâches agricoles (toute opération confondue",
+    x = "",
+    y = ""
+  ) +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("BOTH" = "skyblue2", "MEN" = "darkorange", "WOMEN" = "darkolivegreen3"))
+```
+
+## Graph: Participation par opération et par genre
+
+```{r}
+count_table <- Gend_Cultivation_2014 |>
+  group_by(ACTIVITY) |>
+  summarize(
+    WOMEN_Y_count = sum(WOMEN == "Y", na.rm = TRUE),
+    MEN_Y_count = sum(MEN == "Y", na.rm = TRUE),
+    BOTH_Y_count = sum(BOTH == "Y", na.rm = TRUE)
+  )
+
+count_table
+```
+
+```{r}
+proportions <- Gend_Cultivation_2014 |>
+  filter(ACTIVITY %in% c("HAND WEEDING", "IRRIGATION", "LAND PREPARATION", "HARVESTING", "SOWING SEED", "SEED SELECTION AND STORAGE","TRANSPLANTING", "THRESHING", "INTERCULTURE", "PLANT PROTECTION MEASURES", "CHEMICAL FERTILIZER APPLICATION", "SELECTION OF CROP", "SELECTION OF VARIETY", "WATCHING")) |>
+  group_by(ACTIVITY) |>
+  summarize(
+    WOMEN_proportion = mean(WOMEN == "Y"),
+    MEN_proportion = mean(MEN == "Y"),
+    BOTH_proportion = mean(BOTH == "Y")
+  ) |>
+   mutate(
+    total = WOMEN_proportion + MEN_proportion + BOTH_proportion,
+    WOMEN_proportion = WOMEN_proportion / total,
+    MEN_proportion = MEN_proportion / total,
+    BOTH_proportion = BOTH_proportion / total
+  ) |>
+  select(-total) |>
+  arrange(desc(WOMEN_proportion))
+
+proportions <- tidyr::pivot_longer(proportions, cols = c("WOMEN_proportion", "MEN_proportion", "BOTH_proportion"), names_to = "Gender", values_to = "Proportion") |>
+  mutate(ACTIVITY = factor(ACTIVITY, levels = proportions$ACTIVITY[order(proportions$WOMEN_proportion, decreasing = TRUE)]))
+```
+
+```{r}
+ggplot(proportions, aes(x = ACTIVITY, y = Proportion, fill = Gender)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  labs(title = "Participation par genre aux activités agricoles (détail des opérations)",
+       x = "",
+       y = "",
+       fill = "Genre") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("BOTH_proportion" = "skyblue1", "MEN_proportion" = "darkorange", "WOMEN_proportion" = "darkolivegreen3"))
+```
+
+```{r}
+ggplot(proportions, aes(x = ACTIVITY, y = Proportion, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(0.8), width = 0.7) +
+  labs(title = "Participation par genre aux activités agricoles (détail des opérations)",
+       x = "",
+       y = "",
+       fill = "Genre") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("BOTH_proportion" = "skyblue2", "MEN_proportion" = "darkorange", "WOMEN_proportion" = "darkolivegreen3"))
+```
+
+
