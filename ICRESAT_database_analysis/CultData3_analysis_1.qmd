@@ -664,6 +664,83 @@ L'idée est de comprendre pourquoi la caste supérieure (FC) a un ratio Hr/acre 
 
 On regarde la production de riz (en kg) par acre, en fonction de la caste. 
 
+Il y a de nombreux n/a pour les variables sur la production (OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT). 
+
+Sur 1,007 ménages présents dans la base initiale Cultivation_2014, 831 n'ont pas d'information sur la production : 645 ménages parce qu'ils n'ont de correspondance entre les bases CultOutput_2014 et CultInput_2014 + 184 ménages parce que les variables ne sont pas complétées dans CultOutput_2014. 
+
+```{r}
+cultivation_paddy <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, AREA_CROP) |>
+  summarise(
+    OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY)),
+    OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT)),
+    .groups = "drop"
+  )
+```
+
+```{r}
+na_prod_paddy <- nrow(cultivation_paddy |> filter(is.na(OP_MAIN_PROD_QTY)))
+prop_na_prod_paddy <- round(na_prod_paddy / nrow(cultivation_paddy) * 100, 2)
+
+cat(" - Champs de riz (en Kharif) dans Cultivation_expand :", nrow(cultivation_paddy), "\n")
+cat(" - Champs sans information de production de riz :", na_prod_paddy, "\n")
+cat(" - Proportion avec n/a :", prop_na_prod_paddy, "%\n")
+```
+
+```{r}
+cultivation_paddy <- cultivation_paddy |>
+  filter(!is.na(OP_MAIN_PROD_QTY), !is.na(CASTE_GROUP)) |>
+  mutate(
+    OP_MAIN_PROD_QTY = as.numeric(as.character(OP_MAIN_PROD_QTY)),
+    prod_per_acre = OP_MAIN_PROD_QTY/AREA_CROP
+    )
+
+cultivation_paddy |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    `Nombre de ménages` = n_distinct(VDS_ID),
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, AREA_CROP, sep = "_")),
+    .groups = "drop"
+  ) |>
+  arrange(desc(`Nombre de ménages`)) |>
+  gt() |>
+  tab_header(
+    title = "Ménages et champs avec la production de riz par caste"
+  ) |>
+  cols_label(
+    CASTE_GROUP = "Caste"
+  )
+```
+```{r}
+mean_prod_caste <- cultivation_paddy |>
+  group_by(CASTE_GROUP) |>
+  summarise(mean_prod = mean(prod_per_acre, na.rm = TRUE), .groups = "drop") |>
+  mutate(CASTE_GROUP = fct_reorder(CASTE_GROUP, mean_prod, .fun = mean, .desc = TRUE))
+```
+
+```{r}
+mean_prod_caste |>
+  filter(!is.na(mean_prod)) |>
+  ggplot(aes(x = CASTE_GROUP, y = mean_prod, fill = CASTE_GROUP)) +
+  geom_col() +
+  coord_flip() +
+    labs(
+    title = "Average rice production per acre, by caste",
+    x = "",
+    y = "Mean rice production (in kg) per acre per season",
+    fill = "Caste"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10)
+  )
+```
 
 
 #### Irrigation
@@ -795,10 +872,5 @@ saveRDS(
   file = file.path(folder_path, "Cultivation_expand.rds"),
 )
 ```
-
-A faire : 
-
-comprendre pourquoi FC a moins d'Hr/acre pour le travail des femmes
-explications potentielles : regarder productivité par acre en regardant la production de riz
 
 
