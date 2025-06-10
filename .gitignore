@@ -16,6 +16,11 @@ renv/library/
 # Figures reproductibles ggplot
 figures/
 
+# Ignorer les bases de travail intermédiaires
+Base de données générées/
+*.rds
+*.csv
+
 # Fichiers système
 .DS_Store
 Thumbs.db
