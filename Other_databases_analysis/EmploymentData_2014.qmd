@@ -83,8 +83,8 @@ Je regarde la répartition du travail agricole et non-agricole selon le genre. I
 J'importe les tables Household_details des deux régions (EAST et SAT) pour l'année 2014. 
 
 ```{r, message=FALSE, warning=FALSE}
-EAST_Household_details <- read_excel("raw_data/EAST INDIA_Household details_2014.xlsx")
-SAT_Household_details <- read_excel("raw_data/SAT INDIA_Household details_2014.xlsx")
+EAST_Household_details <- read_excel(here::here("raw_data", "EAST INDIA_Household details_2014.xlsx"))
+SAT_Household_details <- read_excel(here::here("raw_data", "SAT INDIA_Household details_2014.xlsx"))
 ```
 
 ```{r}
@@ -161,8 +161,8 @@ J'importe la base Household_info pour récupérer la caste de chaque ménage et 
 #### Importer Household_info
 
 ```{r, message=FALSE, warning=FALSE}
-EAST_Household_info <- read_excel("raw_data/EAST_Household_info_2014.xlsx")
-SAT_Household_info <- read_excel("raw_data/SAT_Household_info_2014.xlsx")
+EAST_Household_info <- read_excel(here::here("raw_data", "EAST_Household_info_2014.xlsx"))
+SAT_Household_info <- read_excel(here::here("raw_data", "SAT_Household_info_2014.xlsx"))
 ```
 
 ```{r}
@@ -658,7 +658,6 @@ ind_hours_caste |>
 ```
 
 
-
 ## Enregistrer Employment_2014 dans le document partagé
 
 ```{r}
@@ -686,11 +685,6 @@ saveRDS(
 
 
 Employment: 
-
-2. Faire des stats des sur les heures de travail des femmes dans la ferme familiale selon leur relation avec le chef de famille (mère, belle-fille, fille non mariée). 
---> Faire des graphs, du temps de travail (en filtrant pour la relation) total, par opération, par culture. 
-
-Puis regarder la différence de travail des femmes (selon leur relation) par caste
 
 3. Regarder selon l'âge et le genre dde chaque personne dans le ménage, sa probabilité à travailler à la ferme familial (heures de travail agricole différent de 0). il faut donc conserver la variable age associée à chaque personne. 
 
