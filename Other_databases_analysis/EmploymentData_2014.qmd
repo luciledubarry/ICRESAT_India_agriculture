@@ -402,10 +402,10 @@ Employment_2014 |>
   )
 ```
 
-### Farm / Non-farm work par genre
+### Travail employé (agricole ou non) par genre
 #### Total d'heures
 
-On regarde quelle est la répartition du travail agricole et non-agricole par genre. L'idée est de voir si les hommes sont plus présents dans le travail non-agricole, pour expliquer la forte présence des femmes dans le travail agricole employé. 
+On regarde quelle est la répartition du travail employé agricole et non-agricole par genre. L'idée est de voir si les hommes sont plus présents dans le travail non-agricole, pour expliquer la forte présence des femmes dans le travail agricole employé. 
 
 Je regarde le travail de tous les individus entre 18 et 60 ans. 
 
@@ -429,7 +429,7 @@ labor_table |>
   ggplot(aes(x = WORK_TYPE, fill = GENDER)) +
   geom_bar(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
   labs(
-    title = "Nombre de travaux déclarés par type de travail et genre",
+    title = "Nombre de travaux employés par type de travail et genre",
     x = "Type de travail",
     y = "",
     fill = "Genre"
@@ -442,7 +442,7 @@ labor_table |>
   )
 ```
 
-Je regarde maintenant le total d'heures réalisées pour le travail agricole et non-agricole par genre. 
+Je regarde maintenant le total d'heures réalisées pour le travail employé agricole et non-agricole par genre. 
 
 ```{r}
 gender_hours <- labor_table |>
@@ -455,7 +455,7 @@ gender_hours |>
   ggplot(aes(x = WORK_TYPE, y = TOTAL_HR, fill = GENDER)) +
   geom_col(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
   labs(
-    title = "Total d'heures travaillées par genre et type de travail",
+    title = "Total d'heures employées par genre et type de travail",
     x = "Type de travail",
     y = "",
     fill = "Genre"
@@ -487,7 +487,7 @@ Je calcule maintenant la moyenne des heures réalisées par individu, selon le g
 mean_hours_table <- ind_hours |>
   group_by(GENDER) |>
   summarise(
-    `Moyenne d'heures travaillées sur l'année` = round(mean(SUM_HOURS, na.rm = TRUE), 0),
+    `Moyenne d'heures employées sur l'année` = round(mean(SUM_HOURS, na.rm = TRUE), 0),
     .groups = "drop"
   ) |>
   rename(Genre = GENDER)
@@ -502,7 +502,7 @@ ind_hours |>
   geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
   coord_flip() +
   labs(
-    title = "Total d'heures travaillées par individu, selon le genre",
+    title = "Total d'heures employées par individu, selon le genre",
     x = "",
     y = "",
     fill = "Genre"
@@ -528,8 +528,8 @@ ind_summary <- ind_hours |>
   rename(
     Genre = GENDER,
     `Nombre total` = total,
-    `Ne travaille pas` = zero_hours,
-    `% ne travaillant pas` = percent_zero
+    `Sans travail employé` = zero_hours,
+    `% pas de travail employé` = percent_zero
   )
 
 ind_summary
@@ -568,7 +568,7 @@ ind_hours_rel |>
   geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
   coord_flip() +
   labs(
-    title = "Total d'heures de travail agricole des femmes, selon leur status familial",
+    title = "Total d'heures de travail agricole employé des femmes, selon leur status familial",
     x = "",
     y = "",
     fill = "Relation au chef de famille"
@@ -597,10 +597,10 @@ ind_summary_rel <- ind_hours_rel |>
   rename(
     `Status familial` = REL,
     `Nombre total` = total,
-    `Sans travail agricole` = zero_hours,
-    `% sans travail agricole` = percent_zero
+    `Sans travail employé agricole` = zero_hours,
+    `% sans travail employé agricole` = percent_zero
   ) |>
-  arrange(desc(`% sans travail agricole`))
+  arrange(desc(`% sans travail employé agricole`))
 
 ind_summary_rel
 ```
@@ -644,7 +644,7 @@ ind_hours_caste |>
   geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
   coord_flip() +
   labs(
-    title = "Total d'heures de travail agricole des épouses, selon leur caste",
+    title = "Total d'heures de travail agricole employé des épouses, selon leur caste",
     x = "",
     y = "",
     fill = "Caste"
@@ -686,8 +686,11 @@ saveRDS(
 
 Employment: 
 
-3. Regarder selon l'âge et le genre dde chaque personne dans le ménage, sa probabilité à travailler à la ferme familial (heures de travail agricole différent de 0). il faut donc conserver la variable age associée à chaque personne. 
+3. Regarder selon l'âge et le genre de chaque personne dans le ménage, sa probabilité à travailler à la ferme familial (heures de travail agricole différent de 0). il faut donc conserver la variable age associée à chaque personne. 
 
+Regarder variable Farm on work
+- vérifier si la somme des jours salariés (type work) et own work (farm, domestic, livestock) par individu fait 30 jours 
+-> si cela fait plus ou moins de 30 : anormal
 
 
 
