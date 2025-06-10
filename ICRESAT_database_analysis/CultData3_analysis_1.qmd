@@ -109,7 +109,9 @@ cultivation_village  <- Cultivation_expand  |>
 
 Le village TS, qui comprend 64 ménages dans Cultivation_expand, n'est pas présent dans Household_info, ce qui explique une partie des ménages manquants. 
 
-### Ajout de Caste et Caste_group
+### Ajout de variables
+
+#### Caste et Caste_group
 
 ```{r}
 Cultivation_expand <- Cultivation_expand |>
@@ -131,6 +133,23 @@ Cultivation_expand |>
   )
 ```
 
+#### Irrigation
+
+```{r}
+# Variable IRRIGATION
+Cultivation_expand <- Cultivation_expand |>
+  mutate(PER_IRRI = round(100 * IRRI_CROP / AREA_CROP, 2)) |>
+  mutate(PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI))
+
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    IRRIGATION = case_when(
+      PER_IRRI>49 ~ "Irrigué",
+      PER_IRRI<50 ~ "Non irrigué"
+    )
+  ) |>
+  select(-PER_IRRI)
+```
 
 ## Lien: Travail des femmes familial et employé
 
@@ -538,10 +557,10 @@ plot_hr_acre_caste_F <- hr_acre_caste_F |>
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16),
-    axis.text = element_text(size = 10, color = "gray20"),
+    axis.text = element_text(size = 11, color = "gray20"),
     axis.title = element_text(size = 12, color = "gray20"),
-    legend.title = element_text(size = 11),
-    legend.text = element_text(size = 10)
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
   )
 
 plot_hr_acre_caste_F
@@ -594,10 +613,10 @@ plot_hr_acre_caste_M <- hr_acre_caste_M |>
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16),
-    axis.text = element_text(size = 10, color = "gray20"),
+    axis.text = element_text(size = 11, color = "gray20"),
     axis.title = element_text(size = 12, color = "gray20"),
-    legend.title = element_text(size = 11),
-    legend.text = element_text(size = 10)
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
   )
 
 plot_hr_acre_caste_M
@@ -607,7 +626,9 @@ ggsave("figures/Hr_acre_caste_M.png", plot = plot_hr_acre_caste_M, width = 8, he
 ```
 
 
-#### Travail féminin familial selon la superficie
+#### Selon la superficie 
+
+##### Travail féminin familial selon la superficie
 
 ```{r, message=FALSE}
 # Toutes les castes confondues ; seulement travail familial
@@ -631,11 +652,12 @@ labor_caste |>
 
 ```{r, message=FALSE, warning=FALSE}
 # Différencié par caste ; seulement travail familial
+# Seulement pour le riz en Kharif
 plot_work_FF_area <- labor_caste |>
   ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
-  geom_smooth(method = "gam", formula = y ~ s(x), se = FALSE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 3), ylim = c(0, 200)) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 5), ylim = c(0, 400)) +
   labs(
     title = "Relationship between family female labor and plot size, by caste",
     x = "Plot size (in acres)",
@@ -645,8 +667,10 @@ plot_work_FF_area <- labor_caste |>
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16),
-    axis.text = element_text(size = 10, color = "gray20"),
-    axis.title = element_text(size = 12, color = "gray20")
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
     )
 
 plot_work_FF_area 
@@ -655,12 +679,193 @@ plot_work_FF_area
 ggsave("figures/Work_FF_superficie.png", plot = plot_work_FF_area, width = 8, height = 6, dpi = 300)
 ```
 
+```{r, message=FALSE, warning=FALSE}
+# Différencié par caste ; seulement travail employé
+plot_work_HF_area <- labor_caste |>
+  ggplot(aes(x = AREA_CROP, y = HF, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+    coord_cartesian(xlim = c(0, 5), ylim = c(0, 400)) +
+  labs(
+    title = "Relationship between hired female labor and plot size, by caste",
+    x = "Plot size (in acres)",
+    y = "Hired female labor hours",
+    color = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+    )
+
+plot_work_HF_area 
+```
+```{r}
+ggsave("figures/Work_HF_superficie.png", plot = plot_work_HF_area, width = 8, height = 6, dpi = 300)
+```
+
+##### Outils selon la superficie (irrigation / méchanisation / HYV)
+                      
+```{r}
+proportion_outils <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP),
+         CROP == "PADDY", 
+         SEASON == "KHARIF") |>
+  group_by(VDS_ID, PLOT_CODE, CROP, SEASON, CASTE_GROUP, MACHINERY, IRRIGATION, VAR_TYPE, AREA_CROP) |>
+  reframe(
+    VAR_TYPE = recode(VAR_TYPE,
+                      `2` = "1",
+                      `1` = "0",
+                      `3` = "0",
+                      `4` = "0",
+                      `5` = "0"),
+    MACHINERY = recode(MACHINERY,
+                       `Mécanisé` = "1",
+                       `Non mécanisé` = "0"),
+    IRRIGATION = recode(IRRIGATION, 
+                      `Irrigué` = "1",
+                      `Non irrigué` = "0"), 
+    .groups = "drop"
+  ) |>
+   mutate(
+    VAR_TYPE = as.numeric(as.character(VAR_TYPE)),
+    MACHINERY = as.numeric(as.character(MACHINERY)),
+    IRRIGATION = as.numeric(as.character(IRRIGATION))
+    )
+```
+
+```{r}
+mean_outils <- proportion_outils |>
+  group_by(AREA_CROP) |>
+  summarise(
+    mean_mecha = mean(MACHINERY, na.rm = TRUE),
+    mean_irri = mean(IRRIGATION, na.rm = TRUE),
+    mean_HYV = mean(VAR_TYPE, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+    pivot_longer(
+    cols = c(mean_irri, mean_mecha, mean_HYV),
+    names_to = "variable",
+    values_to = "proportion"
+  ) |>
+  mutate(
+    variable = recode(variable,
+                      `mean_irri` = "Irrigation",
+                      `mean_mecha` = "Méchanisation",
+                      `mean_HYV` = "HYV")
+  )
+```
+
+```{r}
+mean_outils_caste <- proportion_outils |>
+  group_by(CASTE_GROUP, AREA_CROP) |>
+  summarise(
+    mean_mecha = mean(MACHINERY, na.rm = TRUE),
+    mean_irri = mean(IRRIGATION, na.rm = TRUE),
+    mean_HYV = mean(VAR_TYPE, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Toutes castes confondues
+# Seulement riz en Kharif
+mean_outils |>
+  ggplot(aes(x = AREA_CROP, y = proportion, color = variable)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 4)) +
+  labs(
+    title = "Lien avec la superficie (toutes castes confondues)",
+    x = "Superficie (en acre)",
+    y = "Proportion de champs",
+    color = "Variable"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+    )
+```
+
+###### Irrigation
+
+```{r, message=FALSE, warning=FALSE}
+# Par caste ; irrigation
+mean_outils_caste |>
+  ggplot(aes(x = AREA_CROP, y = mean_irri, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 4)) +
+  labs(
+    title = "Relation entre irrigation et superficie, selon la caste",
+    x = "Superficie (en acre)",
+    y = "Proportion de champs irrigués"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+    )
+```
+
+###### Méchanisation
+
+```{r, message=FALSE, warning=FALSE}
+# Par caste ; méchanisation
+mean_outils_caste |>
+  ggplot(aes(x = AREA_CROP, y = mean_mecha, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 4)) +
+  labs(
+    title = "Relation entre méchanisation et superficie, selon la caste",
+    x = "Superficie (en acre)",
+    y = "Proportion de champs utilisant des outils"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+    )
+```
+
+###### HYV
+
+```{r, message=FALSE, warning=FALSE}
+# Par caste ; HYV
+mean_outils_caste |>
+  ggplot(aes(x = AREA_CROP, y = mean_HYV, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 4)) +
+  labs(
+    title = "Relation entre HYV et superficie, selon la caste",
+    x = "Superficie (en acre)",
+    y = "Proportion de champs utilisant des HYV3"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+    )
+```
+
 
 ### Productivité selon la caste
 
 L'idée est de comprendre pourquoi la caste supérieure (FC) a un ratio Hr/acre total inférieur aux autres castes, que ce soit pour le travail des hommes et celui des femmes. 
 
-#### Production par acre
+#### Production de riz par acre
 
 On regarde la production de riz (en kg) par acre, en fonction de la caste. 
 
@@ -735,17 +940,18 @@ mean_prod_caste |>
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16),
-    axis.text = element_text(size = 10, color = "gray20"),
+    axis.text = element_text(size = 11, color = "gray20"),
     axis.title = element_text(size = 12, color = "gray20"),
-    legend.title = element_text(size = 11),
-    legend.text = element_text(size = 10)
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
   )
 ```
+per hour (pour chaque heure travaillée) : divisé par le nombre total d'heures
 
 
 #### Irrigation
 
-On regarde le pourcenatge de champs irrigués dans la culture du riz (en Kharif) selon la caste.
+On regarde le pourcentage de champs irrigués dans la culture du riz (en Kharif) selon la caste.
 
 ```{r}
 # Variable IRRIGATION
@@ -874,3 +1080,5 @@ saveRDS(
 ```
 
 
+
++ inviter Véronique sur le github
