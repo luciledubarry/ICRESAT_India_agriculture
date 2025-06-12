@@ -126,6 +126,7 @@ Dans le cas de multi-cropping (plusieurs cultures sur un même champ pendant une
 ```{r}
 # Sélectionner avec la base Cultivation_top_25 les 25 cultures les plus répandues (celles avec le plus grand nombre de champs distincts)
 top_25_crops <- Cultivation_expand |>
+  filter(CROP != "SEASONAL FALLOW") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |> 
   count(CROP, name = "nb_occurrences") |>
   arrange(desc(nb_occurrences)) |>
@@ -143,6 +144,7 @@ Pour cela, je compte le nombre de cultures différentes dans chaque village.
 
 ```{r}
 crops_village <- Cultivation_expand |>
+  filter(CROP != "SEASONAL FALLOW") |>
   distinct(STATE, VILLAGE, CROP) |>
   count(STATE, VILLAGE, name = "diff_crops")
 
@@ -177,7 +179,13 @@ ggsave("figures/Crops_per_village.png", plot = plot_crops_village, width = 8, he
 Je regarde quelles sont les 2 cultures les plus répandues dans chaque village.
 
 ```{r}
+
+```
+
+
+```{r}
 main_crop_village <- Cultivation_expand |>
+  filter(CROP != "SEASONAL FALLOW") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, VILLAGE, CROP) |>
   count(VILLAGE, CROP, name = "n") |>
   group_by(VILLAGE) |>
@@ -550,6 +558,7 @@ Pour paddy, il y a 15 champs (sur 1 325) qui ont un Hr/acre égal à 0.
 ```{r, message=FALSE, warning=FALSE}
 # Garder que les 10 première cultures
 top_10_crops <- Cultivation_expand |>
+  filter(CROP != "SEASONAL FALLOW") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |> 
   count(CROP, name = "nb_occurrences") |>
   arrange(desc(nb_occurrences)) |>
@@ -587,7 +596,7 @@ ggsave("figures/Labor_time_boxplot.png", plot = boxplot_hr_per_acre, width = 8, 
 ```
 
 
-**********************************************************************************
+*********************************************************************************
 
 ## Décomposition du travail par opération
 
@@ -1690,7 +1699,7 @@ mean_hacre_irri_HYV |>
   )
 ```
 
-**********************************************************************************
+********************************************************************************
 
 ## Genre
 
@@ -1745,13 +1754,23 @@ On regarde le type de main d'oeuvre selon le genre : employé, famille et échan
 
 Je regarde le nombre d'heures travaillées selon le type d'emploi et le genre. 
 
-#### Sur toute l'année
-
 ```{r}
 hired_work_all <- Cultivation_expand |>
   group_by(GENDER, EMPLOYMENT) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
+
+#### En nombre de ménages
+
+Quelle est la proportion de ménages qui embauchent du travail employé, féminin et/ou masculin ? 
+
+
+proportion_hh <- hired_work_all |>
+
+
+
+
+#### Sur toute l'année
 
 ```{r}
 labor_employment <- hired_work_all |>
@@ -2023,8 +2042,9 @@ plot_prct_oper_gender <- oper_gender_prct |>
 ggsave("figures/Prct_gender_oper.png", plot = plot_prct_oper_gender, width = 8, height = 6, dpi = 300)
 ```
 
+### Heures travaillées
 
-### Travail par culture
+#### Par culture
 
 Est-ce qu'on observe si les femmes travaillent plus pour certains cultures ? Si oui, quelle sont les caractéristiques de ces cultures (grande demande en hand weeding, harvesting)
 
@@ -2077,7 +2097,7 @@ Caractéristiques des cutures où on observe une différence de temps de travail
   Machinery : 5% (et 36% de n/a)
 
 
-### Selon la région / Etat
+#### Selon la région / Etat
 
 Je regarde si le travail des femmes varie selon la région (SAT ou EAST) et l'Etat. 
 
@@ -2134,7 +2154,7 @@ hr_per_gender |>
   )
 ```
 
-### Selon l'irrigation
+#### Irrigation
 
 On regarde si le travail des femmes varie selon l'irrigation du champ. 
 
@@ -2203,7 +2223,7 @@ test_mean_irri |>
 ```
 
 
-### Selon la variété de graine
+#### HYV
 
 On regarde si le travail des femmes varie selon la variété de graine (HYV). 
 
@@ -2238,7 +2258,7 @@ hr_per_gender |>
 Attention : Les résultats sont faussés car les n/a pour HYV sont inégalement répartis entre les cultures. Le cotton, culture majoraitement faite par les femmes, a 95% de n/a.
 
 
-### Selon la superficie des parcelles (pas sûre de garder)
+#### Superficie des parcelles (pas sûre de garder)
 
 L'idée est de voir si le travail des femmes varie selon la superficie du champ. 
 
@@ -2264,7 +2284,7 @@ hr_per_area |>
 Le travail fait par les membres de la famille (homme et femme) ne semble pas augmenter avec la superficie des parcelles. C'est légèrement le cas pour le travail employé (homme et femme).
 
 
-### Selon la méchanisation
+#### Méchanisation
 
 J'étudie la participation des femmes selon que l'opération soit méchanisée ou non. L'hypothèse est que les femmes réalisent peu d'opérations méchanisées, comme dit dans la littérature. 
 
@@ -2296,7 +2316,99 @@ hr_per_gender |>
 L'hypothèse semble vérifiée (à regarde plus en détails) : les femmes travaillent plus sur les opérations non méchanisées. 
 
 
+Questions suivantes : 
 
+- Pour les champs qui ont cultivé du riz en première saison (Kharif), quels sont leurs choix de culture en Rabi (culture ou jachère) ? 
+
+en filtrant pour les champs irrigués / non-irrigués ? 
+
+- regarder quels sont les choix en deuxième saison par caste : proportion de champs cutlivant les 4 principaux crops en Rabi en fonction de la caste
+
+- par ménage, combien de crops cultivés par saison (nombre champs avec des crops distincts). calculer notamment dans les villages riz en Kharif, combien de ménages ont une autre culture (en plus du riz) et quelle est la proportion de terre (area_crop) dans un ménage qui ne soit pas du riz
+
+- Graphique: Hr/acre par acre par caste -> les faire en plus par ménage (plutôt que par champ) --> calucler la supericie totale par méange et le temps de travail total  --> pour toujours filtrer pour le riz, définir des ménages riz qui ont un pourcentage de terre alloué au riz suffisamment haut
+
+
+********************************************************************************
+
+## Crop choice
+
+### Par champ
+
+On regarde sur les champs ayant eu du riz en Kharif, quelle est la culture faite en Rabi (en incluant la jachère) ?
+
+```{r}
+# Combien de champs font du riz en Kharif ? 
+crop_choice_kharif <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, CROP)
+
+total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE)
+
+crop_choice_kharif|>
+  count(CROP, sort = TRUE) |>
+  mutate(percentage = round(100 * n / total_champs_kharif, 1))
+```
+
+```{r}
+# Identifier les champs ayant fait du riz en Kharif
+paddy_kharif <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE) |>
+  mutate(PADDY_KHARIF = TRUE)
+```
+
+```{r}
+crop_choice_rabi <- Cultivation_expand |>
+  left_join(paddy_kharif, by = c("VDS_ID", "PLOT_CODE")) |>
+  mutate(PADDY_KHARIF = replace_na(PADDY_KHARIF, FALSE)) |>
+  filter(PADDY_KHARIF == TRUE, SEASON == "RABI") |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, IRRIGATION)
+
+# Nombre total de champs ayant eu du riz en Kharif
+total_champs_rabi <- n_distinct(crop_choice_rabi$VDS_ID, crop_choice_rabi$PLOT_CODE)
+
+# Comptage des cultures en Rabi
+crop_rabi <- crop_choice_rabi |>
+  count(CROP, sort = TRUE) |>
+  mutate(percentage = round(100 * n / total_champs_rabi, 1))
+crop_rabi
+```
+
+```{r}
+crop_choice_rabi |>
+  filter(CROP == "WHEAT") |>
+  count(IRRIGATION, sort = TRUE) |>
+  mutate(
+    total_wheat = sum(n),
+    percentage = round(100 * n / total_wheat, 1)
+  )
+```
+
+
+#### Selon la caste
+
+```{r}
+crop_choice_kharif <
+```
+
+
+```{r}
+crop_choice_rabi |>
+  filter(CROP %in% c("WHEAT", "LENTIL", "BLACK GRAM", "PADDY")) |>
+  group_by(CASTE_GROUP, CROP) |>
+  summarise(n = n(), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  mutate(
+    total = sum(n),
+    percentage = round(100 * n / total, 1)
+  ) |>
+  arrange(CASTE_GROUP, CROP)
+```
+
+
+
+### Par ménage
 
 
 
