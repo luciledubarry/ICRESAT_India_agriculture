@@ -494,7 +494,6 @@ FAUX: Cette méthode n'indique pas les cultures saisonnières, mais les cultures
 seasonal_cultures <- union(verif_operations$CROP, cultures_per_season$CROP)
 
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
-  filter(CROP != "SEASONAL FALLOW") |>
   mutate(SEASONAL = CROP %in% seasonal_cultures) |>
   filter(SEASONAL) |>
   select(-SEASONAL)
