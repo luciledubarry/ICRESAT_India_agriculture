@@ -2316,19 +2316,6 @@ hr_per_gender |>
 L'hypothèse semble vérifiée (à regarde plus en détails) : les femmes travaillent plus sur les opérations non méchanisées. 
 
 
-Questions suivantes : 
-
-- Pour les champs qui ont cultivé du riz en première saison (Kharif), quels sont leurs choix de culture en Rabi (culture ou jachère) ? 
-
-en filtrant pour les champs irrigués / non-irrigués ? 
-
-- regarder quels sont les choix en deuxième saison par caste : proportion de champs cutlivant les 4 principaux crops en Rabi en fonction de la caste
-
-- par ménage, combien de crops cultivés par saison (nombre champs avec des crops distincts). calculer notamment dans les villages riz en Kharif, combien de ménages ont une autre culture (en plus du riz) et quelle est la proportion de terre (area_crop) dans un ménage qui ne soit pas du riz
-
-- Graphique: Hr/acre par acre par caste -> les faire en plus par ménage (plutôt que par champ) --> calucler la supericie totale par méange et le temps de travail total  --> pour toujours filtrer pour le riz, définir des ménages riz qui ont un pourcentage de terre alloué au riz suffisamment haut
-
-
 ********************************************************************************
 
 ## Crop choice
@@ -2385,13 +2372,7 @@ crop_choice_rabi |>
   )
 ```
 
-
 #### Selon la caste
-
-```{r}
-crop_choice_kharif <
-```
-
 
 ```{r}
 crop_choice_rabi |>
@@ -2407,8 +2388,20 @@ crop_choice_rabi |>
 ```
 
 
-
 ### Par ménage
 
 
 
+
+
+Questions suivantes : 
+
+- Pour les champs qui ont cultivé du riz en première saison (Kharif), quels sont leurs choix de culture en Rabi (culture ou jachère) ? 
+
+en filtrant pour les champs irrigués / non-irrigués ? 
+
+- regarder quels sont les choix en deuxième saison par caste : proportion de champs cutlivant les 4 principaux crops en Rabi en fonction de la caste
+
+- par ménage, combien de crops cultivés par saison (nombre champs avec des crops distincts). calculer notamment dans les villages riz en Kharif, combien de ménages ont une autre culture (en plus du riz) et quelle est la proportion de terre (area_crop) dans un ménage qui ne soit pas du riz
+
+- Graphique: Hr/acre par acre par caste -> les faire en plus par ménage (plutôt que par champ) --> calucler la supericie totale par méange et le temps de travail total  --> pour toujours filtrer pour le riz, définir des ménages riz qui ont un pourcentage de terre alloué au riz suffisamment haut
