@@ -291,8 +291,8 @@ ggsave("figures/Histogram_female_work_hr.png", plot = histogram_female_work_hr, 
 
 ### Nombre de ménages par caste
 
-```{r, message=FALSE, warning=FALSEd}
-nb_caste <- Cultivation_expand |>
+```{r}
+Cultivation_expand |>
   filter(!is.na(CASTE_GROUP)) |>
   group_by(CASTE_GROUP) |>
   summarise(
@@ -309,8 +309,40 @@ nb_caste <- Cultivation_expand |>
   cols_label(
     CASTE_GROUP = "Caste"
   )
+```
 
-nb_caste
+A REFAIRE, car les champs sont comptés par saison (donc un même champ est compté deux fois dans l'année) alors que les ménages ne sont comptés qu'une fois dna sl'année, cela doouble le nombre de champs détenu par ménage
+
+
+```{r}
+plot_per_hh <- Cultivation_expand |>
+  distinct(VDS_ID, SEASON, PLOT_CODE, CROP) |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(nb_cultures = n_distinct(CROP), .groups = "drop")
+
+nb_caste <- Cultivation_expand |>
+  select(VDS_ID, CASTE_GROUP) |>
+  distinct() |>
+  left_join(plot_per_hh, by = "VDS_ID") |>
+  filter(!is.na(CASTE_GROUP))
+```
+
+```{r, message=FALSE, warning=FALSEd}
+nb_caste |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    `Nombre de ménages` = n_distinct(VDS_ID),
+    `Champs par ménage` = round(mean(nb_cultures, na.rm = TRUE), 1),
+    .groups = "drop"
+  ) |>
+  arrange(desc(`Champs par ménage`)) |>
+  gt() |>
+  tab_header(
+    title = "Champs par ménage et par caste"
+  ) |>
+  cols_label(
+    CASTE_GROUP = "Caste"
+  )
 ```
 
 
