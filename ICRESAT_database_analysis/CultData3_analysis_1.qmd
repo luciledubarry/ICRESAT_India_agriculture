@@ -298,12 +298,13 @@ nb_caste <- Cultivation_expand |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
     `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")),
+    `Champs par ménage` = round(`Nombre de champs`/`Nombre de ménages`, 1),
     .groups = "drop"
   ) |>
-  arrange(desc(`Nombre de ménages`)) |>
+  arrange(desc(`Champs par ménage`)) |>
   gt() |>
   tab_header(
-    title = "Nombre de ménages et de champs par caste"
+    title = "Ménages et champs par caste"
   ) |>
   cols_label(
     CASTE_GROUP = "Caste"
@@ -384,7 +385,8 @@ work_hr_caste_crop
 
 ### Superficie des champs
 
-```{r, messag=FALSE, warning=FALSE}
+```{r}
+# Superficie moyenne de chaque champ (culture distincte) par caste
 # Filtre pour le riz en Kharif
 area_by_caste <- Cultivation_expand |>
   filter(CROP == "PADDY",
@@ -393,17 +395,18 @@ area_by_caste <- Cultivation_expand |>
          ) |>
   mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
   group_by(CASTE_GROUP, CHAMP_ID) |>
-  summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop") |>
-  group_by(CASTE_GROUP) |>
-  summarise(MEAN_AREA = mean(AREA, na.rm = TRUE), .groups = "drop")
+  summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop")
+```
 
+```{r, message=FALSE, warning=FALSE}
 area_by_caste |>
-  ggplot(aes(x = reorder(CASTE_GROUP, -MEAN_AREA), y = MEAN_AREA, fill = CASTE_GROUP)) +
-  geom_col(width = 0.6, alpha = 0.8) +
+  ggplot(aes(x = CASTE_GROUP, y = AREA, fill = CASTE_GROUP)) +
+  geom_boxplot(width = 0.6, alpha = 0.8) +
+  ylim(0, 2) +
   labs(
-    title = "Superficie moyenne des champs par caste",
+    title = "Superficie des champs par caste",
     x = "Caste",
-    y = "Superficie moyenne (en acres)",
+    y = "Superficie par champ (en acres)",
     fill = "Caste"
   ) +
   theme_minimal() +
@@ -414,6 +417,42 @@ area_by_caste |>
     legend.position = "none"
   )
 ```
+
+
+```{r}
+# Superficie moyenne détenue par un même ménage (peut avoir plusieurs champs de de cultures différentes) par caste
+plot_per_caste <- Cultivation_expand |>
+  filter(CROP == "PADDY",
+         SEASON == "KHARIF",
+         !is.na(CASTE_GROUP), 
+         ) |>
+  distinct(VDS_ID, PLOT_CODE, CROP, AREA_CROP, CASTE_GROUP) |>
+  group_by(VDS_ID, CASTE_GROUP) |>
+  summarise(area_hh = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
+```
+
+Ajouter SEASON ou non ? 
+
+```{r, message = FALSE, warning = FALSE}
+plot_per_caste |>
+  ggplot(aes(x = CASTE_GROUP, y = area_hh, fill = CASTE_GROUP)) +
+  geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  ylim(0, 5) +
+  labs(
+    title = "Superficie détenue par ménage par caste",
+    x = "Caste",
+    y = "Superficie par ménage (en acres)",
+    fill = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12),
+    legend.position = "none"
+  )
+```
+
 
 
 ### Travail féminin par champ, selon la caste
@@ -496,6 +535,7 @@ mean_hr_caste |>
     legend.text = element_text(size = 10)
   )
 ```
+
 #### Heures par acre
 
 Ensuite, on regarde la moyenne de heures de travail (féminin puis masculin) par acre (Hr/acre) selon la caste. 
@@ -635,8 +675,8 @@ ggsave("figures/Hr_acre_caste_M.png", plot = plot_hr_acre_caste_M, width = 8, he
 labor_caste |>
   ggplot(aes(x = AREA_CROP, y = FF)) +
   geom_point(alpha = 0.3, color = "limegreen") +
-  geom_smooth(method = "loess", se = FALSE, color = "deepskyblue3", linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 4), ylim = c(0, 200)) +
+  geom_smooth(method = "loess", se = TRUE, color = "deepskyblue3", linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 200)) +
   labs(
     title = "Relation entre travail féminin familial et superficie (toutes castes)",
     x = "Superficie (en acre)",
@@ -656,8 +696,8 @@ labor_caste |>
 plot_work_FF_area <- labor_caste |>
   ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 5), ylim = c(0, 400)) +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 400)) +
   labs(
     title = "Relationship between family female labor and plot size, by caste",
     x = "Plot size (in acres)",
@@ -684,8 +724,8 @@ ggsave("figures/Work_FF_superficie.png", plot = plot_work_FF_area, width = 8, he
 plot_work_HF_area <- labor_caste |>
   ggplot(aes(x = AREA_CROP, y = HF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-    coord_cartesian(xlim = c(0, 5), ylim = c(0, 400)) +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
+    coord_cartesian(xlim = c(0, 3), ylim = c(0, 400)) +
   labs(
     title = "Relationship between hired female labor and plot size, by caste",
     x = "Plot size (in acres)",
@@ -706,6 +746,9 @@ plot_work_HF_area
 ```{r}
 ggsave("figures/Work_HF_superficie.png", plot = plot_work_HF_area, width = 8, height = 6, dpi = 300)
 ```
+
+calculer + ajouter au graph écart-type par caste
+
 
 ##### Outils selon la superficie (irrigation / méchanisation / HYV)
                       
@@ -776,8 +819,8 @@ mean_outils_caste <- proportion_outils |>
 mean_outils |>
   ggplot(aes(x = AREA_CROP, y = proportion, color = variable)) +
   geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 1)) +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
+  coord_cartesian(ylim = c(0, 1), xlim = c(0, 1)) +
   labs(
     title = "Lien avec la superficie (toutes castes confondues)",
     x = "Superficie (en acre)",
@@ -1080,5 +1123,3 @@ saveRDS(
 ```
 
 
-
-+ inviter Véronique sur le github
