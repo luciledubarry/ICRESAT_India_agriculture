@@ -2412,7 +2412,6 @@ hh_other_cultiv <- Cultivation_expand |>
   semi_join(hh_paddy_kharif, by = "VDS_ID")
 
 cat("Nombre de ménages ayant, en plus du riz, une autre culture en Kharif :", n_distinct(hh_other_cultiv$VDS_ID), "\n")
-
 ```
 
 ```{r}
@@ -2462,9 +2461,3 @@ ggplot(area_summary, aes(x = proportion_non_paddy)) +
 ```
 
 
-
-Questions suivantes : 
-
-- par ménage, combien de crops cultivés par saison (nombre champs avec des crops distincts). calculer notamment dans les villages riz en Kharif, combien de ménages ont une autre culture (en plus du riz) et quelle est la proportion de terre (area_crop) dans un ménage qui ne soit pas du riz
-
-- Graphique: Hr/acre par acre par caste -> les faire en plus par ménage (plutôt que par champ) --> calucler la supericie totale par méange et le temps de travail total  --> pour toujours filtrer pour le riz, définir des ménages riz qui ont un pourcentage de terre alloué au riz suffisamment haut
