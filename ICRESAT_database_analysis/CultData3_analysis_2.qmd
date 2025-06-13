@@ -2322,10 +2322,9 @@ L'hypothèse semble vérifiée (à regarde plus en détails) : les femmes travai
 
 ### Par champ
 
-On regarde sur les champs ayant eu du riz en Kharif, quelle est la culture faite en Rabi (en incluant la jachère) ?
+Combien de champs dont du riz en Kharif ? 
 
 ```{r}
-# Combien de champs font du riz en Kharif ? 
 crop_choice_kharif <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
   distinct(VDS_ID, PLOT_CODE, CROP)
@@ -2337,9 +2336,11 @@ crop_choice_kharif|>
   mutate(percentage = round(100 * n / total_champs_kharif, 1))
 ```
 
+On regarde sur les champs ayant eu du riz en Kharif, quelle est la culture faite en Rabi (en incluant la jachère) ?
+
 ```{r}
 # Identifier les champs ayant fait du riz en Kharif
-paddy_kharif <- Cultivation_expand |>
+plot_paddy_kharif <- Cultivation_expand |>
   filter(CROP == "PADDY", SEASON == "KHARIF") |>
   distinct(VDS_ID, PLOT_CODE) |>
   mutate(PADDY_KHARIF = TRUE)
@@ -2347,7 +2348,7 @@ paddy_kharif <- Cultivation_expand |>
 
 ```{r}
 crop_choice_rabi <- Cultivation_expand |>
-  left_join(paddy_kharif, by = c("VDS_ID", "PLOT_CODE")) |>
+  left_join(plot_paddy_kharif, by = c("VDS_ID", "PLOT_CODE")) |>
   mutate(PADDY_KHARIF = replace_na(PADDY_KHARIF, FALSE)) |>
   filter(PADDY_KHARIF == TRUE, SEASON == "RABI") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, IRRIGATION)
@@ -2362,6 +2363,8 @@ crop_rabi <- crop_choice_rabi |>
 crop_rabi
 ```
 
+Le blé est le principal choix de culture en Rabi, parès une culture de riz en Kharif. Quelle est la part d'irrigation des champs de blé dans cette situation ?
+
 ```{r}
 crop_choice_rabi |>
   filter(CROP == "WHEAT") |>
@@ -2373,6 +2376,8 @@ crop_choice_rabi |>
 ```
 
 #### Selon la caste
+
+Même réflexion, on regarde quels sont les choix de cultures en Rabi après une culture de riz en Kharif, cette fois-ci selon la caste. 
 
 ```{r}
 crop_choice_rabi |>
@@ -2390,17 +2395,75 @@ crop_choice_rabi |>
 
 ### Par ménage
 
+On regarde la diversité de cultures faites par les ménages qui font du riz en Kharif. Combien de ménages ont une autre culture en Kharif (en plus du riz) ? 
 
+```{r}
+# Identifier les ménages ayant fait du riz en Kharif
+hh_paddy_kharif <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  distinct(VDS_ID) |>
+  mutate(PADDY_KHARIF = TRUE)
+```
+
+```{r}
+# Garder les ménages concernés en supprimant les champs de riz en Kharif
+hh_other_cultiv <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP != "PADDY") |>
+  semi_join(hh_paddy_kharif, by = "VDS_ID")
+
+cat("Nombre de ménages ayant, en plus du riz, une autre culture en Kharif :", n_distinct(hh_other_cultiv$VDS_ID), "\n")
+
+```
+
+```{r}
+hh_other_cultiv |>
+  distinct(VDS_ID, PLOT_CODE, CROP) |>
+  count(CROP, sort = TRUE)
+```
+
+Pour les ménages ayant une autre culture en plus du riz en Kharif, quelle est la proportion de terre par ménage qui soit dédiée à cette autre culture ?
+
+```{r}
+# Garder seulement les ménages avec PADDY + autre culture en Kharif
+area_plot_kharif <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  semi_join(hh_paddy_kharif, by = "VDS_ID") |>
+  distinct(VDS_ID, PLOT_CODE, CROP, AREA_CROP) |>
+  group_by(VDS_ID) |>
+  filter(n_distinct(CROP) > 1) |>
+  ungroup()
+
+# Calcul de la superficie par ménage
+area_summary <- area_plot_kharif |>
+  group_by(VDS_ID) |>
+  summarise(
+    total_area = sum(AREA_CROP, na.rm = TRUE),
+    non_paddy_area = sum(AREA_CROP[CROP != "PADDY"], na.rm = TRUE),
+    proportion_non_paddy = round(100 * non_paddy_area / total_area, 1),
+    .groups = "drop"
+  )
+area_summary
+```
+
+```{r}
+ggplot(area_summary, aes(x = proportion_non_paddy)) +
+  geom_histogram(binwidth = 10, fill = "palegreen2", color = "palegreen4", alpha = 0.8) +
+  labs(
+    title = "Ménages cultivant du riz en Kharif: Superficie des champs hors riz",
+    x = "Superficie par ménage des champs en Kharif hors riz (%)",
+    y = "Nombre de ménages"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12)
+  )
+```
 
 
 
 Questions suivantes : 
-
-- Pour les champs qui ont cultivé du riz en première saison (Kharif), quels sont leurs choix de culture en Rabi (culture ou jachère) ? 
-
-en filtrant pour les champs irrigués / non-irrigués ? 
-
-- regarder quels sont les choix en deuxième saison par caste : proportion de champs cutlivant les 4 principaux crops en Rabi en fonction de la caste
 
 - par ménage, combien de crops cultivés par saison (nombre champs avec des crops distincts). calculer notamment dans les villages riz en Kharif, combien de ménages ont une autre culture (en plus du riz) et quelle est la proportion de terre (area_crop) dans un ménage qui ne soit pas du riz
 
