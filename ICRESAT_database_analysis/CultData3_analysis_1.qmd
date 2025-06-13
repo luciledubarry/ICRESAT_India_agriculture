@@ -588,6 +588,8 @@ hr_acre_caste <- labor_caste |>
 
 ##### Seulement les femmes
 
+###### Acre par champ
+
 ```{r}
 # Calculer la moyenne de Hr/acre pour les femmes selon la caste
 hr_acre_caste_F <- hr_acre_caste |>
@@ -642,7 +644,215 @@ plot_hr_acre_caste_F
 ggsave("figures/Hr_acre_caste_F.png", plot = plot_hr_acre_caste_F, width = 8, height = 6, dpi = 300)
 ```
 
+
+###### Acre par ménage
+
+####### Brouillon: Somme des champs faisant du riz par ménage
+
+A VOIR SI GARDER: La partie suivante calcule le temps de travail, la superficie et la producivité du travail en se basant sur la somme des dechamps faisant du riz en Kharif par ménage. 
+
+
+```{r}
+# Superficie totale par ménage (PADDY et KHARIF uniquement)
+hh_area <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP), CROP == "PADDY", SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  group_by(VDS_ID) |>
+  summarise(HH_AREA = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
+
+# Heures de travail totales par ménage, caste et lab_type 
+hh_labor <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP), CROP == "PADDY", SEASON == "KHARIF",
+         LAB_TYPE %in% c("HF", "FF", "HM", "FM")) |>
+  group_by(VDS_ID, LAB_TYPE, CASTE_GROUP) |>
+  summarise(HH_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = HH_HOURS,
+    values_fill = 0
+  ) |>
+  mutate(
+    WORK_F = HF + FF,
+    WORK_M = HM + FM
+  ) |>
+  left_join(hh_area, by = "VDS_ID")
+```
+
+```{r}
+# Calculer Hr/acre en considérant la superficie totale du ménage
+hh_labor <- hh_labor |>
+  mutate(
+    HR_ACRE_HF = HF/HH_AREA,
+    HR_ACRE_FF = FF/HH_AREA,
+    HR_ACRE_F = WORK_F/HH_AREA,
+    HR_ACRE_FM = FM/HH_AREA,
+    HR_ACRE_HM = HM/HH_AREA,
+    HR_ACRE_M = WORK_M/HH_AREA
+  )
+
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+hh_labor_F <- hh_labor |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HF = mean(HR_ACRE_HF, na.rm = TRUE),
+    MEAN_HACRE_FF = mean(HR_ACRE_FF, na.rm = TRUE),
+    MEAN_HACRE_WORK_F = mean(HR_ACRE_F, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_F, MEAN_HACRE_HF, MEAN_HACRE_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+hh_labor_F |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Female labor time per acre, by employment and caste",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_F" = "lightblue4",
+               "MEAN_HACRE_HF" = "lightblue2", 
+               "MEAN_HACRE_FF" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_F" = "Total labor",
+      "MEAN_HACRE_HF" = "Hired labor",
+      "MEAN_HACRE_FF" = "Family labor"
+    ),
+    name = "Female labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+####### Vrai
+
+A FINIR
+
+Le but est de regarder le temps de travail féminin selon la caste, exclusivement pour les ménages cultivant du riz en Kharif. On définit un pourcentage de terre allouée au riz suffisamment haut. 
+
+```{r}
+# Identifier les ménages ayant fait du riz en Kharif
+hh_paddy_kharif <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  distinct(VDS_ID) |>
+  mutate(PADDY_KHARIF = TRUE)
+
+# Superficie totale par ménage (pour les ménages faisant du riz en Kharif uniquement)
+hh_area <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  group_by(VDS_ID) |>
+  summarise(HH_AREA = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+# Heures de travail totales par ménage, caste et lab_type 
+hh_labor <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP), SEASON == "KHARIF",
+         LAB_TYPE %in% c("HF", "FF", "HM", "FM")) |>
+  group_by(VDS_ID, LAB_TYPE, CASTE_GROUP) |>
+  summarise(HH_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = HH_HOURS,
+    values_fill = 0
+  ) |>
+  mutate(
+    WORK_F = HF + FF,
+    WORK_M = HM + FM
+  ) |>
+  semi_join(hh_paddy_kharif, by = "VDS_ID") |>  
+  # filtrer les ménages ayant fait du riz
+  left_join(hh_area, by = "VDS_ID")
+  # ajouter la surface totale
+```
+
+```{r}
+# Calculer Hr/acre en considérant la superficie totale du ménage
+hh_labor <- hh_labor |>
+  mutate(
+    HR_ACRE_HF = HF/HH_AREA,
+    HR_ACRE_FF = FF/HH_AREA,
+    HR_ACRE_F = WORK_F/HH_AREA,
+    HR_ACRE_FM = FM/HH_AREA,
+    HR_ACRE_HM = HM/HH_AREA,
+    HR_ACRE_M = WORK_M/HH_AREA
+  )
+
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+hh_labor_F <- hh_labor |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HF = mean(HR_ACRE_HF, na.rm = TRUE),
+    MEAN_HACRE_FF = mean(HR_ACRE_FF, na.rm = TRUE),
+    MEAN_HACRE_WORK_F = mean(HR_ACRE_F, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_F, MEAN_HACRE_HF, MEAN_HACRE_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+hh_labor_F |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Female labor time per acre, by employment and caste",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_F" = "lightblue4",
+               "MEAN_HACRE_HF" = "lightblue2", 
+               "MEAN_HACRE_FF" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_F" = "Total labor",
+      "MEAN_HACRE_HF" = "Hired labor",
+      "MEAN_HACRE_FF" = "Family labor"
+    ),
+    name = "Female labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+
+
+
+Questions suivantes : 
+
+- Graphique: Hr/acre par acre par caste -> les faire en plus par ménage (plutôt que par champ) --> calucler la supericie totale par méange et le temps de travail total  
+
+A FAIRE --> pour toujours filtrer pour le riz, définir des ménages riz qui ont un pourcentage de terre alloué au riz suffisamment haut
+
+
+
 ##### Seulement les hommes
+
+###### Acre par champ
 
 ```{r}
 # Calculer la moyenne de Hr/acre pour les femmes selon la caste
@@ -697,6 +907,63 @@ plot_hr_acre_caste_M
 ggsave("figures/Hr_acre_caste_M.png", plot = plot_hr_acre_caste_M, width = 8, height = 6, dpi = 300)
 ```
 
+###### Acre par ménage
+
+####### Vrai
+
+A FINIR
+
+Le but est de regarder le temps de travail des hommes selon la caste, exclusivement pour les ménages cultivant du riz en Kharif. On définit un pourcentage de terre allouée au riz suffisamment haut. 
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+hh_labor_M <- hh_labor |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HM = mean(HR_ACRE_HM, na.rm = TRUE),
+    MEAN_HACRE_FM = mean(HR_ACRE_FM, na.rm = TRUE),
+    MEAN_HACRE_WORK_M = mean(HR_ACRE_M, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_M, MEAN_HACRE_HM, MEAN_HACRE_FM),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+hh_labor_M |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Male labor time per acre, by employment and caste",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_M" = "lightblue4",
+               "MEAN_HACRE_HM" = "lightblue2", 
+               "MEAN_HACRE_FM" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_M" = "Total labor",
+      "MEAN_HACRE_HM" = "Hired labor",
+      "MEAN_HACRE_FM" = "Family labor"
+    ),
+    name = "Male labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+
 
 #### Selon la superficie 
 
@@ -728,7 +995,7 @@ labor_caste |>
 plot_work_FF_area <- labor_caste |>
   ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
   coord_cartesian(xlim = c(0, 3), ylim = c(0, 400)) +
   labs(
     title = "Relationship between family female labor and plot size, by caste",
@@ -756,7 +1023,7 @@ ggsave("figures/Work_FF_superficie.png", plot = plot_work_FF_area, width = 8, he
 plot_work_HF_area <- labor_caste |>
   ggplot(aes(x = AREA_CROP, y = HF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
     coord_cartesian(xlim = c(0, 3), ylim = c(0, 400)) +
   labs(
     title = "Relationship between hired female labor and plot size, by caste",
