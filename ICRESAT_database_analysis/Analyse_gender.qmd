@@ -4,7 +4,34 @@ format: html
 editor: source
 ---
 
-## Genre
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_gender.qmd")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(viridisLite)
+library(stringr)
+library(tibble)
+library(tidyverse)
+library(gt)
+```
+
+```{r}
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+
+********************************************************************************
+
+## Analyse par genre
 
 ### Travail par mois
 
@@ -616,7 +643,7 @@ hr_per_gender |>
   )
 ```
 
-L'hypothèse semble vérifiée (à regarde plus en détails) : les femmes travaillent plus sur les opérations non méchanisées. 
+L'hypothèse semble vérifiée (à regarder plus en détails) : les femmes travaillent plus sur les opérations non méchanisées. 
 
 
 ********************************************************************************

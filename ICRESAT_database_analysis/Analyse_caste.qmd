@@ -11,7 +11,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/CultData3_analysis_1.qmd")
+here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)
@@ -53,6 +53,7 @@ Cultivation_expand |>
     SEASON = "Saison"
   )
 ```
+
 Environ 1,000 champs enregistrés en Kharif ne le sont plus en Rabi.
 Cela concerne certainement des champs en jachère qui n'ont aucune activité agricole en Rabi pour 2014. Je les ajoute manuellement pour pouvoir considérer ces champs dans l'analyse. 
 
@@ -136,7 +137,7 @@ crop_choice_kharif|>
 
 On regarde sur les champs ayant eu du riz en Kharif, quelle est la culture faite en Rabi (en incluant la jachère) ?
 
-VERIF : Pourquoi il y a 1300 champs de riz en Kharif, mais seulement environ 500 champs retants en Rabi (les jachères sont inclus normalement dans CROP) ?
+VERIF : Pourquoi il y a 1300 champs de riz en Kharif, mais seulement environ 900 champs restants en Rabi (les jachères sont inclus normalement dans CROP) ?
 
 ```{r}
 # Identifier les champs ayant fait du riz en Kharif
@@ -173,9 +174,6 @@ crop_choice_rabi |>
     percentage = round(100 * n / total_wheat, 1)
   )
 ```
-
-RESULTAT CERTAINEMENT FAUX ? 
-
 
 #### Selon la caste
 
@@ -264,7 +262,6 @@ ggplot(area_summary, aes(x = proportion_non_paddy)) +
 ```
 
 inclure dans ce graph les méange qui font que du riz en Kharif seront à 0%) et ceux qui n'en font pas (seront normalement à 100%)
-
 
 
 ********************************************************************************
