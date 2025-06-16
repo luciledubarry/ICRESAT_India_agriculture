@@ -29,155 +29,11 @@ Le premier modèle théorique repose sur ...
 Hypothèses : 
 - On considère qu'il y a qu'un seul salaire par genre. Le salaire qu'une personne pourrait obtenir en étant employé est égal à celui du travail familial. 
 
-
-## Ajout de la caste à la base Cultivation_expand
-
-### Joindre les deux régions de la base Household_info
-
 ```{r}
 Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
 ```
 
-J'importe les tables Household_info des deux régions (EAST et SAT) pour l'année 2014, pour intégrer la variable CASTE à chaque ménage. 
-
-```{r, message=FALSE, warning=FALSE}
-EAST_Household_info <- read_excel(here::here("raw_data", "EAST_Household_info_2014.xlsx"))
-SAT_Household_info <- read_excel(here::here("raw_data", "SAT_Household_info_2014.xlsx"))
-```
-
-```{r}
-# Sélectionner les variables VDS_ID et CASTE pour chaque table 
-EAST_Household_info <- EAST_Household_info |>
-  select(VDS_ID, CASTE, CASTE_GROUP)
-
-SAT_Household_info <- SAT_Household_info |>
-  select(VDS_ID, CASTE, CASTE_CATEGORY) |>
-  rename(CASTE_GROUP = CASTE_CATEGORY)
-
-# Joindre les deux régions
-Household_info <- bind_rows(EAST_Household_info, SAT_Household_info)
-```
-
-### Vérifier la correspondance de VDS_ID
-
-Les identifiants des ménages ne correspondent pas entre les deux bases, parce que dans la base Household_info, VDS_ID est majoritairement indiqué pour l'année 2013 plutôt que 2014. 
-
-```{r}
-Household_info <- Household_info |>
-  mutate(VDS_ID = ifelse(substr(VDS_ID, 5, 5) != "4",
-                         paste0(substr(VDS_ID, 1, 4), "4", substr(VDS_ID, 6, nchar(VDS_ID))),
-                         VDS_ID))
-```
-
-Je vérifie la correspondance des ménages entre Cultivation_expand et Household_info, une fois les années harmonisées. 
-
-```{r Correspondance Cultivation_expand -> Household_info}
-household_keys <- Household_info |>
-  select(VDS_ID) |>
-  distinct()
-
-cultivation_keys <- Cultivation_expand |>
-  select(VDS_ID) |>
-  distinct()
-
-# Identifier les ménages de Cultivation_expand non trouvés dans Household_info
-non_match <- anti_join(cultivation_keys, household_keys, by = "VDS_ID")
-
-n_non_matched <- nrow(non_match)
-n_hh <- nrow(cultivation_keys)
-prop_non_matched <- round(n_non_matched / n_hh * 100, 2)
-
-cat(" - Ménages totaux dans Cultivation_expand :", n_hh, "\n")
-cat(" - Ménages sans équivalent dans Household_info :", n_non_matched, "\n")
-cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
-```
-
-```{r Correspondance des régions}
-# Faire ressortir les codes de chaque village pour comparer les bases
-household_village <- Household_info |> 
-  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
-  group_by(VILLAGE) |>
-  distinct(VDS_ID) |>
-  summarise(n = n(), .groups = "drop")
-
-cultivation_village  <- Cultivation_expand  |> 
-  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
-  group_by(VILLAGE) |>
-  distinct(VDS_ID) |>
-  summarise(n = n(), .groups = "drop")
-```
-
-Le village TS, qui comprend 64 ménages dans Cultivation_expand, n'est pas présent dans Household_info, ce qui explique une partie des ménages manquants. 
-
-
-### Ajout de variables
-
-J'ajoute les variables suivantes à la nouvelle table Cultivation_caste. 
-
-#### Caste et Caste_group
-
-```{r}
-Cultivation_caste <- Cultivation_expand |>
-  left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
-  mutate(
-    CASTE_GROUP = recode(CASTE_GROUP, 
-                         `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER"),
-    )
-```
-
-Je regarde le nombre de n/a pour la caste dans Cultivation.  
-
-```{r}
-Cultivation_caste |>
-  summarise(
-    na_caste = sum(is.na(CASTE_GROUP)),
-    total = n(),
-    pct_na = round(100 * na_caste / total, 2)
-  )
-```
-
-#### Irrigation
-
-```{r}
-# Variable IRRIGATION
-Cultivation_caste <- Cultivation_caste |>
-  mutate(PER_IRRI = round(100 * IRRI_CROP / AREA_CROP, 2)) |>
-  mutate(PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI))
-
-Cultivation_caste <- Cultivation_caste |>
-  mutate(
-    IRRIGATION = case_when(
-      PER_IRRI>49 ~ "Irrigué",
-      PER_IRRI<50 ~ "Non irrigué"
-    )
-  ) |>
-  select(-PER_IRRI)
-```
-
-### Enregistrer Cultivation_caste dans le document partagé
-
-```{r}
-# Définir le chemin du dossier
-folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_caste"
-
-# Créer le dossier s'il n'existe pas
-if (!dir.exists(folder_path)) {
-  dir.create(folder_path, recursive = TRUE)
-}
-
-# Enregistrer le fichier CSV
-write.csv(
-  Cultivation_caste,
-  file = file.path(folder_path, "Cultivation_caste.csv"),
-  row.names = FALSE
-)
-
-# Enregistrer le fichier RDS
-saveRDS(
-  Cultivation_caste,
-  file = file.path(folder_path, "Cultivation_caste.rds"),
-)
-```
+Analyse de la base Cultivation_expand, pour l'année 2014
 
 ********************************************************************************
 
@@ -187,7 +43,7 @@ saveRDS(
 On veut représenter le temps de travail féminin familial (LAB_TYPE = FF) par rapport au temps de travail féminin total ou employé. On se concentre sur la culture de riz en Kharif. 
 
 ```{r, message=FALSE, warning=FALSE}
-female_work_hours <- Cultivation_caste |>
+female_work_hours <- Cultivation_expand |>
   filter(CROP == "PADDY", SEASON == "KHARIF") |>
   group_by(VDS_ID, PLOT_CODE, CROP, SEASON) |>
   summarise(
@@ -320,13 +176,17 @@ histogram_female_work_hr
 ggsave("figures/Histogram_female_work_hr.png", plot = histogram_female_work_hr, width = 8, height = 6, dpi = 300)
 ```
 
+********************************************************************************
 
-## Etude par caste
+## Comptage des champs/ ménage
 
-### Nombre de ménages par caste
+### Total par saison
+
+
+### Selon la caste
 
 ```{r}
-Cultivation_caste |>
+Cultivation_expand |>
   filter(!is.na(CASTE_GROUP)) |>
   group_by(CASTE_GROUP) |>
   summarise(
@@ -349,18 +209,17 @@ Les ménages sont eux comptabilisés sans considérer la saison donc une fois.
 ```{r}
 # 1. Comptage des champs
 # J'inclue SEASON pour identifier le ménage pour compenser d'avoir compté en double champs (un par saison).
-plot_per_hh <- Cultivation_caste |>
+plot_per_hh <- Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, CROP, SEASON) |>
   group_by(VDS_ID, SEASON) |> 
   summarise(nb_cultures = n_distinct(PLOT_CODE, CROP), .groups = "drop")
 
 # 2. Rattacher la caste à chaque ménage
-nb_caste <- Cultivation_caste |>
+nb_caste <- Cultivation_expand |>
   select(VDS_ID, CASTE_GROUP) |>
   distinct() |>
   filter(!is.na(CASTE_GROUP)) |>
   left_join(plot_per_hh, by = "VDS_ID")
-  
 ```
 
 ```{r, message=FALSE, warning=FALSEd}
@@ -382,14 +241,174 @@ nb_caste |>
 ```
 
 
-### Cultures par caste
+********************************************************************************
 
-#### En nombre de champs
+PARTIE A REVOIR: Résultats incohérents entre le nombre de champs par culture en Kharif et celui en Rabi 
+
+
+## Crop choice
+
+### Par champ
+
+Combien de champs font du riz en Kharif ? 
+
+```{r}
+crop_choice_kharif <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, CROP)
+
+total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE, crop_choice_kharif$CROP)
+
+crop_choice_kharif|>
+  count(CROP, sort = TRUE) |>
+  mutate(percentage = round(100 * n / total_champs_kharif, 1))
+```
+
+On regarde sur les champs ayant eu du riz en Kharif, quelle est la culture faite en Rabi (en incluant la jachère) ?
+
+VERIF : Pourquoi il y a 1300 champs de riz en Kharif, mais seulement environ 500 champs retants en Rabi (les jachères sont inclus normalement dans CROP) ?
+
+```{r}
+# Identifier les champs ayant fait du riz en Kharif
+plot_paddy_kharif <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  distinct(VDS_ID) |>
+  mutate(PADDY_KHARIF = TRUE)
+```
+
+```{r}
+crop_choice_rabi <- Cultivation_expand |>
+  left_join(plot_paddy_kharif, by = c("VDS_ID")) |>
+  filter(PADDY_KHARIF == TRUE, SEASON == "RABI") |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, IRRIGATION)
+
+# Nombre total de champs ayant eu du riz en Kharif
+total_champs_rabi <- n_distinct(crop_choice_rabi$VDS_ID, crop_choice_rabi$PLOT_CODE)
+
+# Comptage des cultures en Rabi
+crop_rabi <- crop_choice_rabi |>
+  count(CROP, sort = TRUE) |>
+  mutate(percentage = round(100 * n / total_champs_rabi, 1))
+crop_rabi
+```
+
+Le blé est le principal choix de culture en Rabi, parès une culture de riz en Kharif. Quelle est la part d'irrigation des champs de blé dans cette situation ?
+
+```{r}
+crop_choice_rabi |>
+  filter(CROP == "WHEAT") |>
+  count(IRRIGATION, sort = TRUE) |>
+  mutate(
+    total_wheat = sum(n),
+    percentage = round(100 * n / total_wheat, 1)
+  )
+```
+
+RESULTAT CERTAINEMENT FAUX ? 
+
+
+#### Selon la caste
+
+Même réflexion, on regarde quels sont les choix de cultures en Rabi après une culture de riz en Kharif, cette fois-ci selon la caste. 
+
+```{r}
+crop_choice_rabi |>
+  filter(CROP %in% c("WHEAT", "LENTIL", "BLACK GRAM", "PADDY")) |>
+  group_by(CASTE_GROUP, CROP) |>
+  summarise(n = n(), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  mutate(
+    total = sum(n),
+    percentage = round(100 * n / total, 1)
+  ) |>
+  arrange(CASTE_GROUP, CROP)
+```
+
+
+### Par ménage
+
+On regarde la diversité de cultures faites par les ménages qui font du riz en Kharif. Combien de ménages ont une autre culture en Kharif (en plus du riz) ? 
+
+```{r}
+# Identifier les ménages ayant fait du riz en Kharif
+hh_paddy_kharif <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  distinct(VDS_ID) |>
+  mutate(PADDY_KHARIF = TRUE)
+```
+
+```{r}
+# Garder les ménages concernés en supprimant les champs de riz en Kharif
+hh_other_cultiv <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP != "PADDY") |>
+  semi_join(hh_paddy_kharif, by = "VDS_ID")
+
+cat("Nombre de ménages ayant, en plus du riz, une autre culture en Kharif :", n_distinct(hh_other_cultiv$VDS_ID), "\n sur", nrow(hh_paddy_kharif |> filter(PADDY_KHARIF)), "ménages faisant du riz en Kharif")
+```
+vérifier en nombre de champs et nombre de méange, pour avoir un résultat cohérent avec la partie précédente
+
+```{r}
+hh_other_cultiv |>
+  distinct(VDS_ID, PLOT_CODE, CROP) |>
+  count(CROP, sort = TRUE)
+```
+
+Pour les ménages ayant une autre culture en plus du riz en Kharif, quelle est la proportion de terre par ménage qui soit dédiée à cette autre culture ?
+
+```{r}
+# Garder seulement les ménages avec PADDY + autre culture en Kharif
+area_plot_kharif <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  semi_join(hh_paddy_kharif, by = "VDS_ID") |>
+  distinct(VDS_ID, PLOT_CODE, CROP, AREA_CROP) |>
+  group_by(VDS_ID) |>
+  filter(n_distinct(CROP) > 1) |>
+  ungroup()
+
+# Calcul de la superficie par ménage
+area_summary <- area_plot_kharif |>
+  group_by(VDS_ID) |>
+  summarise(
+    total_area = sum(AREA_CROP, na.rm = TRUE),
+    non_paddy_area = sum(AREA_CROP[CROP != "PADDY"], na.rm = TRUE),
+    proportion_non_paddy = round(100 * non_paddy_area / total_area, 1),
+    .groups = "drop"
+  )
+area_summary
+```
+
+```{r}
+ggplot(area_summary, aes(x = proportion_non_paddy)) +
+  geom_histogram(fill = "palegreen2", color = "palegreen4", alpha = 0.8) +
+  labs(
+    title = "Ménages cultivant du riz en Kharif: Superficie des champs hors riz",
+    x = "Superficie par ménage des champs en Kharif hors riz (%)",
+    y = "Nombre de ménages"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12)
+  )
+```
+
+inclure dans ce graph les méange qui font que du riz en Kharif seront à 0%) et ceux qui n'en font pas (seront normalement à 100%)
+
+
+
+********************************************************************************
+
+
+## Analyse par caste
+
+## Cultures par caste
+### En nombre de champs
 
 Je comptabilise le nombre de champs distincts pour les principales cultures selon la caste. 
 
 ```{r}
-nb_champs_caste_crop <- Cultivation_caste |>
+nb_champs_caste_crop <- Cultivation_expand |>
   filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN"),
          !is.na(CASTE_GROUP)) |>
   mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
@@ -422,12 +441,12 @@ nb_champs_caste_crop_pct <- nb_champs_caste_crop |>
 nb_champs_caste_crop_pct
 ```
 
-#### En temps de travail
+### En temps de travail
 
 Sur quelles cultures chaque caste travaillent le plus ? 
 
 ```{r}
-work_hr_caste_crop <- Cultivation_caste |>
+work_hr_caste_crop <- Cultivation_expand |>
   filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN"),
          !is.na(CASTE_GROUP)) |>
   group_by(CASTE_GROUP, CROP) |>
@@ -451,12 +470,12 @@ work_hr_caste_crop
 ```
 
 
-### Superficie des champs
+## Superficie des champs
 
 ```{r}
 # Superficie moyenne de chaque champ (culture distincte) par caste
 # Filtre pour le riz en Kharif
-area_by_caste <- Cultivation_caste |>
+area_by_caste <- Cultivation_expand |>
   filter(CROP == "PADDY",
          SEASON == "KHARIF",
          !is.na(CASTE_GROUP), 
@@ -489,7 +508,7 @@ area_by_caste |>
 
 ```{r}
 # Superficie moyenne détenue par un même ménage (peut avoir plusieurs champs de de cultures différentes) par caste
-plot_per_caste <- Cultivation_caste |>
+plot_per_caste <- Cultivation_expand |>
   filter(CROP == "PADDY",
          SEASON == "KHARIF",
          !is.na(CASTE_GROUP), 
@@ -523,7 +542,7 @@ plot_per_caste |>
 
 
 
-### Travail féminin par champ, selon la caste
+## Travail féminin par champ, selon la caste
 
 On regarde la moyenne par champ des heures de travail faites par les femmes selon la caste (travail familial et employé).
 
@@ -531,7 +550,7 @@ On se concentre sur la culture du riz en Kharif.
 
 ```{r}
 # 1. Somme des heures de travail par champ, caste et lab_type
-labor_caste <- Cultivation_caste |>
+labor_caste <- Cultivation_expand |>
   filter(!is.na(CASTE_GROUP),
          CROP == "PADDY", 
          SEASON == "KHARIF",
@@ -553,7 +572,7 @@ labor_caste <- Cultivation_caste |>
   )
 ```
 
-#### Total des heures
+### Total des heures
 
 Moyenne des heures de travail selon la caste : 
 
@@ -604,7 +623,7 @@ mean_hr_caste |>
   )
 ```
 
-#### Heures par acre
+### Heures par acre
 
 Ensuite, on regarde la moyenne de heures de travail (féminin puis masculin) par acre (Hr/acre) selon la caste. 
 
@@ -622,9 +641,9 @@ hr_acre_caste <- labor_caste |>
   )
 ```
 
-##### Seulement les femmes
+#### Seulement les femmes
 
-###### Champs de riz
+##### Champs de riz
 
 ```{r}
 # Calculer la moyenne de Hr/acre pour les femmes selon la caste
@@ -681,7 +700,7 @@ ggsave("figures/Hr_acre_caste_F.png", plot = plot_hr_acre_caste_F, width = 8, he
 ```
 
 
-###### Tous ménages
+##### Tous ménages
 
 A FINIR
 
@@ -689,13 +708,13 @@ Le but est de regarder le temps de travail féminin selon la caste, exclusivemen
 
 ```{r}
 # Identifier les ménages ayant fait du riz en Kharif
-hh_paddy_kharif <- Cultivation_caste |>
+hh_paddy_kharif <- Cultivation_expand |>
   filter(CROP == "PADDY", SEASON == "KHARIF") |>
   distinct(VDS_ID) |>
   mutate(PADDY_KHARIF = TRUE)
 
 # Superficie totale par ménage (pour les ménages faisant du riz en Kharif uniquement)
-hh_area <- Cultivation_caste |>
+hh_area <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
   distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
   group_by(VDS_ID) |>
@@ -704,7 +723,7 @@ hh_area <- Cultivation_caste |>
 
 ```{r}
 # Heures de travail totales par ménage, caste et lab_type 
-hh_labor <- Cultivation_caste |>
+hh_labor <- Cultivation_expand |>
   filter(!is.na(CASTE_GROUP), SEASON == "KHARIF",
          LAB_TYPE %in% c("HF", "FF", "HM", "FM")) |>
   group_by(VDS_ID, LAB_TYPE, CASTE_GROUP) |>
@@ -796,9 +815,9 @@ A FAIRE --> pour toujours filtrer pour le riz, définir des ménages riz qui ont
 
 
 
-##### Seulement les hommes
+#### Seulement les hommes
 
-###### Acre par champ
+##### Acre par champ
 
 ```{r}
 # Calculer la moyenne de Hr/acre pour les femmes selon la caste
@@ -853,7 +872,7 @@ plot_hr_acre_caste_M
 ggsave("figures/Hr_acre_caste_M.png", plot = plot_hr_acre_caste_M, width = 8, height = 6, dpi = 300)
 ```
 
-###### Acre par ménage
+##### Acre par ménage
 
 A FINIR
 
@@ -909,9 +928,9 @@ hh_labor_M |>
 
 
 
-#### Selon la superficie 
+### Selon la superficie 
 
-##### Travail féminin selon la superficie
+#### Travail féminin selon la superficie
 
 ```{r, message=FALSE}
 # Toutes les castes confondues ; seulement travail familial
@@ -993,10 +1012,10 @@ ggsave("figures/Work_HF_superficie.png", plot = plot_work_HF_area, width = 8, he
 calculer + ajouter au graph écart-type par caste
 
 
-##### Outils selon la superficie (irrigation / méchanisation / HYV)
+#### Outils selon la superficie (irrigation / méchanisation / HYV)
                       
 ```{r}
-proportion_outils <- Cultivation_caste |>
+proportion_outils <- Cultivation_expand |>
   filter(!is.na(CASTE_GROUP),
          CROP == "PADDY", 
          SEASON == "KHARIF") |>
@@ -1080,7 +1099,7 @@ mean_outils |>
     )
 ```
 
-###### Irrigation
+##### Irrigation
 
 ```{r, message=FALSE, warning=FALSE}
 # Par caste ; irrigation
@@ -1102,7 +1121,7 @@ mean_outils_caste |>
     )
 ```
 
-###### Méchanisation
+##### Méchanisation
 
 ```{r, message=FALSE, warning=FALSE}
 # Par caste ; méchanisation
@@ -1124,7 +1143,7 @@ mean_outils_caste |>
     )
 ```
 
-###### HYV
+##### HYV
 
 ```{r, message=FALSE, warning=FALSE}
 # Par caste ; HYV
@@ -1147,11 +1166,11 @@ mean_outils_caste |>
 ```
 
 
-### Productivité selon la caste
+## Productivité selon la caste
 
 L'idée est de comprendre pourquoi la caste supérieure (FC) a un ratio Hr/acre total inférieur aux autres castes, que ce soit pour le travail des hommes et celui des femmes. 
 
-#### Production de riz par acre
+### Production de riz par acre
 
 On regarde la production de riz (en kg) par acre, en fonction de la caste. 
 
@@ -1160,7 +1179,7 @@ Il y a de nombreux n/a pour les variables sur la production (OP_MAIN_PROD_QTY et
 Sur 1,007 ménages présents dans la base initiale Cultivation_2014, 831 n'ont pas d'information sur la production : 645 ménages parce qu'ils n'ont de correspondance entre les bases CultOutput_2014 et CultInput_2014 + 184 ménages parce que les variables ne sont pas complétées dans CultOutput_2014. 
 
 ```{r}
-cultivation_paddy <- Cultivation_caste |>
+cultivation_paddy <- Cultivation_expand |>
   filter(CROP == "PADDY", SEASON == "KHARIF") |>
   group_by(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, AREA_CROP) |>
   summarise(
@@ -1235,17 +1254,17 @@ mean_prod_caste |>
 per hour (pour chaque heure travaillée) : divisé par le nombre total d'heures
 
 
-#### Irrigation
+### Irrigation
 
 On regarde le pourcentage de champs irrigués dans la culture du riz (en Kharif) selon la caste.
 
 *A GARDER ?*
 Variable IRRIGATION
-Cultivation_caste <- Cultivation_caste |>
+Cultivation_expand <- Cultivation_expand |>
   mutate(PER_IRRI = round(100 * IRRI_CROP / AREA_CROP, 2)) |>
   mutate(PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI))
 
-Cultivation_caste <- Cultivation_caste |>
+Cultivation_expand <- Cultivation_expand |>
   mutate(
     IRRIGATION = case_when(
       PER_IRRI>70 ~ "Irrigué",
@@ -1257,7 +1276,7 @@ Cultivation_caste <- Cultivation_caste |>
 
 
 ```{r}
-Cultivation_caste |>
+Cultivation_expand |>
   filter(!is.na(IRRIGATION),
          !is.na(CASTE_GROUP),
          CROP == "PADDY",
@@ -1278,12 +1297,12 @@ Cultivation_caste |>
   arrange(desc(Irrigué))
 ```
 
-#### Méchanisation
+### Méchanisation
 
 On regarde la part de méchanisation dans la culture du riz (en Kharif) selon la caste.
 
 ```{r}
-Cultivation_caste |>
+Cultivation_expand |>
   filter(!is.na(MACHINERY),
          !is.na(CASTE_GROUP),
          CROP == "PADDY",
@@ -1304,10 +1323,10 @@ Cultivation_caste |>
   arrange(desc(Mécanisé))
 ```
 
-#### HYV
+### HYV
 
 ```{r}
-Cultivation_caste <- Cultivation_caste |>
+Cultivation_expand <- Cultivation_expand |>
   mutate(
     VAR_TYPE = recode(VAR_TYPE,
                       `1` = "Local",
@@ -1319,7 +1338,7 @@ Cultivation_caste <- Cultivation_caste |>
 ```
 
 ```{r}
-Cultivation_caste |>
+Cultivation_expand |>
   filter(!is.na(VAR_TYPE),
          !is.na(CASTE_GROUP),
          CROP == "PADDY",
@@ -1340,159 +1359,4 @@ Cultivation_caste |>
   arrange(desc(`High-yielding variety`))
 ```
 
-
-********************************************************************************
-
-PARTIE A REVOIR: Résultats incohérents entre le nombre de champs par culture en Kharif et celui en Rabi 
-
-
-## Crop choice
-
-### Par champ
-
-Combien de champs font du riz en Kharif ? 
-
-```{r}
-crop_choice_kharif <- Cultivation_expand |>
-  filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, CROP)
-
-total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE)
-
-crop_choice_kharif|>
-  count(CROP, sort = TRUE) |>
-  mutate(percentage = round(100 * n / total_champs_kharif, 1))
-```
-
-On regarde sur les champs ayant eu du riz en Kharif, quelle est la culture faite en Rabi (en incluant la jachère) ?
-
-VERIF : Pourquoi il y a 1300 champs de riz en Kharif, mais seulement environ 500 champs retants en Kharif (les jachères sont inclus normalement dans CROP) ?
-
-```{r}
-# Identifier les champs ayant fait du riz en Kharif
-plot_paddy_kharif <- Cultivation_expand |>
-  filter(CROP == "PADDY", SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, CROP) |>
-  mutate(PADDY_KHARIF = TRUE)
-```
-
-```{r}
-crop_choice_rabi <- Cultivation_expand |>
-  left_join(plot_paddy_kharif, by = c("VDS_ID", "PLOT_CODE")) |>
-  mutate(PADDY_KHARIF = replace_na(PADDY_KHARIF, FALSE)) |>
-  filter(PADDY_KHARIF == TRUE, SEASON == "RABI") |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, IRRIGATION)
-
-# Nombre total de champs ayant eu du riz en Kharif
-total_champs_rabi <- n_distinct(crop_choice_rabi$VDS_ID, crop_choice_rabi$PLOT_CODE)
-
-# Comptage des cultures en Rabi
-crop_rabi <- crop_choice_rabi |>
-  count(CROP, sort = TRUE) |>
-  mutate(percentage = round(100 * n / total_champs_rabi, 1))
-crop_rabi
-```
-
-Le blé est le principal choix de culture en Rabi, parès une culture de riz en Kharif. Quelle est la part d'irrigation des champs de blé dans cette situation ?
-
-```{r}
-crop_choice_rabi |>
-  filter(CROP == "WHEAT") |>
-  count(IRRIGATION, sort = TRUE) |>
-  mutate(
-    total_wheat = sum(n),
-    percentage = round(100 * n / total_wheat, 1)
-  )
-```
-
-RESULTAT CERTAINEMENT FAUX ? 
-
-
-#### Selon la caste
-
-Même réflexion, on regarde quels sont les choix de cultures en Rabi après une culture de riz en Kharif, cette fois-ci selon la caste. 
-
-```{r}
-crop_choice_rabi |>
-  filter(CROP %in% c("WHEAT", "LENTIL", "BLACK GRAM", "PADDY")) |>
-  group_by(CASTE_GROUP, CROP) |>
-  summarise(n = n(), .groups = "drop") |>
-  group_by(CASTE_GROUP) |>
-  mutate(
-    total = sum(n),
-    percentage = round(100 * n / total, 1)
-  ) |>
-  arrange(CASTE_GROUP, CROP)
-```
-
-
-### Par ménage
-
-On regarde la diversité de cultures faites par les ménages qui font du riz en Kharif. Combien de ménages ont une autre culture en Kharif (en plus du riz) ? 
-
-```{r}
-# Identifier les ménages ayant fait du riz en Kharif
-hh_paddy_kharif <- Cultivation_caste |>
-  filter(CROP == "PADDY", SEASON == "KHARIF") |>
-  distinct(VDS_ID) |>
-  mutate(PADDY_KHARIF = TRUE)
-```
-
-```{r}
-# Garder les ménages concernés en supprimant les champs de riz en Kharif
-hh_other_cultiv <- Cultivation_caste |>
-  filter(SEASON == "KHARIF", CROP != "PADDY") |>
-  semi_join(hh_paddy_kharif, by = "VDS_ID")
-
-cat("Nombre de ménages ayant, en plus du riz, une autre culture en Kharif :", n_distinct(hh_other_cultiv$VDS_ID), "\n sur", nrow(hh_paddy_kharif |> filter(PADDY_KHARIF)), "ménages faisant du riz en Kharif")
-```
-vérifier en nombre de champs et nombre de méange, pour avoir un résultat cohérent avec la partie précédente
-
-```{r}
-hh_other_cultiv |>
-  distinct(VDS_ID, PLOT_CODE, CROP) |>
-  count(CROP, sort = TRUE)
-```
-
-Pour les ménages ayant une autre culture en plus du riz en Kharif, quelle est la proportion de terre par ménage qui soit dédiée à cette autre culture ?
-
-```{r}
-# Garder seulement les ménages avec PADDY + autre culture en Kharif
-area_plot_kharif <- Cultivation_caste |>
-  filter(SEASON == "KHARIF") |>
-  semi_join(hh_paddy_kharif, by = "VDS_ID") |>
-  distinct(VDS_ID, PLOT_CODE, CROP, AREA_CROP) |>
-  group_by(VDS_ID) |>
-  filter(n_distinct(CROP) > 1) |>
-  ungroup()
-
-# Calcul de la superficie par ménage
-area_summary <- area_plot_kharif |>
-  group_by(VDS_ID) |>
-  summarise(
-    total_area = sum(AREA_CROP, na.rm = TRUE),
-    non_paddy_area = sum(AREA_CROP[CROP != "PADDY"], na.rm = TRUE),
-    proportion_non_paddy = round(100 * non_paddy_area / total_area, 1),
-    .groups = "drop"
-  )
-area_summary
-```
-
-```{r}
-ggplot(area_summary, aes(x = proportion_non_paddy)) +
-  geom_histogram(fill = "palegreen2", color = "palegreen4", alpha = 0.8) +
-  labs(
-    title = "Ménages cultivant du riz en Kharif: Superficie des champs hors riz",
-    x = "Superficie par ménage des champs en Kharif hors riz (%)",
-    y = "Nombre de ménages"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(size = 14),
-    axis.text = element_text(size = 11),
-    axis.title = element_text(size = 12)
-  )
-```
-
-inclure dans ce graph les méange qui font que du riz en Kharif seront à 0%) et ceux qui n'en font pas (seront normalement à 100%)
 

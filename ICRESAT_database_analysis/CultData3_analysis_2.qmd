@@ -25,27 +25,27 @@ library(gt)
 ```
 
 ```{r}
-Cultivation_caste <- readRDS(here::here("Base de données générées", "Cultivation_caste", "Cultivation_caste.rds"))
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
 ```
 
-Analyse de la base Cultivation_caste, pour l'année 2014
+Analyse de la base Cultivation_expand, pour l'année 2014
 
-Cette base inclut les opérations non complétées (c’est-à-dire celles avec un temps de travail égal à 0), pour lesquelles on a ajouté des lignes. 
+Cette base inclut les opérations non complétées (c’est-à-dire celles avec un temps de travail égal à 0), pour lesquelles on a ajouté des lignes, et les variables Caste et Caste_group. 
 
 ## Principales cultures
 
 ```{r Nombre de ménages, champs et cultures distincts}
-n_menages <- Cultivation_caste |>
+n_menages <- Cultivation_expand |>
   distinct(VDS_ID) |>
   summarise(nb = n()) |>
   pull(nb)
 
-n_champs <- Cultivation_caste |>
+n_champs <- Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, SEASON) |>
   summarise(nb = n()) |>
   pull(nb)
 
-n_crops <- Cultivation_caste |>
+n_crops <- Cultivation_expand |>
   distinct(CROP) |>
   summarise(nb = n()) |>
   pull(nb)
@@ -55,7 +55,7 @@ cat("Nombre total de champs distincts :", n_champs, "\n")
 cat("Nombre total de cultures :", n_crops, "\n")
 ```
 ```{r Principales cultures}
-plot_cultures <- Cultivation_caste |>
+plot_cultures <- Cultivation_expand |>
   mutate(CROP = recode(CROP, `PADDY` = "RICE")) |>
   distinct(VDS_ID, PLOT_CODE, SEASON, CROP) |>
   count(CROP, name = "nb") |>
@@ -91,11 +91,11 @@ ggsave("figures/Top10_cultures.png",
 Je regarde comment les ménages / plots sont réparties selon les régions. 
 
 ```{r}
-n_menages_region <- Cultivation_caste |>
+n_menages_region <- Cultivation_expand |>
   distinct(VDS_ID, REGION) |>
   count(REGION, name = "nb_menages")
 
-n_plots_region <- Cultivation_caste |>
+n_plots_region <- Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, SEASON, REGION) |>
   count(REGION, name = "nb_plots")
 
@@ -106,7 +106,7 @@ full_join(n_menages_region, n_plots_region, by = "REGION")
 ## Cultures par village
 
 ```{r}
-Cultivation_caste <- Cultivation_caste |>
+Cultivation_expand <- Cultivation_expand |>
   filter(AREA_CROP != 0) |>
   filter(!MULTI_CROPING) |>
   filter(is.na(HUMAN_LABOR) | HUMAN_LABOR == TRUE) |>
@@ -115,7 +115,7 @@ Cultivation_caste <- Cultivation_caste |>
 # Je garde les NA de HUMAN_LABOR pour conserver les opérations non complétées (WORK_HR = 0) et les prendre en compte dans le calcul de h/acre moyen. 
 ```
 
-J'applique différents filtres sur Cultivation_caste avant le calcul du ratio Hr/acre par champ. Filtres appliqués : 
+J'applique différents filtres sur Cultivation_expand avant le calcul du ratio Hr/acre par champ. Filtres appliqués : 
 - Enlever les champs pour lesquels AREA_CROP = 0, ce qui fausse le calcul de HR_PER_ACRE
 - Enlever les champs en multi-cropping, qui ont souvent des très petites superficies, donc ce qui amène à un Hr/acre trop grand
 - Conserver seulement le travail humain
@@ -125,14 +125,14 @@ Dans le cas de multi-cropping (plusieurs cultures sur un même champ pendant une
 
 ```{r}
 # Sélectionner avec la base Cultivation_top_25 les 25 cultures les plus répandues (celles avec le plus grand nombre de champs distincts)
-top_25_crops <- Cultivation_caste |>
+top_25_crops <- Cultivation_expand |>
   filter(CROP != "SEASONAL FALLOW") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |> 
   count(CROP, name = "nb_occurrences") |>
   arrange(desc(nb_occurrences)) |>
   slice_head(n = 25)
 
-Cultivation_top_25 <- Cultivation_caste |>
+Cultivation_top_25 <- Cultivation_expand |>
   semi_join(top_25_crops, by = "CROP") 
 ```
 
@@ -143,7 +143,7 @@ On regarde la variété de cultures faites par village, pour vérifier s'il y a 
 Pour cela, je compte le nombre de cultures différentes dans chaque village. 
 
 ```{r}
-crops_village <- Cultivation_caste |>
+crops_village <- Cultivation_expand |>
   filter(CROP != "SEASONAL FALLOW") |>
   distinct(STATE, VILLAGE, CROP) |>
   count(STATE, VILLAGE, name = "diff_crops")
@@ -184,7 +184,7 @@ Je regarde quelles sont les 2 cultures les plus répandues dans chaque village.
 
 
 ```{r}
-main_crop_village <- Cultivation_caste |>
+main_crop_village <- Cultivation_expand |>
   filter(CROP != "SEASONAL FALLOW") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, VILLAGE, CROP) |>
   count(VILLAGE, CROP, name = "n") |>
@@ -294,7 +294,7 @@ main_crop_rank1 <- main_crop_village |>
   rename(CROP_RANK1 = CROP)
 
 # Étape 2: Marquer si un ménage cultive la crop de rang 1
-hh_crops_1 <- Cultivation_caste |>
+hh_crops_1 <- Cultivation_expand |>
   distinct(VDS_ID, VILLAGE, CROP) |>
   left_join(main_crop_rank1, by = "VILLAGE") |>
   mutate(cultive_crop1 = if_else(CROP == CROP_RANK1, 1, 0))
@@ -319,7 +319,7 @@ main_crop_rank2 <- main_crop_village |>
   rename(CROP_RANK2 = CROP)
 
 # Étape 2: Marquer si un ménage cultive la crop de rang 1
-hh_crops_2 <- Cultivation_caste |>
+hh_crops_2 <- Cultivation_expand |>
   distinct(VDS_ID, VILLAGE, CROP) |>
   left_join(main_crop_rank2, by = "VILLAGE") |>
   mutate(cultive_crop2 = if_else(CROP == CROP_RANK2, 2, 0))
@@ -400,7 +400,7 @@ boxplot_combined_crops
 On regarde la distribution de la superficie des champs, sachant que la base ICRISAT tend à surreprésenter les grandes fermes. 
 
 ```{r, message=FALSE, warning=FALSE}
-Cultivation_caste |>
+Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, CROP, SEASON, AREA_CROP) |>
   ggplot(aes(x = AREA_CROP)) +
   geom_histogram(binwidth = 0.2, fill = "hotpink3", color = "white", alpha = 0.8) +
@@ -557,7 +557,7 @@ Pour paddy, il y a 15 champs (sur 1 325) qui ont un Hr/acre égal à 0.
 
 ```{r, message=FALSE, warning=FALSE}
 # Garder que les 10 première cultures
-top_10_crops <- Cultivation_caste |>
+top_10_crops <- Cultivation_expand |>
   filter(CROP != "SEASONAL FALLOW") |>
   distinct(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |> 
   count(CROP, name = "nb_occurrences") |>
@@ -608,7 +608,7 @@ Normalement, en additonnant tous les Hr/acre moyens par opération, on retombe s
 
 ```{r}
 # Calculer le ratio Hr/acre par opération et par champ (variable HR_PER_OPER)
-hr_per_oper <- Cultivation_caste |>
+hr_per_oper <- Cultivation_expand |>
   group_by(VDS_ID, PLOT_CODE, SEASON, CROP, OPERATION) |> 
   # grouper par champ et opération
   mutate(
@@ -1186,7 +1186,7 @@ A réfléchir si méchanisation par opération ou au niveau du champ ?
 ```{r}
 outils <- c("TR", "SP", "DS", "SM", "PT", "SD", "ET", "TH", "CH", "MK", "DP")
 
-n_outils <- Cultivation_caste |>
+n_outils <- Cultivation_expand |>
   filter(NAME_MAT %in% outils) |>
   distinct(NAME_MAT, VDS_ID, PLOT_CODE, SEASON) |>
   group_by(NAME_MAT) |>
@@ -1203,10 +1203,10 @@ n_outils |>
 Je regarde maintenant combien d'outils sont utilisés en moyenne par champ, et combien de champs sont cultivés sans aucun outil.
 
 ```{r}
-n_champs <- Cultivation_caste |>
+n_champs <- Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, SEASON)
 
-n_outils <- Cultivation_caste |>
+n_outils <- Cultivation_expand |>
   filter(NAME_MAT %in% outils) |>
   distinct(NAME_MAT, VDS_ID, PLOT_CODE, SEASON) |>
   group_by(VDS_ID, PLOT_CODE, SEASON) |>
@@ -1714,7 +1714,7 @@ Je ne peux faire de graphique sur le nombre de travailleurs ou les heures par tr
 month_levels <- c("janv", "feb", "march", "april", "may", "june", 
                   "july", "aug", "sept", "oct", "nov", "dec")
 
-hr_per_gender <- Cultivation_caste |>
+hr_per_gender <- Cultivation_expand |>
   group_by(GENDER, MONTH, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
   mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
@@ -1755,7 +1755,7 @@ On regarde le type de main d'oeuvre selon le genre : employé, famille et échan
 Je regarde le nombre d'heures travaillées selon le type d'emploi et le genre. 
 
 ```{r}
-hired_work_all <- Cultivation_caste |>
+hired_work_all <- Cultivation_expand |>
   group_by(GENDER, EMPLOYMENT) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
@@ -1812,7 +1812,7 @@ Les femmes travaillent bien plus en étant employées qu'en faisant partie du m�
 Le but est de regarder si les hommes et femmes employés sont embauchés durant les mêmes périodes. 
 
 ```{r}
-hired_work <- Cultivation_caste |>
+hired_work <- Cultivation_expand |>
   group_by(GENDER, EMPLOYMENT, MONTH, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
   mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
@@ -1875,7 +1875,7 @@ Le travail des femmes au sein du ménage semble plus constant dans l'année que 
 Quelles sont les opérations faites en juillet, qui demandent un temps de travail important et sont réalisées par les hommes de la famille ?
 
 ```{r}
-oper_per_month <- Cultivation_caste |>
+oper_per_month <- Cultivation_expand |>
   filter(
     EMPLOYMENT == "Family",
     GENDER == "Male"
@@ -1907,7 +1907,7 @@ oper_per_month |>
 On regarde sur quelles opérations les femmes travaillent le plus. 
 
 ```{r}
-oper_per_gender <- Cultivation_caste |>
+oper_per_gender <- Cultivation_expand |>
   group_by(GENDER, OPERATION, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
@@ -1949,7 +1949,7 @@ Je regarde la moyenne de Hr/acre par opération en fonction du genre.
 
 ```{r}
 # Recalculer le ratio Hr/acre selon les opérations, en prennant en compte le genre
-test_ratio_oper <- Cultivation_caste |>
+test_ratio_oper <- Cultivation_expand |>
   group_by(VDS_ID, PLOT_CODE, SEASON, CROP, GENDER, OPERATION) |>
   mutate(
     HR_PER_ACRE = sum(WORK_HR, na.rm = TRUE) / AREA_CROP
@@ -1990,7 +1990,7 @@ test_mean_oper |>
 # Calculer la part (en %) des heures de travail réalisées par genre pour chaque couple (opération, culture)
 
 # Filtrer les couples avec au moins 20 observations 
-oper_gender_prct <- Cultivation_caste |>
+oper_gender_prct <- Cultivation_expand |>
   filter(GENDER %in% c("Female", "Male")) |>
   group_by(CROP, OPERATION, GENDER) |>
   mutate(N = n()) |>
@@ -2049,7 +2049,7 @@ ggsave("figures/Prct_gender_oper.png", plot = plot_prct_oper_gender, width = 8, 
 Est-ce qu'on observe si les femmes travaillent plus pour certains cultures ? Si oui, quelle sont les caractéristiques de ces cultures (grande demande en hand weeding, harvesting)
 
 ```{r}
-hr_per_gender <- Cultivation_caste |>
+hr_per_gender <- Cultivation_expand |>
   group_by(GENDER, CROP, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
@@ -2102,7 +2102,7 @@ Caractéristiques des cutures où on observe une différence de temps de travail
 Je regarde si le travail des femmes varie selon la région (SAT ou EAST) et l'Etat. 
 
 ```{r}
-hr_per_gender <- Cultivation_caste |>
+hr_per_gender <- Cultivation_expand |>
   group_by(GENDER, REGION, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
@@ -2129,7 +2129,7 @@ hr_per_gender |>
 C'est dans les Etats dits Semi-Arid Tropics qu'on observe une différence d'heures travaillées en les hommes et les femmes. Cette différence n'est pas présente dans les Etats de l'est.
 
 ```{r}
-hr_per_gender <- Cultivation_caste |>
+hr_per_gender <- Cultivation_expand |>
   group_by(GENDER, REGION, STATE, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
@@ -2164,7 +2164,7 @@ hr_per_gender <- Cultivation_top_25 |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
 
-A faire: Calculer la variable IRRIGATION dans Cultivation_caste puis l'ajouter à Cultivation_top_25
+A faire: Calculer la variable IRRIGATION dans Cultivation_expand puis l'ajouter à Cultivation_top_25
 
 ```{r}
 hr_per_gender |>
@@ -2233,7 +2233,7 @@ hr_per_gender <- Cultivation_top_25 |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
 
-J'utilise Cultivation_top_25, car les valeurs de HYV sont renommées seulement dans cette table (à faire dans Cultivation_caste)
+J'utilise Cultivation_top_25, car les valeurs de HYV sont renommées seulement dans cette table (à faire dans Cultivation_expand)
 
 ```{r}
 hr_per_gender |>
@@ -2263,7 +2263,7 @@ Attention : Les résultats sont faussés car les n/a pour HYV sont inégalement 
 L'idée est de voir si le travail des femmes varie selon la superficie du champ. 
 
 ```{r}
-hr_per_area <- Cultivation_caste |>
+hr_per_area <- Cultivation_expand |>
   filter(EMPLOYMENT == "Hired") |>
   group_by(GENDER, AREA_CROP, .keep_all = TRUE) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 

@@ -671,6 +671,7 @@ tibble(
   `Proportion (%)` = round(100 * nb_bullocks_domine / nb_total_bullocks, 1)
 )
 ```
+********************************************************************************
 
 
 ## Modifier Cultivation : créer les lignes pour les opérations non complétées
@@ -753,14 +754,140 @@ full_operation <- expand_grid(
 
 Dans ce cas, je joindrais Cultivation_cult_distinctes et full_operation2 avec "MONTH", "VDS_ID", "PLOT_CODE", "SEASON", "OPERATION"
 
+
+********************************************************************************
+
+
+## Ajout de la caste à la base Cultivation_expand
+
+### Joindre les deux régions de la base Household_info
+
+```{r}
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+J'importe les tables Household_info des deux régions (EAST et SAT) pour l'année 2014, pour intégrer la variable CASTE à chaque ménage. 
+
+```{r, message=FALSE, warning=FALSE}
+EAST_Household_info <- read_excel(here::here("raw_data", "EAST_Household_info_2014.xlsx"))
+SAT_Household_info <- read_excel(here::here("raw_data", "SAT_Household_info_2014.xlsx"))
+```
+
+```{r}
+# Sélectionner les variables VDS_ID et CASTE pour chaque table 
+EAST_Household_info <- EAST_Household_info |>
+  select(VDS_ID, CASTE, CASTE_GROUP)
+
+SAT_Household_info <- SAT_Household_info |>
+  select(VDS_ID, CASTE, CASTE_CATEGORY) |>
+  rename(CASTE_GROUP = CASTE_CATEGORY)
+
+# Joindre les deux régions
+Household_info <- bind_rows(EAST_Household_info, SAT_Household_info)
+```
+
+### Vérifier la correspondance de VDS_ID
+
+Les identifiants des ménages ne correspondent pas entre les deux bases, parce que dans la base Household_info, VDS_ID est majoritairement indiqué pour l'année 2013 plutôt que 2014. 
+
+```{r}
+Household_info <- Household_info |>
+  mutate(VDS_ID = ifelse(substr(VDS_ID, 5, 5) != "4",
+                         paste0(substr(VDS_ID, 1, 4), "4", substr(VDS_ID, 6, nchar(VDS_ID))),
+                         VDS_ID))
+```
+
+Je vérifie la correspondance des ménages entre Cultivation_expand et Household_info, une fois les années harmonisées. 
+
+```{r Correspondance Cultivation_expand -> Household_info}
+household_keys <- Household_info |>
+  select(VDS_ID) |>
+  distinct()
+
+cultivation_keys <- Cultivation_expand |>
+  select(VDS_ID) |>
+  distinct()
+
+# Identifier les ménages de Cultivation_expand non trouvés dans Household_info
+non_match <- anti_join(cultivation_keys, household_keys, by = "VDS_ID")
+
+n_non_matched <- nrow(non_match)
+n_hh <- nrow(cultivation_keys)
+prop_non_matched <- round(n_non_matched / n_hh * 100, 2)
+
+cat(" - Ménages totaux dans Cultivation_expand :", n_hh, "\n")
+cat(" - Ménages sans équivalent dans Household_info :", n_non_matched, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+```
+
+```{r Correspondance des régions}
+# Faire ressortir les codes de chaque village pour comparer les bases
+household_village <- Household_info |> 
+  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
+  group_by(VILLAGE) |>
+  distinct(VDS_ID) |>
+  summarise(n = n(), .groups = "drop")
+
+cultivation_village  <- Cultivation_expand  |> 
+  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
+  group_by(VILLAGE) |>
+  distinct(VDS_ID) |>
+  summarise(n = n(), .groups = "drop")
+```
+
+Le village TS, qui comprend 64 ménages dans Cultivation_expand, n'est pas présent dans Household_info, ce qui explique une partie des ménages manquants. 
+
+
+### Caste + Caste_group
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
+  mutate(
+    CASTE_GROUP = recode(CASTE_GROUP, 
+                         `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER"),
+    )
+```
+
+Je regarde le nombre de n/a pour la caste dans Cultivation.  
+
+```{r}
+Cultivation_expand |>
+  summarise(
+    na_caste = sum(is.na(CASTE_GROUP)),
+    total = n(),
+    pct_na = round(100 * na_caste / total, 2)
+  )
+```
+
+### Irrigation
+
+```{r}
+# Variable IRRIGATION
+Cultivation_expand <- Cultivation_expand |>
+  mutate(PER_IRRI = round(100 * IRRI_CROP / AREA_CROP, 2)) |>
+  mutate(PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI))
+
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    IRRIGATION = case_when(
+      PER_IRRI>49 ~ "Irrigué",
+      PER_IRRI<50 ~ "Non irrigué"
+    )
+  ) |>
+  select(-PER_IRRI)
+```
+
 ### Ordre des variables
 
 ```{r}
 Cultivation_expand <- Cultivation_expand |>
   select(
-    SUR_MON_YR, MONTH, SEASON, VDS_ID, PLOT_CODE, AREA_CROP, IRRI_CROP, CROP, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, everything()  # place les colonnes restantes à la fin
+    SUR_MON_YR, MONTH, SEASON, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, AREA_CROP, IRRI_CROP, CROP, IRRIGATION, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, everything()  # place les colonnes restantes à la fin
   )
 ```
+
+********************************************************************************
 
 
 ## Liens extérieurs
@@ -814,3 +941,4 @@ saveRDS(
   file = file.path(folder_path, "Cultivation_expand.rds"),
 )
 ```
+
