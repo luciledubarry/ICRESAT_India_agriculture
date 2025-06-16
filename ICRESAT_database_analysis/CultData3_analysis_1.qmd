@@ -24,7 +24,7 @@ library(tidyverse)
 library(gt)
 ```
 
-Le première modèle théorique repose sur ...
+Le premier modèle théorique repose sur ...
 
 Hypothèses : 
 - On considère qu'il y a qu'un seul salaire par genre. Le salaire qu'une personne pourrait obtenir en étant employé est égal à celui du travail familial. 
@@ -268,7 +268,7 @@ ggsave("figures/Point_female_work_hr.png",
 essayer de faire ce graph par caste : soit un graph par caste, soit tout dans le même
 
 
-### Histogramme
+### Histogram
 
 Graphique par catégories agrégées du travail employé
 
@@ -331,11 +331,8 @@ Cultivation_caste |>
   group_by(CASTE_GROUP) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
-    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")),
-    `Champs par ménage` = round(`Nombre de champs`/`Nombre de ménages`, 1),
-    .groups = "drop"
+    `Champs par saison` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_"))
   ) |>
-  arrange(desc(`Champs par ménage`)) |>
   gt() |>
   tab_header(
     title = "Ménages et champs par caste"
@@ -345,20 +342,25 @@ Cultivation_caste |>
   )
 ```
 
-A REFAIRE, car les champs sont comptés par saison (donc un même champ est compté deux fois dans l'année) alors que les ménages ne sont comptés qu'une fois dna sl'année, cela doouble le nombre de champs détenu par ménage
+Attention, les champs sont comptés par saison donc deux fois (Kharif et Rabi). 
+Les ménages sont eux comptabilisés sans considérer la saison donc une fois. 
 
 
 ```{r}
+# 1. Comptage des champs
+# J'inclue SEASON pour identifier le ménage pour compenser d'avoir compté en double champs (un par saison).
 plot_per_hh <- Cultivation_caste |>
-  distinct(VDS_ID, SEASON, PLOT_CODE, CROP) |>
-  group_by(VDS_ID, SEASON) |>
-  summarise(nb_cultures = n_distinct(CROP), .groups = "drop")
+  distinct(VDS_ID, PLOT_CODE, CROP, SEASON) |>
+  group_by(VDS_ID, SEASON) |> 
+  summarise(nb_cultures = n_distinct(PLOT_CODE, CROP), .groups = "drop")
 
+# 2. Rattacher la caste à chaque ménage
 nb_caste <- Cultivation_caste |>
   select(VDS_ID, CASTE_GROUP) |>
   distinct() |>
-  left_join(plot_per_hh, by = "VDS_ID") |>
-  filter(!is.na(CASTE_GROUP))
+  filter(!is.na(CASTE_GROUP)) |>
+  left_join(plot_per_hh, by = "VDS_ID")
+  
 ```
 
 ```{r, message=FALSE, warning=FALSEd}
@@ -369,7 +371,7 @@ nb_caste |>
     `Champs par ménage` = round(mean(nb_cultures, na.rm = TRUE), 1),
     .groups = "drop"
   ) |>
-  arrange(desc(`Champs par ménage`)) |>
+  arrange(desc(`Nombre de ménages`)) |>
   gt() |>
   tab_header(
     title = "Champs par ménage et par caste"
