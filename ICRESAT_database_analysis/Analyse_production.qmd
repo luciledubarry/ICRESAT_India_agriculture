@@ -1091,6 +1091,613 @@ La taille de la parcelle ne semble pas expliquer les différence dans la moyenne
 
 *********************************************************************************
 
+## Méchanisation
+
+### Part par opération
+
+On regarde à partir de la variable MACHINERY quelle est la part de méchanisation pour chaque opération. Je considère seulement les opérations déclarées (donc j'exclue toute oppération pour laquelle WORK_HR = 0)
+
+```{r Part de méchanisation par opération (toutes cultures confondues)}
+Cultivation_top_25 |>
+  filter(!is.na(MACHINERY)) |>
+  group_by(OPERATION, MACHINERY) |>
+  summarise(nb = n(), .groups = "drop") |>
+  ggplot(aes(x = reorder(OPERATION, nb), y = nb, fill = MACHINERY)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+      title = "Opérations méchanisées / non méchanisées",
+    x = "",
+    y = "Nombre d'opérations",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+```{r Part de méachanisation par opération (toutes cultures confondues)}
+prct_mecha <- Cultivation_top_25 |>
+  filter(!is.na(MACHINERY)) |>
+  group_by(OPERATION, MACHINERY) |>
+  summarise(oper_mecha = n(), .groups = "drop") |>
+  group_by(OPERATION) |>
+  mutate(
+    total_oper = sum(oper_mecha), 
+    proportion = round(100 * oper_mecha/total_oper, 1)
+    ) |>
+  ungroup() 
+
+prct_mecha |>
+  filter(MACHINERY == "Mécanisé") |>
+  select(OPERATION, proportion) |>
+  ggplot(aes(x = reorder(OPERATION, proportion), y = proportion)) +
+  geom_bar(stat = "identity", width = 0.7, fill = "lightsteelblue3") +
+  coord_flip() +
+  labs(
+    title = "Proportion de méchanisation par opération (en %)",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal()
+
+prct_mecha |>
+  filter(MACHINERY == "Mécanisé") |>
+  select(OPERATION, proportion) |>
+  kable(
+    caption = "Proportion de méchanisation par opération (en %)",
+    col.names = c("Opération", "% Opérations mécanisées")
+  ) 
+```
+
+### Part par culture
+
+Je regarde la part d'opérations méchanisées par culture. Je considère seulement les opérations déclarées (donc j'exclue touteoprétaion pour laquele WORK_HR = 0)
+
+```{r}
+Cultivation_top_25 |>
+  filter(!is.na(MACHINERY)) |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  group_by(CROP, MACHINERY) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(CROP) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(CROP, MACHINERY, proportion) |>
+  pivot_wider(
+    names_from = MACHINERY,
+    values_from = proportion,
+    values_fill = 0
+  )
+```
+
+A réfléchir si méchanisation par opération ou au niveau du champ ? 
+
+### Types de méchanisation
+
+```{r}
+outils <- c("TR", "SP", "DS", "SM", "PT", "SD", "ET", "TH", "CH", "MK", "DP")
+
+n_outils <- Cultivation_expand |>
+  filter(NAME_MAT %in% outils) |>
+  distinct(NAME_MAT, VDS_ID, PLOT_CODE, SEASON) |>
+  group_by(NAME_MAT) |>
+  summarise(nb_champs = n(), .groups = "drop")
+
+n_outils |>
+  arrange(desc(nb_champs)) |>
+  kable(
+    caption = "Nombre de champs utilisant chaque outil",
+    col.names = c("Outil", "Nombre de champs distincts")
+  )
+```
+
+Je regarde maintenant combien d'outils sont utilisés en moyenne par champ, et combien de champs sont cultivés sans aucun outil.
+
+```{r}
+n_champs <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SEASON)
+
+n_outils <- Cultivation_expand |>
+  filter(NAME_MAT %in% outils) |>
+  distinct(NAME_MAT, VDS_ID, PLOT_CODE, SEASON) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  summarise(nb_outils = n(), .groups = "drop")
+
+hh_outils <- n_champs |>
+  left_join(n_outils, by = c("VDS_ID", "PLOT_CODE", "SEASON")) |>
+  mutate(nb_outils = replace_na(nb_outils, 0))
+```
+
+```{r}
+hh_outils |>
+  ggplot(aes(x = nb_outils)) +
+  geom_histogram(binwidth = 1, fill = "plum2", color = "white") +
+  labs(
+    title = "Répartition du nombre d’outils utilisés par ménage",
+    x = "Nombre d’outils différents",
+    y = "Nombre de ménages"
+  ) +
+  theme_minimal()
+```
+
+
+### Hr/acre moyen: Paddy
+
+On regarde pour Paddy la moyenne de Hr/acre par opération selon que l'opération est méchanisée ou non. 
+
+J'ai choisi de regarder la méchanisation seulement pour Paddy pour avoir suffisamment d'observations pour toutes les opérations.
+
+```{r}
+# Filtrer les combinaisons (CROP / OPERATION / MACHINERY) suffisamment présentes
+hr_per_oper_mecha <- Cultivation_top_25 |>
+  filter(!is.na(MACHINERY)) |>
+  group_by(CROP, OPERATION, MACHINERY) |>
+  filter(n() > 20) |>
+  ungroup()
+  
+# Recalculer le ratio Hr/acre par champ et par opération en enlevant les NA de MACHINERY
+hr_per_oper_mecha <- hr_per_oper_mecha |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, CROP, OPERATION, MACHINERY) |>
+  mutate(
+    HR_PER_ACRE = sum(WORK_HR, na.rm = TRUE) / AREA_CROP
+  ) |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, HR_PER_ACRE, OPERATION, MACHINERY)
+```
+
+J'ajoute un filtre pour avoir au moins 20 observations pour chaque couple (CROP / OPERATION / MACHINERY).
+
+Je dois recalculer les ratios Hr/acre (plutot que simplement ajouter la variable MACHINERY à la table hr_per_oper) parce que la variable MACHINERY dépend de chaque opération, donc varie pour un même champ. 
+
+Comme j'enlève les n/a de MACHINERY, cela change le nombre total d'observations, qui ne correspond plus au nombre de champs existants pour chaque culture. Plutot que d'utiliser la fonction MEAN, je divise la somme des heures de travail selon la méchanisation par le nombre de champs distincts par culture, calculé à part. 
+
+A REFAIRE !! Illisible
+
+```{r}
+# Compter le nombre de champs distincts par culture
+n_champs_crop <- Cultivation_top_25 |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP) |>
+  group_by(CROP) |>
+  summarise(nb = n())
+
+# Ajouter le nombre de champs à la table hr_per_oper_mecha
+hr_per_oper_mecha <- hr_per_oper_mecha |>
+  left_join(n_champs_crop, by = "CROP")
+
+# Calculer la moyenne de Hr/acre par opération selon la méchanisation
+mean_hacre_oper_mecha <- hr_per_oper_mecha |>
+  group_by(CROP, OPERATION, MACHINERY, nb) |>
+  summarise(SUM_HACRE = sum(HR_PER_ACRE, na.rm = TRUE), .groups = "drop") |>
+  mutate(MEAN_HACRE = SUM_HACRE / nb)
+```
+
+```{r}
+mean_hacre_oper_mecha |>
+  filter(CROP == "PADDY") |>
+  ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = MACHINERY)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Paddy: Hr/acre moyen par opération selon la méchanisation",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+
+*********************************************************************************
+
+## Irrigation
+
+### Variable irrigation
+
+Dans la base Cultivation_top_25 avec les principales cultures, je calcule un % de terres irriguées par champ, pour savoir dans quelle proportion les champs sont irrigués. 
+
+```{r}
+Cultivation_top_25 <- Cultivation_top_25 |>
+  mutate(PER_IRRI = round(100 * IRRI_CROP / AREA_CROP, 2)) |>
+  mutate(PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI))
+
+tibble(
+  `Irrigation = 100%` = nrow(Cultivation_top_25 |> filter(PER_IRRI == 100)),
+  `0% < Irrigation < 100%` = nrow(Cultivation_top_25 |> filter(PER_IRRI != 0) |> filter(PER_IRRI < 100)),
+  `Irrigation = 0%` = nrow(Cultivation_top_25 |> filter(PER_IRRI == 0))
+)
+```
+
+Je crée une variable IRRIGATION avec les valeurs Irrigué, Non irrigué, Autre (qui signifie entre les deux). 
+
+```{r}
+Cultivation_top_25 <- Cultivation_top_25 |>
+  mutate(
+    IRRIGATION = case_when(
+      PER_IRRI>70 ~ "Irrigué",
+      PER_IRRI<20 ~ "Non irrigué",
+      TRUE ~ "Autre"
+    )
+  )
+
+distinct_plots <- Cultivation_top_25 |> distinct(VDS_ID, PLOT_CODE, CROP, SEASON, .keep_all = TRUE)
+
+cat("Nombre de champs irrigués :", nrow(distinct_plots |> filter(IRRIGATION == "Irrigué")), "\n")
+cat("Sur un total de", nrow(distinct_plots), "champs soit", round(100 * nrow(distinct_plots |> filter(IRRIGATION == "Irrigué")) / nrow(distinct_plots), 1), "%\n")
+cat("Nombre de champs entre 20% et 70% d'irrigation :", nrow(distinct_plots |> filter(IRRIGATION == "Autre")), "\n")
+```
+
+### Irrigation par culture
+
+On regarde quelles cultures sont irriguées et s'il y a des cultures avec à la fois des champs irrigués et non-irrigués. 
+
+```{r}
+Cultivation_top_25 |>
+  distinct(VDS_ID, PLOT_CODE, CROP, SEASON, .keep_all = TRUE) |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  filter(!is.na(IRRIGATION)) |>
+  group_by(CROP, IRRIGATION) |>
+  summarise(nb_plots = n(), .groups = "drop") |>
+  ggplot(aes(x = CROP, y = nb_plots, fill = IRRIGATION)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_text(
+    aes(label = nb_plots),
+    position = position_dodge(width = 0.7),
+    hjust = -0.2,
+    size = 3
+  ) +
+  coord_flip() +
+  labs(
+    title = "Nombre de champs irrigués / non irrigués par culture",
+    x = "",
+    y = "Nombre de champs",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 8)
+  )
+```
+
+### Hr/acre par culture selon l'irrigation
+
+J'ajoute l'irrigation à la table hr_per_acre qui calcule le Hr/acre moyen de chaque champ par culture. Il n'y a pas besoin de recalculer la ratio Hr/acre car l'irrigation est une information donnée au niveau du champ. 
+
+Il n'y a pas de NA pour IRRIGATION, car tous les champs ont indiqué la superficie irrigié de leurs parcelles. Je n'ai pas besoin de mettre un filtre pour avoir un nombre d'observations minimum par culture. 
+
+Cela signifie aussi que, comme je n'ai enlevé de lignes, la somme des moyennes de Hr/acre por les champs irrigués et non-irrigués d'une même culture doit être égale à la moyenne de Hr/acre pour l'ensemble de la culture. 
+
+```{r, message=FALSE, warning=FALSE}
+# Ajouter IRRIGATION au ratio Hr/acre par champ
+hr_per_acre <- hr_per_acre |>
+  left_join(
+    Cultivation_top_25 |>
+      select(VDS_ID, PLOT_CODE, CROP, SEASON, IRRIGATION),
+    by = c("VDS_ID", "PLOT_CODE", "CROP", "SEASON")
+  ) |>
+  distinct()
+```
+
+Il n'y a pas besoin de recalculer le ratio Hr/acre en prennant en compte l'irrigation, car cette donnée est déterminée au niveau du champ (donc est identique pour toutes les lignes de ce champ). 
+
+```{r}
+# Calculer la moyenne de Hr/acre par culture en considérant IRRIGATION
+mean_hacre_acre_irri <- hr_per_acre |>
+  group_by(CROP, IRRIGATION) |>
+  summarise(MEAN_HR_PER_ACRE = mean(HR_PER_ACRE, na.rm = TRUE), .groups = "drop")
+```
+
+Pour le graphique suivant, je ne considère que les cultures qui ont au moins 20 observations par type d'irrigation. 
+
+```{r}
+plot_labor_irrigation <- mean_hacre_acre_irri |>
+  filter(IRRIGATION %in% c("Irrigué", "Non irrigué")) |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "GROUNDNUT")) |>
+  mutate(
+    IRRIGATION = recode(IRRIGATION,
+                      `Irrigué` = "Irrigated",
+                      `Non irrigué` = "Non-irrigated")
+  ) |>
+  mutate(CROP = recode(CROP, `PADDY` = "RICE",)) |>
+  ggplot(aes(x = reorder(CROP, MEAN_HR_PER_ACRE), y = MEAN_HR_PER_ACRE, fill = IRRIGATION)) +
+  geom_col(position = position_dodge(width = 0.6), width = 0.6) +
+  coord_flip() +
+  labs(
+    title = "Labor time per acre, by irrigation",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = "Irrigation"
+  ) +
+  scale_fill_manual(
+  values = c("Irrigated" = "aquamarine2", "Non-irrigated" = "sandybrown")
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11),
+  )
+
+plot_labor_irrigation
+```
+```{r}
+ggsave("figures/Labor_time_irrigation.png", plot = plot_labor_irrigation, width = 8, height = 6, dpi = 300)
+```
+
+### Hr/acre par opération selon l'irrigation
+
+On cherche à comprendre pourquoi pour Paddy, Hr/acre moyen est plus élevé pour les champs irrigués que ceux non irrigués. 
+
+Pour répondre à cette question, on décompose les heures par acre en fonction de l'irrigation et des opérations. 
+
+```{r, message=FALSE, warning=FALSE}
+# Ajouter la variable IRRIGATion au ratio Hr/acre par opération
+hr_per_oper <- hr_per_oper |>
+  left_join(
+    Cultivation_top_25 |>
+      select(VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION, IRRIGATION),
+    by = c("VDS_ID", "PLOT_CODE", "CROP", "SEASON", "OPERATION")
+  ) |>
+  distinct()
+
+# Calculer la moyenne de Hr/acre par opération en considérant IRRIGATION
+mean_hacre_acre_irri <- hr_per_oper |>
+  group_by(CROP, OPERATION, IRRIGATION) |>
+  summarise(MEAN_HACRE = mean(HR_PER_OPER, na.rm = TRUE), .groups = "drop")
+```
+
+Le graphique suivant décompose pour Paddy Hr/acre par opération en fonction de l'irrigation. Comme pour le graphique précéndet, je filtre les champs entre 20% et 70% d'irrigation (Irrigation = Autre). 
+
+```{r Paddy}
+mean_hacre_acre_irri |>
+  filter(CROP == "PADDY") |>
+  filter(IRRIGATION != "Autre") |>
+  filter(MEAN_HACRE > 2) |>
+  ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = IRRIGATION)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Paddy: Hr/acre par opération selon l'irrigation",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("Irrigué" = "aquamarine2", "Non irrigué" = "sandybrown")
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+La différence de productivité (moyenne des ratios Hr/acre) ne semblent pas dûes uniquement à l'irrigation. C'est notamment le cas pour le transport, où les chmaps irrigués ont une moyenne bien plus basse que les champs non irrigués, alor que le système d'irrigation ne devrait pas avoir d'impact sur cette opération. 
+
+Il y a donc d'autres variables qui sont liées à l'irrigation du champ et qui affectent sa productivité. je pense que c'est notamment la méchanisation (surtout pour le transport) et la variété de graine utilisée.  
+
+
+***********************************************************************************
+
+## HYV
+
+```{r}
+Cultivation_top_25 <- Cultivation_top_25 |>
+  mutate(
+    VAR_TYPE = recode(VAR_TYPE,
+                      `1` = "Local",
+                      `2` = "HYV",
+                      `3` = "Hybrid",
+                      `4` = "BT",
+                      `5` = "Others")
+  )
+```
+
+```{r}
+cat("Nombre de NA de VAR_TYPE :", nrow(Cultivation_top_25 |> filter(is.na(VAR_TYPE))), "\n", "soit", round(100 * nrow(Cultivation_top_25 |> filter(is.na(VAR_TYPE))) / nrow(Cultivation_top_25), 1), "%\n")
+```
+
+```{r}
+Cultivation_top_25 |>
+  distinct(VDS_ID, PLOT_CODE, .keep_all = TRUE) |>
+  group_by(VAR_TYPE) |>
+  summarise(n = n(), .groups = "drop") |>
+  arrange(desc(n))
+```
+
+
+### Regarder HYV par culture
+
+On regarde quelles variétés de graine sont utilisées par culture. 
+
+```{r}
+Cultivation_top_25 |>
+  distinct(VDS_ID, PLOT_CODE, .keep_all = TRUE) |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "SOYBEAN", "SORGHUM", "COTTON", "POTATO", "PEAS")) |>
+  filter(!is.na(VAR_TYPE)) |>
+  group_by(CROP, VAR_TYPE) |>
+  summarise(nb_plots = n(), .groups = "drop") |>
+  ggplot(aes(x = CROP, y = nb_plots, fill = VAR_TYPE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_text(
+    aes(label = nb_plots),
+    position = position_dodge(width = 0.7),
+    hjust = -0.2,
+    size = 3
+  ) +
+  coord_flip() +
+  labs(
+    title = "Nombre de champs selon le type de variété par culture",
+    x = "",
+    y = "Nombre de champs",
+    fill = "Type de variété"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+Je regarde le pourcentage de n/a pour HYV selon la culture. 
+
+```{r}
+Cultivation_top_25 |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION", "POTATO")) |>
+  group_by(CROP) |>
+  summarise(
+    `Observations` = n(),
+    `n/a` = sum(is.na(VAR_TYPE)),
+    `Pourcentage de n/a` = round(100 * `n/a` / `Observations`, 1)
+  ) |>
+  arrange(desc(`Pourcentage de n/a`)) |>
+  gt() |>
+  tab_header(
+    title = "Pourcentage de n/a pour HYV par culture"
+  ) |>
+  fmt_number(columns = `Pourcentage de n/a`, decimals = 1) |>
+  cols_label(
+    CROP = "Culture"
+  )
+```
+
+### Paddy- Hr/acre selon HYV
+
+Paddy est la seule culture avec suffisamment de résultats pour regarder la moyenne de Hr/acre selon la variété de graine. 
+
+```{r, message = False}
+# Créer sa propre palette de couleurs
+couleurs3 <- viridis(5, option = "C")[2:4]
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Ajouter la variable VAR_TYPE au ratio Hr/acre par opération
+hr_per_oper <- hr_per_oper |>
+  left_join(
+    Cultivation_top_25 |>
+      filter(!is.na(VAR_TYPE)) |>
+      select(VDS_ID, PLOT_CODE, SEASON, CROP, OPERATION, VAR_TYPE),
+    by = c("VDS_ID", "PLOT_CODE", "CROP", "OPERATION", "SEASON")
+  ) |>
+  distinct()
+
+# Calculer la moyenne de Hr/acre par opération en considérant VAR_TYPE
+mean_hacre_oper_HYV <- hr_per_oper |>
+  group_by(CROP, OPERATION, VAR_TYPE) |>
+  summarise(MEAN_HACRE = mean(HR_PER_OPER, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+plot_labor_time_HYV <- mean_hacre_oper_HYV |>
+  filter(CROP == "PADDY") |>
+  mutate(OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL.")) |>
+  mutate(VAR_TYPE = recode(VAR_TYPE, `HYV` = "High-yielding variety")) |>
+  filter(!OPERATION %in% c("SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS", "PLANT PROTECTION MEASURES")) |>
+  filter(VAR_TYPE != "Others") |>
+  ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = VAR_TYPE)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.6) +
+  labs(
+    title = "Rice: Average labor time per operation, by variety type",
+    x = "",
+    y = "",
+    fill = "Variety type"
+  ) +
+scale_fill_manual(values = couleurs3) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+
+plot_labor_time_HYV
+```
+```{r}
+ggsave("figures/Labor_time_HYV.png", plot = plot_labor_time_HYV, width = 8, height = 6, dpi = 300)
+```
+
+
+**********************************************************************************
+
+## Irrigation + HYV
+
+### Nombre de champs irrigués + HYV
+
+Est-ce que les champs irrigués sont également ceux utilisant des graines à hauts rendements ? 
+
+Je regarde la variété de graine utilisée selon l'irrigation des champs. 
+
+```{r}
+Cultivation_top_25 |>
+  distinct(VDS_ID, PLOT_CODE, .keep_all = TRUE) |>
+  filter(!is.na(VAR_TYPE)) |>
+  group_by(IRRIGATION, VAR_TYPE) |>
+  summarise(nb_plots = n(), .groups = "drop") |>
+  ggplot(aes(x = IRRIGATION, y = nb_plots, fill = VAR_TYPE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  geom_text(
+    aes(label = nb_plots),
+    position = position_dodge(width = 0.7),
+    hjust = -0.2,
+    size = 3
+  ) +
+  coord_flip() +
+  labs(
+    title = "Nombre de champs par variété de graine selon l'irrigation",
+    x = "",
+    y = "Nombre de champs",
+    fill = "Type de variété"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+On voit que les champs irrigués sont plus nombreux à utiliser des graines à hauts rendements (HYV) plutot que des graines locales. Il y a donc un lien entre le choix d'irriger son champ et la variété de graine utilisée dans ce même champ. 
+
+
+### Moyenne de Hr/acre pour les champs irrigués + HYV
+
+Je recalcule donc la moyenne des ratios Hr/acre en fonction de la variété de graine, en filtrant pour l'irrigation. 
+
+```{r}
+# Calculer la moyenne de Hr/acre par opération et par variété de graine en filtrant pour n'avoir queles champs non irrigués
+mean_hacre_irri_HYV <- hr_per_oper |>
+  filter(IRRIGATION == "Irrigué") |>
+  group_by(OPERATION, VAR_TYPE) |>
+  summarise(MEAN_HACRE = mean(HR_PER_OPER, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+mean_hacre_irri_HYV |>
+  filter(MEAN_HACRE > 2) |>
+  filter(VAR_TYPE != "Others") |>
+  ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = VAR_TYPE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Champs irrigués: Hr/acre moyen par opération selon la variété de graine",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+
+********************************************************************************
+
 
 
 
