@@ -698,6 +698,8 @@ ind_hours_caste |>
 
 
 
+## Travail familial (agricole ou non) par genre
+
 
 
 
@@ -735,6 +737,7 @@ Employment:
 Regarder variable Farm on work
 - vérifier si la somme des jours salariés (type work) et own work (farm, domestic, livestock) par individu fait 30 jours 
 -> si cela fait plus ou moins de 30 : anormal
+-> travail familial : regarder pour les épouses/belles-filles 
 
 
 présence de hautes castes (FC) dans l'environnemet des BC 
