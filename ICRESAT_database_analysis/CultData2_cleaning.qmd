@@ -16,9 +16,11 @@ here::i_am("ICRESAT_database_analysis/CultData2_cleaning.qmd")
 library(dplyr)
 library(tidyr)
 library(knitr)
+library(readxl)
 library(ggplot2)
 library(scales)
 library(stringr)    
+library(gt)
 ```
 
 
@@ -642,37 +644,7 @@ test_nb_survey |>
 ```
 
 
-### Distinguer heures de travail des humains et des boeufs
-
-On vérifie si les heures de travail (et le salaire) indiqué pour les boeufs (bullocks) incluent le travail humain  qui a nécessité pour conduire le boeuf. 
-
-L'hypothèse est que les heures de travail faites par le conducteur ne sont pas comprises dans les heures de travail des beoufs et sont écrites sur une deuxième ligne. Pour vérifier cela, on compare si, pour une même opération dans un même champ (pour une date précise) les heures de travail par acre (h/acre) cumulé des humains sont supérieures aux h/acre des boeufs. 
-
-```{r}
-bullocks_work <- Cultivation_cult_distinctes |>
-  group_by(VDS_ID, PLOT_CODE, SEASON, SUR_MON_YR, AREA_CROP, CROP, OPERATION, DT_OPER) |>
-  mutate(
-    total_human = sum(WORK_HR[LAB_TYPE %in% c("HF", "FF", "EF", "HM", "FM", "EM", "FC", "HC", "EC")], na.rm = TRUE),
-    total_bullocks = sum(WORK_HR[LAB_TYPE %in% c("HB", "OB", "EB")], na.rm = TRUE),
-    .groups = "drop"
-  ) 
-
-nb_total_bullocks <- bullocks_work |>
-  filter(LAB_TYPE %in% c("HB", "OB", "EB")) |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, SUR_MON_YR, AREA_CROP, CROP, OPERATION, DT_OPER) |>
-  nrow() 
-
-nb_bullocks_domine <- bullocks_work |> filter(total_bullocks > total_human) |> nrow()
-
-tibble(
-  `Total champs/opérations distincts` = nrow(bullocks_work |> distinct(VDS_ID, PLOT_CODE, SEASON, SUR_MON_YR, AREA_CROP, CROP, OPERATION, DT_OPER)),
-  `Opérations incluant des boeufs` = nb_total_bullocks,
-  `Boeufs > humain` = nb_bullocks_domine,
-  `Proportion (%)` = round(100 * nb_bullocks_domine / nb_total_bullocks, 1)
-)
-```
 ********************************************************************************
-
 
 ## Modifier Cultivation : créer les lignes pour les opérations non complétées
 
@@ -757,14 +729,9 @@ Dans ce cas, je joindrais Cultivation_cult_distinctes et full_operation2 avec "M
 
 ********************************************************************************
 
-
 ## Ajout de la caste à la base Cultivation_expand
 
 ### Joindre les deux régions de la base Household_info
-
-```{r}
-Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
-```
 
 J'importe les tables Household_info des deux régions (EAST et SAT) pour l'année 2014, pour intégrer la variable CASTE à chaque ménage. 
 
@@ -785,6 +752,7 @@ SAT_Household_info <- SAT_Household_info |>
 # Joindre les deux régions
 Household_info <- bind_rows(EAST_Household_info, SAT_Household_info)
 ```
+
 
 ### Vérifier la correspondance de VDS_ID
 
@@ -878,6 +846,7 @@ Cultivation_expand <- Cultivation_expand |>
   select(-PER_IRRI)
 ```
 
+
 ### Ordre des variables
 
 ```{r}
@@ -887,8 +856,39 @@ Cultivation_expand <- Cultivation_expand |>
   )
 ```
 
+
 ********************************************************************************
 
+## Rabi: Ajouter les champs en jachère 
+
+### Comptages des ménages/champs par saison
+
+On compte les ménages et champs présents par saison. 
+Attention, les champs et ménages sont comptabilisés deux fois (une fois par saison)
+
+```{r}
+Cultivation_expand |>
+  group_by(SEASON) |>
+  summarise(
+    `Nombre de ménages` = n_distinct(VDS_ID, SEASON),
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_"))
+  ) |>
+  gt() |>
+  tab_header(
+    title = "Ménages et champs par saison"
+  ) |>
+  cols_label(
+    SEASON = "Saison"
+  )
+```
+
+
+
+
+
+
+
+********************************************************************************
 
 ## Liens extérieurs
 
