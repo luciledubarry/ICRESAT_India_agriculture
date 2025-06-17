@@ -34,8 +34,8 @@ EAST_CultOutput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Outp
 SAT_CultOutput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Output_2014.xlsx"))
 EAST_PlotList_2014 <- read_excel(here::here("raw_data", "EAST_Plot_List_2014.xlsx"))
 SAT_PlotList_2014 <- read_excel(here::here("raw_data", "SAT_Plot_List_2014.xlsx"))
-
 ```
+
 
 ## Rassembler par région
 
