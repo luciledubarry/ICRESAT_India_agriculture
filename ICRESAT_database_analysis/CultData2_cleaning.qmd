@@ -210,6 +210,7 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   relocate(VAR_TYPE, .before = VAR_NAME)
 ```
 
+
 ## Nouvelles variables
 
 ### Recatégoriser Opération
@@ -370,7 +371,6 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   )
 ```
 
-
 ### Variable Machinery
 
 On se concentre sur la méchanisation du travail. Je crée la variable MACHINERY à partir de TYPE_MAT, qui indique si l'opération est méchanisée. 
@@ -388,27 +388,7 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   )
 ```
 
-Je suppose pour tous les ménages qui n'ont pas indiqué si l'opération était méchanisée ou non (variable NAME_MAT vide), que l'opération est non mécanisée. Si on souhaite plutôt mettre n/a, il suffit d'ajouter : is.na(NAME_MAT) ~ NA_character_. 
-
-
-A voir si je le fais ?
-
-Je harmonise les noms des machines (TYPE_MAT = Machinery) en me basant sur le code indiqué dans le questionnaire :  
-- TR = Tractor
-- PT = Power Tiller
-- CH = Combined harvester
-- SP = Sprayer
-- SD = Seed drill
-- MK = BBF Maker
-- DS = Duster
-- ET = Electric motor
-- SM = Submersible pump
-- TH = Thresher
-
-Tableau de correspondances des opérations regoupant plusieurs catégories
-harmonise_NAME_MAT <- tribble(
-~MAT_VARIANT,                                  ~NAME_MAT,
-)
+Je suppose pour tous les ménages qui n'ont pas indiqué si l'opération était méchanisée ou non (variable NAME_MAT vide), l'opération est non mécanisée. Si on souhaite plutôt mettre n/a, il suffit d'ajouter : is.na(NAME_MAT) ~ NA_character_. 
 
 
 ### Cultures par saison
@@ -572,7 +552,7 @@ test_nb_survey |>
 
 On vérifie sur quels mois ont été faites les enquêtes à partir de la variable MONTH.
 
-Le graphique suiavnt montre le nombre d'enquêtes par mois en considèrant les ménages distincts (soit une enquête maximum par ménage et par mois).
+Le graphique suivant montre le nombre d'enquêtes par mois en considèrant les ménages distincts (soit une enquête maximum par ménage et par mois).
 
 ```{r}
 month_levels <- c("janv", "feb", "march", "april", "may", "june", 
@@ -650,7 +630,7 @@ test_nb_survey |>
 
 On estime que si une opération n'est pas complétée pour un mois et un champ donnés, alors son temps de travail est égal à 0. Le but est de créer une base qui indique WORK_HR = 0 pour toutes les opérations pas complétées pour un mois (MONTH) et un champ donnée (VDS_ID, PLOT_CODE, SEASON)
 
-### Version sans Month
+*Version sans Month*
 
 La base full_operation regroupe tous les couples existants VDS_ID / PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
 
@@ -685,7 +665,7 @@ Cultivation_expand <- full_operation |>
 
 Les prochains test visent à inclure MONTH dans la base Cultivation_expand. 
 
-### 1er test: Créer des lignes pour tous les mois (même manquants)
+*1er test: Créer des lignes pour tous les mois (même manquants)*
 
 Je regroupe toutes les combinaisons possibles de MONTH / OPERATION et tous les couples existants VDS_ID / PLOT_CODE.
 
@@ -706,7 +686,7 @@ Puis l'idée de créer la base Cultivation_expand en joignant avec "MONTH", "VDS
 
 Ma méthode de faire pour tous les mois est fausse, parce que certains champs n'existent que pour une saison donnée, notamment en jachère ? donc associer un WORK_HR = 0 à ces champs revient à créer des valeurs qui n'existent pas
 
-### 2ème test: Créer des lignes seulement pour les mois existants
+*2ème test: Créer des lignes seulement pour les mois existants*
 
 Je refais la base full_operations en identifiant les champs existants par les variables (VDS_ID, PLOT_CODE, SEASON, MONTH)
 
@@ -861,17 +841,46 @@ Cultivation_expand <- Cultivation_expand |>
 
 ## Rabi: Ajouter les champs en jachère 
 
-### Comptages des ménages/champs par saison
+### Identifier les champs de façon unique
+
+Je repère les champs pour lesquels les variables VDS_ID, PLOT_CODE et SEASON ne sont pas suffisantes pour les identifier de façon unique et qui doivent être différenciés avec CROP. 
+
+```{r}
+# Tableau des champs nécessitant CROP pour les identifier
+dup_rows_champs <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, CROP, SEASON) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  filter(n() > 1) |>
+  arrange(VDS_ID, PLOT_CODE, SEASON, CROP) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+Pour ces 3 champs, je modifie PLOT_CODE pour différencier les doublons.
+
+```{r}
+dup_rows_champs <- dup_rows_champs |>
+  mutate(PLOT_CODE_NEW = ifelse(row_in_group == 2, "Z", PLOT_CODE)) |>
+  select(VDS_ID, CROP, SEASON, PLOT_CODE, PLOT_CODE_NEW)
+
+Cultivation_expand <- Cultivation_expand |>
+  left_join(dup_rows_champs, by = c("VDS_ID", "CROP", "SEASON", "PLOT_CODE")) |>
+  mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
+  select(-PLOT_CODE_NEW)
+```
+
+
+### Compter les ménages/champs par saison
 
 On compte les ménages et champs présents par saison. 
-Attention, les champs et ménages sont comptabilisés deux fois (une fois par saison)
+Attention, ils sont comptabilisés deux fois (une fois par saison). 
 
 ```{r}
 Cultivation_expand |>
   group_by(SEASON) |>
   summarise(
-    `Nombre de ménages` = n_distinct(VDS_ID, SEASON),
-    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_"))
+    `Nombre de ménages` = n_distinct(VDS_ID),
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, sep = "_"))
   ) |>
   gt() |>
   tab_header(
@@ -883,6 +892,43 @@ Cultivation_expand |>
 ```
 
 
+### Présence des champs selon la saison
+
+J'identifie ensuite les ménages et champs présents dans une seule saison. 
+
+```{r}
+# Identifier les champs uniques par saison
+champs_kharif <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  distinct(VDS_ID)
+
+champs_rabi <- Cultivation_expand |>
+  filter(SEASON == "RABI") |>
+  distinct(VDS_ID)
+
+# KHARIF mais pas RABI
+uniques_kharif <- anti_join(champs_kharif, champs_rabi,
+                            by = c("VDS_ID"))
+
+# RABI mais pas KHARIF
+uniques_rabi <- anti_join(champs_rabi, champs_kharif,
+                          by = c("VDS_ID"))
+```
+
+```{r}
+bind_rows(
+  uniques_kharif |>
+    summarise(Saison = "KHARIF seulement", `Nombre de ménages` = n()),
+  uniques_rabi |>
+    summarise(Saison = "RABI seulement", `Nombre de ménages` = n())
+) |>
+  gt() |>
+  tab_header(title = "Ménages par saison de culture") |>
+  cols_label(
+    Saison = "Saison",
+    `Nombre de ménages` = "Ménages concernés"
+  )
+```
 
 
 

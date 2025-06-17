@@ -18,7 +18,6 @@ library(readxl)
 library(ggplot2)
 library(scales)
 library(knitr)
-library(readxl)
 library(tibble)
 library(tidyverse)
 library(gt)
@@ -43,7 +42,7 @@ Cultivation_expand |>
   group_by(SEASON) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
-    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_"))
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, sep = "_"))
   ) |>
   gt() |>
   tab_header(
@@ -65,7 +64,7 @@ Cultivation_expand |>
   group_by(CASTE_GROUP) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
-    `Champs par saison` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_"))
+    `Champs par saison` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, sep = "_"))
   ) |>
   gt() |>
   tab_header(
@@ -83,7 +82,7 @@ Cultivation_expand |>
 plot_per_hh <- Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, CROP, SEASON) |>
   group_by(VDS_ID, SEASON) |> 
-  summarise(nb_cultures = n_distinct(PLOT_CODE, CROP), .groups = "drop")
+  summarise(nb_cultures = n_distinct(PLOT_CODE), .groups = "drop")
 
 # 2. Rattacher la caste à chaque ménage
 nb_caste <- Cultivation_expand |>
@@ -126,7 +125,7 @@ Combien de champs font du riz en Kharif ?
 ```{r}
 crop_choice_kharif <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, CROP)
+  distinct(VDS_ID, PLOT_CODE)
 
 total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE, crop_choice_kharif$CROP)
 
