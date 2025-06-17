@@ -30,34 +30,7 @@ Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultiv
 
 ********************************************************************************
 
-## Comptage des champs/ménages
-
-### Total par saison
-
-Attention, les champs sont comptés par saison donc deux fois (Kharif et Rabi). 
-Les ménages sont comptabilisés une seule fois (sans considérer la saison). 
-
-```{r}
-Cultivation_expand |>
-  group_by(SEASON) |>
-  summarise(
-    `Nombre de ménages` = n_distinct(VDS_ID),
-    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, sep = "_"))
-  ) |>
-  gt() |>
-  tab_header(
-    title = "Ménages et champs par saison"
-  ) |>
-  cols_label(
-    SEASON = "Saison"
-  )
-```
-
-Environ 1,000 champs enregistrés en Kharif ne le sont plus en Rabi.
-Cela concerne certainement des champs en jachère qui n'ont aucune activité agricole en Rabi pour 2014. Je les ajoute manuellement pour pouvoir considérer ces champs dans l'analyse. 
-
-
-### Selon la caste
+## Champs/ménages par caste
 
 ```{r}
 Cultivation_expand |>
@@ -92,15 +65,13 @@ nb_caste <- Cultivation_expand |>
   left_join(plot_per_hh, by = "VDS_ID")
 ```
 
-```{r, message=FALSE, warning=FALSEd}
+```{r, message=FALSE, warning=FALSE}
 nb_caste |>
   group_by(CASTE_GROUP) |>
   summarise(
-    `Nombre de ménages` = n_distinct(VDS_ID),
     `Champs par ménage` = round(mean(nb_cultures, na.rm = TRUE), 1),
     .groups = "drop"
   ) |>
-  arrange(desc(`Nombre de ménages`)) |>
   gt() |>
   tab_header(
     title = "Champs par ménage selon la caste"
