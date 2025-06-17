@@ -880,7 +880,7 @@ Cultivation_expand |>
   group_by(SEASON) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
-    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, sep = "_"))
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, sep = "_"))
   ) |>
   gt() |>
   tab_header(
@@ -892,7 +892,7 @@ Cultivation_expand |>
 ```
 
 
-### Présence des champs selon la saison
+### Ménages/champs dans une seule saison
 
 J'identifie ensuite les ménages et champs présents dans une seule saison. 
 
@@ -900,35 +900,44 @@ J'identifie ensuite les ménages et champs présents dans une seule saison.
 # Identifier les champs uniques par saison
 champs_kharif <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID)
+  distinct(VDS_ID, PLOT_CODE)
 
 champs_rabi <- Cultivation_expand |>
   filter(SEASON == "RABI") |>
-  distinct(VDS_ID)
+  distinct(VDS_ID, PLOT_CODE)
 
 # KHARIF mais pas RABI
 uniques_kharif <- anti_join(champs_kharif, champs_rabi,
-                            by = c("VDS_ID"))
+                            by = c("VDS_ID", "PLOT_CODE"))
 
 # RABI mais pas KHARIF
 uniques_rabi <- anti_join(champs_rabi, champs_kharif,
-                          by = c("VDS_ID"))
+                          by = c("VDS_ID", "PLOT_CODE"))
+
+# Présents dans les deux saisons
+present_both <- inner_join(champs_kharif, champs_rabi, by = c("VDS_ID", "PLOT_CODE"))
 ```
 
 ```{r}
 bind_rows(
   uniques_kharif |>
-    summarise(Saison = "KHARIF seulement", `Nombre de ménages` = n()),
+    summarise(Saison = "KHARIF seulement", `Nombre de champs` = n()),
   uniques_rabi |>
-    summarise(Saison = "RABI seulement", `Nombre de ménages` = n())
+    summarise(Saison = "RABI seulement", `Nombre de champs` = n()),
+  present_both |>
+    summarise(Saison = "KHARIF et RABI", `Nombre de champs` = n())
 ) |>
   gt() |>
-  tab_header(title = "Ménages par saison de culture") |>
+  tab_header(title = "Champs présents dans une seule saison") |>
   cols_label(
     Saison = "Saison",
-    `Nombre de ménages` = "Ménages concernés"
+    `Nombre de champs` = "Champs uniques"
   )
 ```
+
+Pour retomber sur les 3 956 champs distincts, calculer Kharif seulement + Rabi seulement + Kharif et Rabi x 2
+
+Il faut ajouter 588 champs en jachère en Kharif et 1 726 en Kharif ? Le total n'est pas bon, il faudrait aussi ajouter les 821 champs présents dans les deux saisons (jsp pourquoi) 
 
 
 
