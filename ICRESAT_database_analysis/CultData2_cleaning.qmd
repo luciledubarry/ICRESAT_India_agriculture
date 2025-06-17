@@ -646,7 +646,7 @@ full_operation <- expand_grid(
 )
 ```
 
-Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliqués dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
+Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliquées dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
 
 ```{r, message=FALSE, warning=FALSE}
 base_to_join <- Cultivation_cult_distinctes |>
@@ -839,7 +839,7 @@ Cultivation_expand <- Cultivation_expand |>
 
 ********************************************************************************
 
-## Rabi: Ajouter les champs en jachère 
+## Ajouter les champs en jachère par saison
 
 ### Identifier les champs de façon unique
 
@@ -935,9 +935,47 @@ bind_rows(
   )
 ```
 
-Pour retomber sur les 3 956 champs distincts, calculer Kharif seulement + Rabi seulement + Kharif et Rabi x 2
+Pour retomber sur le total de 3 956 champs distincts, calculer Kharif seulement + Rabi seulement + Kharif et Rabi x 2
 
-Il faut ajouter 588 champs en jachère en Kharif et 1 726 en Kharif ? Le total n'est pas bon, il faudrait aussi ajouter les 821 champs présents dans les deux saisons (jsp pourquoi) 
+
+### Ajouter les champs en jachère
+
+Il faut ajouter 588 champs en jachère en Kharif et 1 726 en Kharif. Le nombre total de champs pour les deux saisons sera alors 3 135 champs par saison. 
+
+```{r}
+full_season <- expand_grid(
+  Cultivation_expand |> distinct(VDS_ID, PLOT_CODE),
+  SEASON = unique(Cultivation_expand$SEASON)
+)
+
+Cultivation_expand <- full_season |>
+  left_join(Cultivation_expand, by = c("VDS_ID", "PLOT_CODE", "SEASON")) |>
+  mutate(
+    CROP = replace_na(CROP, "SEASONAL FALLOW")
+    )
+```
+
+Conserver les variables sur le ménage pour les champs en jachère : 
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  group_by(VDS_ID) |>
+  mutate(CASTE_GROUP = if (any(!is.na(CASTE_GROUP))) first(na.omit(CASTE_GROUP)) else NA_character_,
+        CASTE = if (any(!is.na(CASTE))) first(na.omit(CASTE)) else NA_character_,
+        AREA_CROP   = if (any(!is.na(AREA_CROP)))   first(na.omit(AREA_CROP))   else NA_real_,
+        IRRI_CROP   = if (any(!is.na(IRRI_CROP)))   first(na.omit(IRRI_CROP))   else NA_real_,
+        IRRIGATION  = if (any(!is.na(IRRIGATION)))  first(na.omit(IRRIGATION))  else NA_character_,
+        STATE       = if (any(!is.na(STATE)))       first(na.omit(STATE))       else NA_character_,
+        VILLAGE     = if (any(!is.na(VILLAGE)))     first(na.omit(VILLAGE))     else NA_character_,
+        REGION      = if (any(!is.na(REGION)))      first(na.omit(REGION))      else NA_character_
+  ) |>
+  ungroup()
+```
+
+
+Pour vérifier les différences de superficie des champs entre les saisons (au cas où les champs sont consolidés), pivoter en large la base pour les saisons (pour le superficie et éventuellement la culture). Objectif : vérifier si la superficie d'un mêm champ diffère entre deux saisons et compter le nombre de NA = champs en jachère
+
+
 
 
 
