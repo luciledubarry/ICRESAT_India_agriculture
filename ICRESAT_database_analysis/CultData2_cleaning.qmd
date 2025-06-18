@@ -841,7 +841,7 @@ Cultivation_expand <- Cultivation_expand |>
 
 ## Ajouter les champs en jachère par saison
 
-### Identifier les champs de façon unique
+### Modifier Plot_code : unicité des champs
 
 Je repère les champs pour lesquels les variables VDS_ID, PLOT_CODE et SEASON ne sont pas suffisantes pour les identifier de façon unique et qui doivent être différenciés avec CROP. 
 
@@ -856,7 +856,7 @@ dup_rows_champs <- Cultivation_expand |>
   ungroup()
 ```
 
-Pour ces 3 champs, je modifie PLOT_CODE pour différencier les doublons.
+Pour ces 3 champs, je modifie PLOT_CODE, pour identifier ces champs de façon unique.
 
 ```{r}
 dup_rows_champs <- dup_rows_champs |>
@@ -868,6 +868,120 @@ Cultivation_expand <- Cultivation_expand |>
   mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
   select(-PLOT_CODE_NEW)
 ```
+
+
+### Verif: Superficie des champs entre les saisons
+
+On veut vérifier si la superficie d'un même champ diffère entre deux saisons (au cas où les champs serainet consolidés d'une saison à une autre). 
+
+Pour cela, je pivote en large la base selon la saison (pour les variables AREA_CROP et CROP). Le but est d'indiquer les potentielles différences de superficie d'un champ entre les saisons et de repérer les champs manquants (donc en jachère). 
+
+
+Problème: Les couples (VDS_ID, PLOT_CODE, CROP, SEASON, AREA_CROP) ne sont pas uniques. Cela signifie que des champs ont plusieurs valeurs de AREA_CROP pour la même saison et culture.
+
+En regardant la base Cultivation_2014 (avant d'avoir pivoter en long les cultures et calculer ARE_CROP en pourcentage de PLOT_AREA), on voit qu'il y a seulement 3 champs (VDS_ID et PLOT_CODE) qui ont des superficies différentes (même avec CROP, VAR_NAME et VAR_TYPE identiques). 
+
+Les autres doublons présents dans Cultivation_expand sont dûs à des différences dans VAR_NAME ET VAR_TYPE, donc correspondent à des champs distincts. Je modifie donc PLOT_CODE pour distinguer ces champs. 
+
+```{r}
+# Champs ayant plusieurs valeurs de AREA_CROP pour la même saison
+dup_champs_area <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  filter(n() > 1) |>
+  arrange(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+```{r}
+dup_champs_area <- dup_champs_area |>
+  mutate(
+    PLOT_CODE_NEW = case_when(
+      row_in_group == 2 ~ paste0(PLOT_CODE, "X"),
+      row_in_group == 3 ~ paste0(PLOT_CODE, "Y"),
+      row_in_group == 4 ~ paste0(PLOT_CODE, "Z"),
+      TRUE ~ PLOT_CODE
+    )
+    ) |>
+  select(VDS_ID, VAR_NAME, AREA_CROP, VAR_TYPE, CROP, SEASON, PLOT_CODE, PLOT_CODE_NEW)
+
+cultivation_wider_season <- Cultivation_expand |>
+  left_join(dup_champs_area, by = c("VDS_ID", "VAR_NAME", "AREA_CROP", "CROP", "VAR_TYPE", "SEASON", "PLOT_CODE")) |>
+  mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
+  select(-PLOT_CODE_NEW)
+```
+
+FAUX: car si on somme tous les champs d'un ménage par saison, on voit que pour la très grande majorité (tous excepté 2 champs) les superficies sont égales entre les deux saisons. Donc, les champs ayant indiqué FALSE dans la partie précédente sont juste de la consolidation de champs parmi le même ménage. 
+
+Il n'y a donc pas besoin de créer de champs en jachère. 
+
+
+#### Test: Variation de la superficie des champs par saison
+
+```{r}
+cultivation_wider_season <- cultivation_wider_season |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
+  pivot_wider(
+    names_from = SEASON,
+    values_from = AREA_CROP
+  ) |>
+  mutate(diff_area = KHARIF != RABI)
+
+cat("Champs avec une superficie qui varie par saison :", nrow(cultivation_wider_season |> filter(diff_area)), "\n")
+cat("Sur un total de", nrow(cultivation_wider_season), "champs soit", round(100 * nrow(cultivation_wider_season |> filter(diff_area)) / nrow(cultivation_wider_season), 1), "%\n")
+```
+
+QUESTION: 
+
+Est-ce que je peux ajouter les champs en jachère seulement pour les ménages qui n'ont indiqué qu'une seule saison ? donc quand diff_area = n/a ? 
+
+
+#### Tests: Somme des superficies des champs du ménage par saison
+
+```{r}
+test_area_hh_1 <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP, SEASON, VAR_TYPE, VAR_NAME, CROP) |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(hh_area = sum(AREA_CROP, na.rm = TRUE), .groups = "drop") |>
+  pivot_wider(
+    names_from = SEASON,
+    values_from = hh_area
+  ) |>
+  mutate(diff_area = KHARIF != RABI)
+
+mean_area_1 <- test_area_hh_1 |>
+  summarise(
+    mean(KHARIF, na.rm = TRUE),
+    mean(RABI, na.rm = TRUE)
+    )                               
+
+cat("Ménages avec une surface des champs différente selon la saison :", nrow(test_area_hh_1 |> filter(diff_area)), "\n")
+cat("Sur un total de", nrow(test_area_hh_1), "ménages soit", round(100 * nrow(test_area_hh_1 |> filter(diff_area)) / nrow(test_area_hh_1), 1), "%\n")
+```
+
+```{r}
+test_area_hh_2 <- cultivation_wider_season |>
+  group_by(VDS_ID) |>
+  summarise(
+    area_kharif = sum(KHARIF, na.rm = TRUE),
+    area_rabi = sum(RABI, na.rm = TRUE), .groups = "drop") |>
+  mutate(diff_area = area_kharif != area_rabi)
+
+mean_area_2 <- test_area_hh_2 |>
+  summarise(
+    mean(area_kharif, na.rm = TRUE),
+    mean(area_rabi, na.rm = TRUE)
+    )
+
+cat("Ménages avec une surface des champs différente selon la saison :", nrow(test_area_hh_2 |> filter(diff_area)), "\n")
+cat("Sur un total de", nrow(test_area_hh_2), "ménages soit", round(100 * nrow(test_area_hh_2 |> filter(diff_area)) / nrow(test_area_hh_2), 1), "%\n")
+```
+
+--> La différence dans les résultats entre la table Cultivation_expand et cultivation_wider_season vient du calcul de la superficie total par ménage et par saison, plutôt que la modification de PLOT_CODE. En ne faisant pas pivoter cultivation_wider_season, on a un % identique à celui de Cultivation_expand. 
+
+
+
 
 
 ### Compter les ménages/champs par saison
@@ -934,83 +1048,12 @@ bind_rows(
 Pour retomber sur le total de 3 956 champs distincts, additionner Kharif seulement + Rabi seulement + (Kharif et Rabi x 2)
 
 
-### Verif: Superficie des champs entre les saisons
-
-On veut vérifier si la superficie d'un même champ diffère entre deux saisons (au cas où les champs serainet consolidés d'une saison à une autre). 
-
-Pour cela, je pivote en large la base selon la saison (pour les variables AREA_CROP et CROP). Le but est d'indiquer les potentielles différences de superficie d'un champ entre les saisons et de repérer les champs manquants (donc en jachère). 
-
-
-Problème: Les couples (VDS_ID, PLOT_CODE, CROP, SEASON, AREA_CROP) ne sont pas uniques. Cela signifie que des champs ont plusieurs valeurs de AREA_CROP pour la même saison et culture.
-
-En regardant la base Cultivation_2014 (avant d'avoir pivoter en long les cultures et calculer ARE_CROP en pourcentage de PLOT_AREA), on voit qu'il y a seulement 3 champs (VDS_ID et PLOT_CODE) qui ont des superficies différentes (même avec CROP, VAR_NAME et VAR_TYPE identiques). 
-
-Les autres doublons présents dans Cultivation_expand sont dûs à des différences dans VAR_NAME ET VAR_TYPE, donc correspondent à des champs distincts. Je modifie donc PLOT_CODE pour distinguer ces champs. 
-
-```{r}
-# Champs ayant plusieurs valeurs de AREA_CROP pour la même saison
-dup_champs_area <- Cultivation_expand |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
-  group_by(VDS_ID, PLOT_CODE, SEASON) |>
-  filter(n() > 1) |>
-  arrange(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
-  mutate(row_in_group = row_number()) |> 
-  ungroup()
-```
-
-```{r}
-dup_champs_area <- dup_champs_area |>
-  mutate(
-    PLOT_CODE_NEW = case_when(
-      row_in_group == 2 ~ paste0(PLOT_CODE, "X"),
-      row_in_group == 3 ~ paste0(PLOT_CODE, "Y"),
-      row_in_group == 4 ~ paste0(PLOT_CODE, "Z"),
-      TRUE ~ PLOT_CODE
-    )
-    ) |>
-  select(VDS_ID, VAR_NAME, AREA_CROP, VAR_TYPE, CROP, SEASON, PLOT_CODE, PLOT_CODE_NEW)
-
-cultivation_wider_season <- Cultivation_expand |>
-  left_join(dup_champs_area, by = c("VDS_ID", "VAR_NAME", "AREA_CROP", "CROP", "VAR_TYPE", "SEASON", "PLOT_CODE")) |>
-  mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
-  select(-PLOT_CODE_NEW)
-```
-
-FAUX: car si on somme tous les champs d'un ménage par saison, on voit que pour la très grande majorité (tous excepté 2 champs) les superficies sont égales entre els deux saisons. Donc, les champs ayant indiqué FALSE dans la partie précédente sont juste de la consolidation de champs parmi le même ménage. 
-
-Il n'y a donc pas besoin de créer de champs en jachère. 
-
-```{r}
-cultivation_wider_season <- Cultivation_expand |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
-  pivot_wider(
-    names_from = SEASON,
-    values_from = AREA_CROP
-  ) |>
-  mutate(diff_area = KHARIF != RABI)
-
-cat("Champs avec une superficie qui varie par saison :", nrow(cultivation_wider_season |> filter(diff_area)), "\n")
-cat("Sur un total de", nrow(cultivation_wider_season |> filter(diff_area == FALSE)), "champs présents dans les deux saisons soit", round(100 * nrow(cultivation_wider_season |> filter(diff_area)) / nrow(cultivation_wider_season |> filter(diff_area == FALSE)), 1), "%\n")
-```
-```{r}
-test_area_hh <- cultivation_wider_season |>
-  group_by(VDS_ID) |>
-  summarise(
-    area_kharif = sum(KHARIF),
-    area_rabi = sum(RABI), .groups = "drop"
-  ) |>
-  ungroup() |>
-  mutate(diff_area = area_kharif != area_rabi)
-```
-
-
-
-
-
 
 
 
 ### Ajouter les champs en jachère
+
+VOIR SI GARDER: RESULTAT FAUX POUR L'INSTANT
 
 Il faut ajouter 588 champs en jachère en Kharif et 1 726 en Kharif. Le nombre total de champs pour les deux saisons sera alors 3 135 champs par saison. 
 
@@ -1020,7 +1063,7 @@ full_season <- expand_grid(
   SEASON = unique(Cultivation_expand$SEASON)
 )
 
-Cultivation_expand <- full_season |>
+test_cultivation_expand <- full_season |>
   left_join(Cultivation_expand, by = c("VDS_ID", "PLOT_CODE", "SEASON")) |>
   mutate(
     CROP = replace_na(CROP, "SEASONAL FALLOW")
@@ -1030,7 +1073,7 @@ Cultivation_expand <- full_season |>
 Conserver les variables sur le ménage pour les champs en jachère : 
 
 ```{r}
-Cultivation_expand <- Cultivation_expand |>
+test_cultivation_expand <- Cultivation_expand |>
   group_by(VDS_ID) |>
   mutate(CASTE_GROUP = if (any(!is.na(CASTE_GROUP))) first(na.omit(CASTE_GROUP)) else NA_character_,
         CASTE = if (any(!is.na(CASTE))) first(na.omit(CASTE)) else NA_character_,
