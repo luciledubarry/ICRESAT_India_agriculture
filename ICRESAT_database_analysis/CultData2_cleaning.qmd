@@ -776,7 +776,7 @@ household_village <- Household_info |>
   distinct(VDS_ID) |>
   summarise(n = n(), .groups = "drop")
 
-cultivation_village  <- Cultivation_expand  |> 
+nb_village  <- Cultivation_expand  |> 
   mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
   group_by(VILLAGE) |>
   distinct(VDS_ID) |>
@@ -877,7 +877,6 @@ Attention, ils sont comptabilisés deux fois (une fois par saison).
 
 ```{r}
 Cultivation_expand |>
-  group_by(SEASON) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
     `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, sep = "_"))
@@ -885,9 +884,6 @@ Cultivation_expand |>
   gt() |>
   tab_header(
     title = "Ménages et champs par saison"
-  ) |>
-  cols_label(
-    SEASON = "Saison"
   )
 ```
 
@@ -942,14 +938,14 @@ Pour retomber sur le total de 3 956 champs distincts, additionner Kharif seuleme
 
 On veut vérifier si la superficie d'un même champ diffère entre deux saisons (au cas où les champs serainet consolidés d'une saison à une autre). 
 
-Pour cela, je pivote en large la base selon la saison (pour les variables AREA_CROP et CROP). Le but est d'indiquer les potentielles différences de superficie d'un chap entre les saisons et de repérer les champs manquants (donc en jachère). 
+Pour cela, je pivote en large la base selon la saison (pour les variables AREA_CROP et CROP). Le but est d'indiquer les potentielles différences de superficie d'un champ entre les saisons et de repérer les champs manquants (donc en jachère). 
 
 
 Problème: Les couples (VDS_ID, PLOT_CODE, CROP, SEASON, AREA_CROP) ne sont pas uniques. Cela signifie que des champs ont plusieurs valeurs de AREA_CROP pour la même saison et culture.
 
 En regardant la base Cultivation_2014 (avant d'avoir pivoter en long les cultures et calculer ARE_CROP en pourcentage de PLOT_AREA), on voit qu'il y a seulement 3 champs (VDS_ID et PLOT_CODE) qui ont des superficies différentes (même avec CROP, VAR_NAME et VAR_TYPE identiques). 
 
-Les autres doublons présents dans Cultivation_expand sont dûs à des différences dans VAR_NAME ET VAR_TYPE, donc correspondent à des champs distincts. 
+Les autres doublons présents dans Cultivation_expand sont dûs à des différences dans VAR_NAME ET VAR_TYPE, donc correspondent à des champs distincts. Je modifie donc PLOT_CODE pour distinguer ces champs. 
 
 ```{r}
 # Champs ayant plusieurs valeurs de AREA_CROP pour la même saison
@@ -962,16 +958,53 @@ dup_champs_area <- Cultivation_expand |>
   ungroup()
 ```
 
+```{r}
+dup_champs_area <- dup_champs_area |>
+  mutate(
+    PLOT_CODE_NEW = case_when(
+      row_in_group == 2 ~ paste0(PLOT_CODE, "X"),
+      row_in_group == 3 ~ paste0(PLOT_CODE, "Y"),
+      row_in_group == 4 ~ paste0(PLOT_CODE, "Z"),
+      TRUE ~ PLOT_CODE
+    )
+    ) |>
+  select(VDS_ID, VAR_NAME, AREA_CROP, VAR_TYPE, CROP, SEASON, PLOT_CODE, PLOT_CODE_NEW)
 
+cultivation_wider_season <- Cultivation_expand |>
+  left_join(dup_champs_area, by = c("VDS_ID", "VAR_NAME", "AREA_CROP", "CROP", "VAR_TYPE", "SEASON", "PLOT_CODE")) |>
+  mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
+  select(-PLOT_CODE_NEW)
+```
 
+FAUX: car si on somme tous les champs d'un ménage par saison, on voit que pour la très grande majorité (tous excepté 2 champs) les superficies sont égales entre els deux saisons. Donc, les champs ayant indiqué FALSE dans la partie précédente sont juste de la consolidation de champs parmi le même ménage. 
 
+Il n'y a donc pas besoin de créer de champs en jachère. 
 
+```{r}
 cultivation_wider_season <- Cultivation_expand |>
   distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
   pivot_wider(
     names_from = SEASON,
     values_from = AREA_CROP
-  )
+  ) |>
+  mutate(diff_area = KHARIF != RABI)
+
+cat("Champs avec une superficie qui varie par saison :", nrow(cultivation_wider_season |> filter(diff_area)), "\n")
+cat("Sur un total de", nrow(cultivation_wider_season |> filter(diff_area == FALSE)), "champs présents dans les deux saisons soit", round(100 * nrow(cultivation_wider_season |> filter(diff_area)) / nrow(cultivation_wider_season |> filter(diff_area == FALSE)), 1), "%\n")
+```
+```{r}
+test_area_hh <- cultivation_wider_season |>
+  group_by(VDS_ID) |>
+  summarise(
+    area_kharif = sum(KHARIF),
+    area_rabi = sum(RABI), .groups = "drop"
+  ) |>
+  ungroup() |>
+  mutate(diff_area = area_kharif != area_rabi)
+```
+
+
+
 
 
 
