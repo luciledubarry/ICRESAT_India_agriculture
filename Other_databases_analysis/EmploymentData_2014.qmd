@@ -402,22 +402,59 @@ Employment_2014 |>
   )
 ```
 
-## Travail familial
 
 ### Vérification des jours travaillés
+
+*Méthode avec total de jours*
 
 On vérifie tout d'abord si la somme des jours travaillés par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu est égal à 30 jours. 
 
 ```{r}
 # Tableau des individus en double dans Employment
 dup_rows_Employment_2014 <- Employment_2014 |>
-  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR) |>
+  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR, REL, WORK_TYPE, WORK_DAYS) |>
   filter(n() > 1) |>
   ungroup()
 ```
 
-La variable WORK_DAYS (travail employé) est pour certains individus doublée lorsqu'ils font à la fois du travail employé agricole et non_agricole. Je divise donc WORK_DAYS et toutes les variables associées (AVG_WORK_HRS, WAGE_CASH, WAGE_KIND, CO_NF_WORK) entre travail agricole et travail non-agricole. 
+La variable WORK_DAYS (travail employé) est pour certains individus doublée lorsqu'ils font à la fois du travail employé agricole et non_agricole.  
 
+Etape 1: Je crée une table qui regroupe tous les individus et additionne les jours de travail agricole et non-agricole pour les individus qui sont en double. 
+
+```{r}
+# 1. J'additionne les valeurs différentes de WORK_DAYS par individu
+# FAUX parce qu'il y a des doublons qui ne sont pas dus à WORK_DAYS et ne doivent pas être additionnés
+ind_work_days <- Employment_2014 |>
+  distinct(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, SUR_MON_YR, WORK_DAYS, OWN_DOME_D, OWN_LST_D, OWN_FARM_D, INV_UNEMP_DAYS, SERI_ILL, OWN_OT_D) |>
+  mutate(across(c(WORK_DAYS, OWN_DOME_D, OWN_LST_D, OWN_FARM_D, INV_UNEMP_DAYS, SERI_ILL, OWN_OT_D), as.numeric)) |>
+  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, SUR_MON_YR) |>
+  mutate(HIRED_WORK_D = sum(WORK_DAYS, na.rm = TRUE), .groups = "drop") |>
+  select(-WORK_DAYS) |>
+  distinct()
+```
+
+
+
+
+*Méthode avec total d'heures*
+
+La base est complétée telle que tout jour de travail est comptabilisé comme un peu importe le nombre d'heures travaillées. Je me concentre donc sur le total d'heures travaillées dans le mois, plutôt que le total de jours. 
+
+On vérifie si le nombre d'heures travaillées par mois par individu excède ou non 240h (8h x 30 jours). 
+
+```{r}
+ind_work_days <- Employment_2014 |>
+  select(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR, WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, OWN_DOME_D, OWN_DOME_H, OWN_LST_D, OWN_LST_H, OWN_FARM_D, OWN_FARM_H, INV_UNEMP_DAYS, SERI_ILL, OWN_OT_D, OWN_OT_H) |>
+```
+
+
+
+
+
+
+Autre méthode : 
+
+"Je divise donc WORK_DAYS et toutes les variables associées (AVG_WORK_HRS, WAGE_CASH, WAGE_KIND, CO_NF_WORK) entre travail agricole et travail non-agricole."
 
 A FINIR : 
 
@@ -438,7 +475,7 @@ work_days <- work_days |>
 
 
 
-
+********************************************************************************
 
 ## Travail employé (agricole ou non) par genre
 ### Total d'heures
@@ -699,6 +736,14 @@ ind_hours_caste |>
 
 
 ## Travail familial (agricole ou non) par genre
+
+
+
+
+
+
+
+
 
 
 
