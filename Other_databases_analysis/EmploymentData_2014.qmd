@@ -365,15 +365,13 @@ Employment_2014 <- Employment_2014 |>
 Je vais me baser sur les heures travaillées par mois et par individu, en différenciant par type de travail (employé agricole ou non-agricole, domestique, livestock, familial).
 
 ```{r, message=FALSE, warning=FALSE}
-cols_to_convert <- c("WORK_DAYS", "AVG_WORK_HRS", "WAGES_CASH", "WAGES_KIND", 
-                     "AMT_SPENT", "WAGES_NET_INC", "INV_UNEMP_DAYS", "OWN_FARM_D", 
+cols_to_convert <- c("WORK_DAYS", "AVG_WORK_HRS", "INV_UNEMP_DAYS", "OWN_FARM_D", 
                      "OWN_FARM_H", "OWN_DOME_D", "OWN_DOME_H", "OWN_LST_D", 
                      "OWN_LST_H", "OWN_OT_D", "OWN_OT_H", "SERI_ILL")
 
 hrs_worked <- Employment_2014 |>
   select(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE,
-         WORK_DAYS, AVG_WORK_HRS, WAGES_CASH, WAGES_KIND, AMT_SPENT,
-         WAGES_NET_INC, INV_UNEMP_DAYS, CO_NF_WORK,
+         WORK_DAYS, AVG_WORK_HRS, WAGES_NET_INC, INV_UNEMP_DAYS,
          OWN_FARM_D, OWN_FARM_H, OWN_DOME_D, OWN_DOME_H,
          OWN_LST_D, OWN_LST_H, OWN_OT_D, OWN_OT_H, SERI_ILL) |>
   mutate(across((all_of(cols_to_convert)), ~ as.numeric(.)))
@@ -415,11 +413,6 @@ hrs_worked <- hrs_worked |>
 
 ### Gérer les doublons 
 
-Dans cette base, il y a des individus en double (pour le même mois) à conserver et d'autres non. 
-
-Individus en double à conserver : 
-- 
-
 ```{r}
 # Tableau des individus en double dans Employment
 dup_rows_Employment_2014 <- hrs_worked |>
@@ -428,11 +421,24 @@ dup_rows_Employment_2014 <- hrs_worked |>
   ungroup()
 ```
 
+Dans cette base, il y a des individus en double (pour le même mois) à conserver et d'autres non. 
+
+Doublons à conserver : 
+- différent WORK_TYPE : un individu peut avoir fait dans le mois à la fois du travail employé agricole et non-agricole
+- différent WORK_DAYS (même WORK_TYPE) : un individu peut avoit fait plusieurs travaux employés dans le mois
+
+Pour ce deuxième cas, j'additionne les heures travaillées par moi des différents travaux employés par individu. 
+
 ```{r}
-hrs_worked <- hrs_worked |>
+hrs_hired_sums <- hrs_worked |>
   filter(!is.na(WORK_TYPE)) |>
-  group_by(across(c(-WORK_DAYS, -AVG_WORK_HRS, -HIRED_WORK_T, -CO_NF_WORK, -WORK_PLACE))) |>
-  mutate(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE), .groups = "drop")
+  group_by(across(-c(WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T))) |>
+  summarise(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE), .groups = "drop")
+
+# Joindre la somme des heures employées dans la base
+hrs_worked <- hrs_worked |>
+  select(-HIRED_WORK_T) |>
+  left_join(hrs_hired_sums, by = setdiff(names(hrs_hired_sums), "HIRED_WORK_T"))
 ```
 
 
