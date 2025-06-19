@@ -358,7 +358,145 @@ Employment_2014 <- Employment_2014 |>
 ```
 
 
+## Cleaning + verif
+
+### Calculer les heures travaillées par mois
+
+Je vais me baser sur les heures travaillées par mois et par individu, en différenciant par type de travail (employé agricole ou non-agricole, domestique, livestock, familial).
+
+```{r, message=FALSE, warning=FALSE}
+cols_to_convert <- c("WORK_DAYS", "AVG_WORK_HRS", "WAGES_CASH", "WAGES_KIND", 
+                     "AMT_SPENT", "WAGES_NET_INC", "INV_UNEMP_DAYS", "OWN_FARM_D", 
+                     "OWN_FARM_H", "OWN_DOME_D", "OWN_DOME_H", "OWN_LST_D", 
+                     "OWN_LST_H", "OWN_OT_D", "OWN_OT_H", "SERI_ILL")
+
+hrs_worked <- Employment_2014 |>
+  select(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE,
+         WORK_DAYS, AVG_WORK_HRS, WAGES_CASH, WAGES_KIND, AMT_SPENT,
+         WAGES_NET_INC, INV_UNEMP_DAYS, CO_NF_WORK,
+         OWN_FARM_D, OWN_FARM_H, OWN_DOME_D, OWN_DOME_H,
+         OWN_LST_D, OWN_LST_H, OWN_OT_D, OWN_OT_H, SERI_ILL) |>
+  mutate(across((all_of(cols_to_convert)), ~ as.numeric(.)))
+```
+
+```{r}
+# Nombre de NA avant conversion
+test1 <- Employment_2014 |>
+  summarise(across(all_of(cols_to_convert), ~ sum(is.na(.)), .names = "na_{.col}")) |> 
+  pivot_longer(everything(), names_to = "variable", values_to = "n_na_emp")
+
+# Nombre de NA après conversion et calcul
+test2 <- hrs_worked |>
+  summarise(across(all_of(cols_to_convert), ~ sum(is.na(.)), .names = "na_{.col}")) |> 
+  pivot_longer(everything(), names_to = "variable", values_to = "n_na_hrs")
+
+test1 |>
+  left_join(test2, by = "variable") |>
+  mutate(diff = n_na_hrs - n_na_emp)
+```
+
+Convertir en numérique a créé des n/a seulement pour la variable OWN_DOME_D. 
+
+
+```{r}
+# Calcul des heures travaillées par ligne
+hrs_worked <- hrs_worked |>
+  mutate(
+    HIRED_WORK_T = WORK_DAYS * AVG_WORK_HRS,
+    OWN_FARM_T = OWN_FARM_D * OWN_FARM_H,
+    OWN_DOME_T = OWN_DOME_D * OWN_DOME_H,
+    OWN_LST_T = OWN_LST_D * OWN_LST_H,
+    OWN_OT_T = OWN_OT_D * OWN_OT_H,
+    SERI_ILL_T = SERI_ILL * 8,
+    INV_UNEMP_T = INV_UNEMP_DAYS * 8
+  )
+```
+
+
+### Gérer les doublons 
+
+Dans cette base, il y a des individus en double (pour le même mois) à conserver et d'autres non. 
+
+Individus en double à conserver : 
+- 
+
+```{r}
+# Tableau des individus en double dans Employment
+dup_rows_Employment_2014 <- hrs_worked |>
+  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR, REL, GENDER, AGE, WORK_TYPE) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+```{r}
+hrs_worked <- hrs_worked |>
+  filter(!is.na(WORK_TYPE)) |>
+  group_by(across(c(-WORK_DAYS, -AVG_WORK_HRS, -HIRED_WORK_T, -CO_NF_WORK, -WORK_PLACE))) |>
+  mutate(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE), .groups = "drop")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Vérification des jours travaillés
+
+On vérifie tout d'abord si la somme des jours travaillés par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu est égal à 30 jours. 
+
+```{r}
+# Tableau des individus en double dans Employment
+dup_rows_Employment_2014 <- Employment_2014 |>
+  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+La variable WORK_DAYS (travail employé) est pour certains individus doublée lorsqu'ils font à la fois du travail employé agricole et non_agricole. Je divise donc WORK_DAYS et toutes les variables associées (AVG_WORK_HRS, WAGE_CASH, WAGE_KIND, CO_NF_WORK) entre travail agricole et travail non-agricole. 
+
+```{r}
+hrs_hired_sums <- hrs_worked |>
+  filter(!is.na(WORK_TYPE)) |>
+  group_by(across(-c(WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T))) |>
+  mutate(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE)) |>
+  ungroup()
+```
+
+
+
+
+
+
+A FINIR : 
+
+work_days <- Employment_2014 |>
+  mutate(WORK_DAYS = as.numeric(WORK_DAYS)) 
+
+work_days <- work_days |>
+  filter(!is.na(WORK_TYPE)) |>
+  pivot_wider(
+    names_from = WORK_TYPE, 
+    values_from = WORK_DAYS,
+    values_fill = list(WORK_DAYS = 0)
+    )
+
+work_days <- work_days |>
+  summarise(days_month = rowSums(c("SERI_ILL", "OWN_OT_D", "OWN_LST_D", "OWN_DOME_D", "OW_FARM_D", "WORK_DAYS"), na.rm = TRUE))
+
+
+
+
+********************************************************************************
+
 ## Analyse
+
 ### Nombre d'étudiants par genre
 
 ```{r}
@@ -403,37 +541,6 @@ Employment_2014 |>
 ```
 
 ## Travail familial
-
-### Vérification des jours travaillés
-
-On vérifie tout d'abord si la somme des jours travaillés par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu est égal à 30 jours. 
-
-```{r}
-# Tableau des individus en double dans Employment
-dup_rows_Employment_2014 <- Employment_2014 |>
-  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR) |>
-  filter(n() > 1) |>
-  ungroup()
-```
-
-La variable WORK_DAYS (travail employé) est pour certains individus doublée lorsqu'ils font à la fois du travail employé agricole et non_agricole. Je divise donc WORK_DAYS et toutes les variables associées (AVG_WORK_HRS, WAGE_CASH, WAGE_KIND, CO_NF_WORK) entre travail agricole et travail non-agricole. 
-
-
-A FINIR : 
-
-work_days <- Employment_2014 |>
-  mutate(WORK_DAYS = as.numeric(WORK_DAYS)) 
-
-work_days <- work_days |>
-  filter(!is.na(WORK_TYPE)) |>
-  pivot_wider(
-    names_from = WORK_TYPE, 
-    values_from = WORK_DAYS,
-    values_fill = list(WORK_DAYS = 0)
-    )
-
-work_days <- work_days |>
-  summarise(days_month = rowSums(c("SERI_ILL", "OWN_OT_D", "OWN_LST_D", "OWN_DOME_D", "OW_FARM_D", "WORK_DAYS"), na.rm = TRUE))
 
 
 
@@ -697,12 +804,7 @@ ind_hours_caste |>
 ```
 
 
-
-## Travail familial (agricole ou non) par genre
-
-
-
-
+********************************************************************************
 
 ## Enregistrer Employment_2014 dans le document partagé
 
