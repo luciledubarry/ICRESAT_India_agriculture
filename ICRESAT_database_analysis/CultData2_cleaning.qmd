@@ -938,6 +938,44 @@ bind_rows(
 Pour retomber sur le total de 3 956 champs distincts, calculer Kharif seulement + Rabi seulement + Kharif et Rabi x 2
 
 
+### Verif: Superficie des champs entre les saisons
+
+On veut vérifier si la superficie d'un même champ diffère entre deux saisons (au cas où les champs serainet consolidés d'une saison à une autre). 
+
+Pour cela, je pivote en large la base selon la saison (pour les variables AREA_CROP et CROP). Le but est d'indiquer les potentielles différences de superficie d'un chap entre les saisons et de repérer les champs manquants (donc en jachère). 
+
+
+Problème: Les couples (VDS_ID, PLOT_CODE, CROP, SEASON, AREA_CROP) ne sont pas uniques. Cela signifie que des champs ont plusieurs valeurs de AREA_CROP pour la même saison et culture.
+
+En regardant la base Cultivation_2014 (avant d'avoir pivoter en long les cultures et calculer ARE_CROP en pourcentage de PLOT_AREA), on voit qu'il y a seulement 3 champs (VDS_ID et PLOT_CODE) qui ont des superficies différentes (même avec CROP, VAR_NAME et VAR_TYPE identiques). 
+
+Les autres doublons présents dans Cultivation_expand sont dûs à des différences dans VAR_NAME ET VAR_TYPE, donc correspondent à des champs distincts. 
+
+```{r}
+# Champs ayant plusieurs valeurs de AREA_CROP pour la même saison
+dup_champs_area <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  filter(n() > 1) |>
+  arrange(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+
+
+
+
+cultivation_wider_season <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
+  pivot_wider(
+    names_from = SEASON,
+    values_from = AREA_CROP
+  )
+
+
+
+
 ### Ajouter les champs en jachère
 
 Il faut ajouter 588 champs en jachère en Kharif et 1 726 en Kharif. Le nombre total de champs pour les deux saisons sera alors 3 135 champs par saison. 

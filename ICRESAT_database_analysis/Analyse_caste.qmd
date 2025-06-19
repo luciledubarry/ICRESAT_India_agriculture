@@ -96,7 +96,7 @@ Combien de champs font du riz en Kharif ?
 ```{r}
 crop_choice_kharif <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE)
+  distinct(VDS_ID, PLOT_CODE, CROP)
 
 total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE, crop_choice_kharif$CROP)
 
