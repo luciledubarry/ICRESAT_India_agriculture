@@ -415,7 +415,7 @@ unmatch_date <- unmatch_date |>
   )
 ```
 
-Cette méthode peremet d'harmoniser la date de l'enquête (SUR_MON_YR_modif) pour les individus ayant plusieurs enquêtes par mois et d'éliminer tous ces doublons. 
+Cette méthode permet d'harmoniser la date de l'enquête (SUR_MON_YR_modif) pour les individus ayant plusieurs enquêtes par mois et d'éliminer tous ces doublons. 
 
 --> Les résultats ne sont pas logiques dans la plupart des cas. Garder seulement si modifier la méthode !!
 
@@ -433,8 +433,8 @@ cols_to_convert <- c("WORK_DAYS", "AVG_WORK_HRS", "INV_UNEMP_DAYS", "OWN_FARM_D"
                      "OWN_LST_H", "OWN_OT_D", "OWN_OT_H", "SERI_ILL")
 
 hrs_worked <- Employment_2014 |>
-  select(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE,
-         WORK_DAYS, AVG_WORK_HRS, INV_UNEMP_DAYS, OWN_FARM_D, OWN_FARM_H,
+  select(SUR_MON_YR, DT_INT, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, 
+         WORK_TYPE,WORK_DAYS, AVG_WORK_HRS, INV_UNEMP_DAYS, OWN_FARM_D, OWN_FARM_H,
          OWN_DOME_D, OWN_DOME_H, OWN_LST_D, OWN_LST_H, OWN_OT_D, OWN_OT_H,
          SERI_ILL) |>
   mutate(across((all_of(cols_to_convert)), ~ as.numeric(.)))
@@ -493,34 +493,37 @@ Doublons à conserver :
 
 #### relatifs au travail employé
 
-Pour ce deuxième cas, j'additionne les heures travaillées par mois des différents travaux employés par individu. 
+Dans le cas de plusieurs travaux employés réalisés dans le mois (du même type : agricole ou non-agricole), j'additionne par individu les heures de ces travaux employés, puis supprime les lignes en doublon. 
 
 ```{r}
 hrs_hired_sums <- hrs_worked |>
   filter(!is.na(WORK_TYPE)) |>
   group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE) |>
-  summarise(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE), .groups = "drop")
+  summarise(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE), .groups = "drop") |>
+  distinct()
 
 # Joindre la somme des heures employées dans la base
 hrs_worked <- hrs_worked |>
   select(-HIRED_WORK_T) |>
-  left_join(hrs_hired_sums, by = setdiff(names(hrs_hired_sums), "HIRED_WORK_T"))
+  left_join(hrs_hired_sums, by = setdiff(names(hrs_hired_sums), "HIRED_WORK_T")) |>
+  
+# Par type de travail employé, enlever les doublons
+  distinct(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, .keep_all = TRUE)
 ```
 
 ```{r}
-# Tableau des individus en double par mois dans Employment
+# Tableau des individus en double par mois à cause du travail employé
 dup_hired_work <- hrs_worked |>
   filter(!is.na(WORK_TYPE)) |>
-  distinct() |>
-  group_by(across(-c(WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T))) |>
+  group_by(across(-c(WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T))) |>
   filter(n() > 1) |>
   ungroup()
 ```
 
-Problème : je trouve que les heures de travail par mois sont trop hautes, les gens travaillent pas tant. Je pense qu'il ne fait pas additionner tous les doublons des différents travaux employés 
+Problème : pour certains individus, les heures de travail par mois sont trop hautes, les gens travaillent pas tant. Je pense qu'il ne fait pas additionner tous les doublons des différents travaux employés ?
 
 
-Explications des doublons
+Explications des doublons :
 
 - Pour certains individus, le doublon s'explique à cause du mois enregistré qui ne correspond pas au mois de l'interview. Il faut vérifier que DT_INT (JJ/MM/AAAA) correspond bien au mois suivant de SUR_MON_YR (MM/AA) : DT_INT = SUR_MONT_YR + 1
 
@@ -528,49 +531,44 @@ Explications des doublons
 
 - Si le deuxième doublon est entièrement des NA -> pas un problème car NA = 0
 
-- 
-
 
 #### relatifs à d'autres variables
 
-Enlever les lignes identiques : 
-
 ```{r}
-hrs_worked <- hrs_worked |>
-  distinct()
-```
-
-
-Idée: filtrer is.na(WORK_TYPE) et conserver pour les doublons la ligne avec le moins de n/a. 
-
-
-
-
-
-
-
-
-### Vérification des jours travaillés
-
-On vérifie tout d'abord si la somme des jours travaillés par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu est égal à 30 jours. 
-
-```{r}
-# Tableau des individus en double dans Employment
-dup_rows_Employment_2014 <- Employment_2014 |>
-  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR) |>
+# Tableau des individus en double par mois, hors travail employé
+dup_non_hired_work <- hrs_worked |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T) |>
   filter(n() > 1) |>
   ungroup()
 ```
 
-La variable WORK_DAYS (travail employé) est pour certains individus doublée lorsqu'ils font à la fois du travail employé agricole et non_agricole. Je divise donc WORK_DAYS et toutes les variables associées (AVG_WORK_HRS, WAGE_CASH, WAGE_KIND, CO_NF_WORK) entre travail agricole et travail non-agricole. 
+Pour les doublons relatifs à d'autres variables que le travail employé (WORK_TYPE, WORK_DAYS, CO_NF_WORK, WORK_PLACE), je supprime les individus en double (pour le même mois et/ou date d'interview) en gardant la ligne avec le moins de NA.
+
+Je filtre pour les individus ne faisant pas de travail employé : is.na(WORK_TYPE)
 
 ```{r}
-hrs_hired_sums <- hrs_worked |>
-  filter(!is.na(WORK_TYPE)) |>
-  group_by(across(-c(WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T))) |>
-  mutate(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE)) |>
-  ungroup()
+# 1. Identifier les doublons à enlever
+hrs_worked_cleaned <- hrs_worked |>
+  filter(is.na(WORK_TYPE)) |>
+  mutate(n_na = rowSums(across(everything(), is.na))) |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T) |>
+  slice_min(order_by = n_na, with_ties = FALSE) |>
+  ungroup() |>
+  select(-n_na)
+
+# 2. Supprimer les doublons dans la base d'origine
+hrs_worked <- hrs_worked |>
+  anti_join(hrs_worked_cleaned, by = c("SUR_MON_YR", "VDS_ID", "PRE_MEM_ID", "OLD_MEM_ID", "REL", "GENDER", "AGE", "WORK_TYPE")) |>
+  bind_rows(hrs_worked_cleaned) |>
+  distinct()
 ```
+
+
+
+### Vérification des heures travaillées par mois
+
+On vérifie tout d'abord si la somme des jours travaillés par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu est égal à 30 jours. 
+
 
 
 
