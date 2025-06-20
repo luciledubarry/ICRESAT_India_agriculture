@@ -376,9 +376,9 @@ Je vérifie combien d'interviews ont fait chaque individu : nombre de mois avec 
 month_ind <- Employment_2014 |>
   distinct(DT_INT, SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
   group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
-  summarise(nb_int = n(), .groups = "drop")
+  summarise(nb_month = n(), .groups = "drop")
 
-table(month_ind$nb_int)
+table(month_ind$nb_month)
 
 # Nombre de mois distincts par individu
 dis_month_ind <- Employment_2014 |>
@@ -389,9 +389,21 @@ dis_month_ind <- Employment_2014 |>
 table(dis_month_ind$nb_month)
 ```
 
+```{r}
+dup_date_int <- Employment_2014 |>
+  distinct(DT_INT, SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+Résumé : lien entre DT_INT et SUR_MON_YR par individu :
+- 1 DT = plusieurs SUR_MON_YR : une interview peut concerner plusieurs mois --> doublons à conserver
+- 1 DT = 1 SUR_MON_YR mais plusieurs lignes -> doublons à conserver selon le type de travail
+- 1 SUR_MON_YR = plusieurs DT_INT -> soit information en double (lignes identiques ou légers changements) soit SUR_MON_YR ne correpond pas à DT_INT
 
 
-
+Idée : distinct pour les lignes identiques (sauf DT_INT) --> pour éliminer les doublosn avec des dates d'interview différentes
 
 
 
@@ -467,9 +479,9 @@ cols_to_convert <- c("WORK_DAYS", "AVG_WORK_HRS", "INV_UNEMP_DAYS", "OWN_FARM_D"
 
 hrs_worked <- Employment_2014 |>
   select(SUR_MON_YR, DT_INT, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, 
-         WORK_TYPE,WORK_DAYS, AVG_WORK_HRS, INV_UNEMP_DAYS, OWN_FARM_D, 
-         OWN_FARM_H, OWN_DOME_D, OWN_DOME_H, OWN_LST_D, OWN_LST_H, OWN_OT_D,
-         OWN_OT_H, SERI_ILL) |>
+         WORK_TYPE,WORK_DAYS, AVG_WORK_HRS, INV_UNEMP_DAYS, OWN_FARM_D, OWN_FARM_H,
+         OWN_DOME_D, OWN_DOME_H, OWN_LST_D, OWN_LST_H, OWN_OT_D, OWN_OT_H,
+         SERI_ILL) |>
   mutate(across((all_of(cols_to_convert)), ~ as.numeric(.)))
 ```
 
