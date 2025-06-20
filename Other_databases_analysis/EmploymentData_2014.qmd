@@ -21,6 +21,7 @@ library(stringr)
 library(stringdist)
 library(ggplot2)
 library(gt)
+library(lubridate)
 ```
 
 On vérifie si tous les ménages ont été interviewés chaque mois dans la base Employment_2014 qui est censée être mensuelle (comme Cultivation_2014)
@@ -368,6 +369,33 @@ Certains doublons par individu et par mois s'expliquent à cause du mois enregis
 
 Il faut vérifier que DT_INT (JJ/MM/AAAA) correspond bien au mois suivant de SUR_MON_YR (MM/AA) tel que DT_INT = SUR_MONT_YR + 1.
 
+```{r}
+# Convertir la classe des variables DT_INT et SUR_MON_YR en date
+Employment_2014 <- Employment_2014 |>
+  mutate(DT_INT = recode(DT_INT,
+                         `31/11/2014` = "30/11/2014",
+                         `31/06/2015` = "30/06/2015",
+                         `11/01/ 215` = "11/01/2015"
+                         )
+         ) |>
+  mutate(
+    DT_INT_parsed = parse_date_time(DT_INT, orders = c("dmy", "ymd", "dmY", "d m Y")), # conversion des différents formats
+    SUR_MON_YR_parsed = as.Date(paste0("01/", SUR_MON_YR), format = "%d/%m/%y")
+  )  # conversion du format MM/YY
+```
+
+
+```{r}
+# Nombre de lignes pour lesquelles DT_INT et SUR_MON_YR ne correspondent pas
+test_date_int <- test_date_int |>
+  mutate(
+    SUR_MON_PLUS1 = SUR_MON_DATE %m+% months(1),  # ajouter 1 mois
+    same_month = month(DT_INT_DATE) == month(SUR_MON_PLUS1) &
+                 year(DT_INT_DATE) == year(SUR_MON_PLUS1)
+  )
+```
+
+
 
 
 
@@ -488,6 +516,8 @@ hrs_worked <- hrs_worked |>
   distinct()
 ```
 
+
+Idée: filtrer is.na(WORK_TYPE) et conserver pour les doublons la ligne avec le moins de n/a. 
 
 
 
