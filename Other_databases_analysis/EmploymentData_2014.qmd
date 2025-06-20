@@ -367,7 +367,7 @@ Employment_2014 <- Employment_2014 |>
 
 Certains doublons par individu et par mois s'expliquent à cause du mois enregistré qui ne correspond pas au mois de l'interview. 
 
-Il faut vérifier que DT_INT (JJ/MM/AAAA) correspond bien au mois suivant de SUR_MON_YR (MM/AA) tel que DT_INT = SUR_MONT_YR + 1.
+Il faut vérifier que DT_INT (JJ/MM/AAAA) correspond bien au mois suivant de SUR_MON_YR (MM/AA) tel que DT_INT = SUR_MON_YR + 1.
 
 ```{r}
 # Convertir la classe des variables DT_INT et SUR_MON_YR en date
@@ -379,21 +379,45 @@ Employment_2014 <- Employment_2014 |>
                          )
          ) |>
   mutate(
-    DT_INT_parsed = parse_date_time(DT_INT, orders = c("dmy", "ymd", "dmY", "d m Y")), # conversion des différents formats
-    SUR_MON_YR_parsed = as.Date(paste0("01/", SUR_MON_YR), format = "%d/%m/%y")
+    DT_INT = parse_date_time(DT_INT, orders = c("dmy", "ymd", "dmY", "d m Y")), # conversion des différents formats
+    SUR_MON_YR = as.Date(paste0("01/", SUR_MON_YR), format = "%d/%m/%y")
   )  # conversion du format MM/YY
 ```
 
 
 ```{r}
-# Nombre de lignes pour lesquelles DT_INT et SUR_MON_YR ne correspondent pas
-test_date_int <- test_date_int |>
+# Individus ayant plusieurs interview (à des dates différentes) dans le même mois
+dup_date_int <- Employment_2014 |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, CO_NF_WORK, WORK_PLACE) |>
+  distinct(DT_INT) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+```{r}
+# Lignes pour lesquelles DT_INT et SUR_MON_YR ne correspondent pas, pour les individus ayant plusieurs interviews dans le même mois
+unmatch_date <- dup_date_int |>
   mutate(
-    SUR_MON_PLUS1 = SUR_MON_DATE %m+% months(1),  # ajouter 1 mois
-    same_month = month(DT_INT_DATE) == month(SUR_MON_PLUS1) &
-                 year(DT_INT_DATE) == year(SUR_MON_PLUS1)
+    SUR_MON_PLUS1 = SUR_MON_YR %m+% months(1),  # ajouter 1 mois
+    same_month = month(DT_INT) == month(SUR_MON_PLUS1)  &
+                 year(DT_INT) == year(SUR_MON_PLUS1) |
+                 day(DT_INT) == month(SUR_MON_PLUS1)  &
+                 year(DT_INT) == year(SUR_MON_PLUS1) 
+  ) |>
+  select(VDS_ID, PRE_MEM_ID, REL, AGE, GENDER, SUR_MON_YR, SUR_MON_PLUS1, DT_INT, same_month)
+  
+
+# Modifier SUR_MON_YR en cas de unmatch
+unmatch_date <- unmatch_date |>
+  filter(!same_month) |>
+  mutate(
+    SUR_MON_YR_modif = floor_date(DT_INT %m-% months(1), unit = "month")
   )
 ```
+
+Cette méthode peremet d'harmoniser la date de l'enquête (SUR_MON_YR_modif) pour les individus ayant plusieurs enquêtes par mois et d'éliminer tous ces doublons. 
+
+--> Les résultats ne sont pas logiques dans la plupart des cas. Garder seulement si modifier la méthode !!
 
 
 
