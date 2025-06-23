@@ -672,7 +672,7 @@ Pour le travail employé non-agricole,
 Je calcule la somme des heures travaillées par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu. 
 
 ```{r}
-test_hrs_worked <- test_hrs_worked |>
+test_hrs_worked <- hrs_worked |>
   reframe(hours_month = rowSums(across(c("Non-farm work", "Farm work", "OWN_OT_T", "OWN_LST_T", "OWN_DOME_T", "OWN_FARM_T", "SERI_ILL_T", "INV_UNEMP_T")), na.rm = TRUE))
 ```
 
