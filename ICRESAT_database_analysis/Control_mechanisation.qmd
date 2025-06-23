@@ -1,0 +1,516 @@
+---
+title: "Contrôle pour la méchanisation : Analyse du travail féminin familial par caste"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(tibble)
+library(tidyverse)
+library(gt)
+```
+
+```{r}
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+L'objectif est d'étudier le lien entre travail féminin employé et travail féminin familial selon la caste, en contrôlant pour la méchanisation. 
+
+Les FC embauchent moins de travail féminin (notamment familial) mais ont également plus d'opérations méchanisées. Il faut contrôler pour la méchanisation par caste et par opération, car celle-ci est substituable avec entre autres le travail féminin familial. 
+
+```{r}
+Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP),
+         CROP == "PADDY",
+         SEASON == "KHARIF") |>
+  group_by(CASTE_GROUP, MACHINERY) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(CASTE_GROUP) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(CASTE_GROUP, MACHINERY, proportion) |>
+  pivot_wider(
+    names_from = MACHINERY,
+    values_from = proportion,
+    values_fill = 0
+  ) |>
+  arrange(desc(Mécanisé))
+```
+
+
+## Travail féminin pour les opérations non méchanisées
+
+On veut étudier par caste et par opération, comment varie les heures de travail par acre (Hr/acre), en se concentrant sur les champs n'ayant pas du tout été méchanisé pour cette opération dans la saison. 
+
+Je filtre pour la culture du riz en Kharif. 
+
+
+### Calculer Hr/acre
+
+Pour prendre en compte toutes les opérations par champ, dont celles qui ont un nombre d'heures travaillées nul sur toute la saison, j'inclue LAB_TYPE = NA dnas les filtres.
+
+Il est nécessaire de conserver les opérations avec aucune heure de travail pour le calcul de la moyenne de Hr/acre par opération. 
+
+Remarque: Je n'ai pas eu besoin d'intégrer les opérations avec aucune heures de travail pour le calcul de Hr/acre moyen pour toutes opérations confondues, car un champ a nécessairement au moins une heure de travail. 
+
+```{r}
+# 1. Somme des heures de travail par champ, caste et lab_type
+hacre_oper <- Cultivation_expand |>
+  mutate(MACHINERY = replace_na(MACHINERY, "Non mécanisé")) |>
+  filter(!is.na(CASTE_GROUP),
+         CROP == "PADDY", 
+         SEASON == "KHARIF",
+         (LAB_TYPE %in% c("HF", "FF", "HM", "FM") | is.na(LAB_TYPE))
+         ) |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP, LAB_TYPE, OPERATION, MACHINERY) |>
+  summarise(TOTAL_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = TOTAL_HOURS,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF,
+    WORK_M = HM + FM
+  ) |>
+  select(-'NA')
+```
+
+```{r}
+# Calculer le ratio Hr/acre par opération selon le type de travail
+hacre_oper <- hacre_oper |>
+  filter(AREA_CROP != 0) |>
+  mutate(
+    HR_ACRE_HF = HF/AREA_CROP,
+    HR_ACRE_FF = FF/AREA_CROP,
+    HR_ACRE_F = WORK_F/AREA_CROP,
+    HR_ACRE_FM = FM/AREA_CROP,
+    HR_ACRE_HM = HM/AREA_CROP,
+    HR_ACRE_M = WORK_M/AREA_CROP
+  )
+```
+
+
+### Filtrer pour les champs sans méchanisation
+
+```{r}
+# Identifier les champs ayant utilisé des outils pendant la saison, par opération
+with_mecha <- hacre_oper |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP, OPERATION) |>
+  summarise(mech_used = any(MACHINERY == "Mécanisé"), .groups = "drop") |>
+  mutate(mech_used = replace_na(mech_used, FALSE))
+
+# Enlever les champs mécanisés, par opération
+hacre_oper <- hacre_oper |>
+  left_join(with_mecha, by = c("VDS_ID", "PLOT_CODE", "AREA_CROP", "OPERATION")) |>
+  filter(mech_used == FALSE)
+```
+
+
+### Graphiques: Différencier le travail par opération, selon la caste
+
+#### Hr/acre et caste par opération 
+
+Les graphiques suivants visent à représenter le travail moyen par acre (Hr/acre) pour tous les types de travail, par caste et par opération. 
+
+Je choisis les opérations qui ont suffisamment d'observations et un taux de mécanisation relativement bas. 
+
+```{r}
+with_mecha |>
+  group_by(mech_used, OPERATION) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(OPERATION) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(OPERATION, mech_used, proportion) |>
+  pivot_wider(
+    names_from = mech_used,
+    values_from = proportion
+  )
+```
+
+
+##### Harvesting & Threshing
+
+Les graphiques suivants se basent exclusivement sur les champs n'ayant pas utilisé d'outils pour cultiver du riz sur toute la saison (Kharif). 
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+harvest_mean_F <- hacre_oper |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HF = mean(HR_ACRE_HF, na.rm = TRUE),
+    MEAN_HACRE_FF = mean(HR_ACRE_FF, na.rm = TRUE),
+    MEAN_HACRE_WORK_F = mean(HR_ACRE_F, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_F, MEAN_HACRE_HF, MEAN_HACRE_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+harvest_mean_F |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Harvesting: Female labor time per acre, by caste",
+    x = "",
+    y = "Average working hours per acre for harvesting per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_F" = "lightblue4",
+               "MEAN_HACRE_HF" = "lightblue2", 
+               "MEAN_HACRE_FF" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_F" = "Total labor",
+      "MEAN_HACRE_HF" = "Hired labor",
+      "MEAN_HACRE_FF" = "Family labor"
+    ),
+    name = "Female labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les hommes selon la caste
+harvest_mean_M <- hacre_oper |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HM = mean(HR_ACRE_HM, na.rm = TRUE),
+    MEAN_HACRE_FM = mean(HR_ACRE_FM, na.rm = TRUE),
+    MEAN_HACRE_WORK_M = mean(HR_ACRE_M, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_M, MEAN_HACRE_HM, MEAN_HACRE_FM),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+harvest_mean_M |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Harvesting: Male labor time per acre, by caste",
+    x = "",
+    y = "Average working hours per acre for harvesting per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_M" = "lightblue4",
+               "MEAN_HACRE_HM" = "lightblue2", 
+               "MEAN_HACRE_FM" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_M" = "Total labor",
+      "MEAN_HACRE_HM" = "Hired labor",
+      "MEAN_HACRE_FM" = "Family labor"
+    ),
+    name = "Male labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+##### Hand weeding
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+weeding_mean_F <- hacre_oper |>
+  filter(OPERATION == "HAND WEEDING") |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HF = mean(HR_ACRE_HF, na.rm = TRUE),
+    MEAN_HACRE_FF = mean(HR_ACRE_FF, na.rm = TRUE),
+    MEAN_HACRE_WORK_F = mean(HR_ACRE_F, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_F, MEAN_HACRE_HF, MEAN_HACRE_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+weeding_mean_F |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Hand weeding: Female labor time per acre, by caste",
+    x = "",
+    y = "Average working hours per acre for weeding per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_F" = "lightblue4",
+               "MEAN_HACRE_HF" = "lightblue2", 
+               "MEAN_HACRE_FF" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_F" = "Total labor",
+      "MEAN_HACRE_HF" = "Hired labor",
+      "MEAN_HACRE_FF" = "Family labor"
+    ),
+    name = "Female labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+##### Transplanting
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+transplanting_mean_F <- hacre_oper |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HF = mean(HR_ACRE_HF, na.rm = TRUE),
+    MEAN_HACRE_FF = mean(HR_ACRE_FF, na.rm = TRUE),
+    MEAN_HACRE_WORK_F = mean(HR_ACRE_F, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_F, MEAN_HACRE_HF, MEAN_HACRE_FF),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+transplanting_mean_F |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Transplanting: Female labor time per acre, by caste",
+    x = "",
+    y = "Average working hours per acre for transplanting per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_F" = "lightblue4",
+               "MEAN_HACRE_HF" = "lightblue2", 
+               "MEAN_HACRE_FF" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_F" = "Total labor",
+      "MEAN_HACRE_HF" = "Hired labor",
+      "MEAN_HACRE_FF" = "Family labor"
+    ),
+    name = "Female labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+```{r}
+# Calculer la moyenne de Hr/acre pour les hommes selon la caste
+transplanting_mean_M <- hacre_oper |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HM = mean(HR_ACRE_HM, na.rm = TRUE),
+    MEAN_HACRE_FM = mean(HR_ACRE_FM, na.rm = TRUE),
+    MEAN_HACRE_WORK_M = mean(HR_ACRE_M, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_M, MEAN_HACRE_HM, MEAN_HACRE_FM),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+transplanting_mean_M |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Transplanting: Male labor time per acre, by caste",
+    x = "",
+    y = "Average working hours per acre for transplanting per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_M" = "lightblue4",
+               "MEAN_HACRE_HM" = "lightblue2", 
+               "MEAN_HACRE_FM" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_M" = "Total labor",
+      "MEAN_HACRE_HM" = "Hired labor",
+      "MEAN_HACRE_FM" = "Family labor"
+    ),
+    name = "Male labor"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+Attention: L'échelle de Hr/acre n'est pas la même entre les graphiques sur les hommes et ceux sur les femmes. 
+
+
+#### Superficie et travail familial féminin par opération, selon la caste
+
+On regarde le travail familial féminin selon la superficie par opération, en filtrant pour les champs n'ayant pas mécanisé cette opération de toute la saison. 
+
+```{r}
+# Nombre de champs avec des heures de travail déclarées par opération
+test_zero_hours <- hacre_oper |>
+  mutate(total_hours = rowSums(across(c(FF, HF, FM, HM)))) |>
+  group_by(OPERATION) |>
+  count(zero_hours = total_hours == 0) |>
+  filter(zero_hours == FALSE)
+```
+
+
+##### Harvesting & Threshing
+
+```{r}
+hacre_oper |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 2), ylim = c(0, 80)) +
+  labs(
+    title = "Harvesting: Family female labor and plot size, by caste",
+    x = "Plot size (in acres)",
+    y = "Family female labor hours for harvesting in the season",
+    color = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+    )
+```
+
+##### Hand weeding
+
+```{r}
+hacre_oper |>
+  filter(OPERATION == "HAND WEEDING") |>
+  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 2), ylim = c(0, 80)) +
+  labs(
+    title = "Hand weeding: Family female labor and plot size, by caste",
+    x = "Plot size (in acres)",
+    y = "Family female labor hours for weeding in the season",
+    color = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+    )
+```
+
+##### Transplanting
+
+```{r}
+hacre_oper |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 2), ylim = c(0, 80)) +
+  labs(
+    title = "Transplanting: Family female labor and plot size, by caste",
+    x = "Plot size (in acres)",
+    y = "Family female labor hours for transplanting in the season",
+    color = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+    )
+```
+
+
+
+
+
+
+
+
+
+
+
+## Superficie minimale pour mécaniser
+
+
+
+
+
+
+
+
