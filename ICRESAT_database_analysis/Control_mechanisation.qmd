@@ -53,6 +53,8 @@ Cultivation_expand |>
 ```
 
 
+********************************************************************************
+
 ## Travail féminin pour les opérations non méchanisées
 
 On veut étudier par caste et par opération, comment varie les heures de travail par acre (Hr/acre), en se concentrant sur les champs n'ayant pas du tout été méchanisé pour cette opération dans la saison. 
@@ -496,18 +498,235 @@ hacre_oper |>
 ```
 
 
-
-
-
-
-
-
-
-
+********************************************************************************
 
 ## Superficie minimale pour mécaniser
 
+Foster (2022) fonde son modèle avec l'hypothèse d'une superficie minimale de la ferme en-dessous de laquelle il n'y a pas de mécanisation. 
 
+On regarde la lien entre mécanisation et taille du champ et/ou de la ferme, pour estimer cette superficie minimale. 
+
+
+### Toutes opérations confondues
+
+#### Test 1
+
+Pour chaque champ, une opération est considérée mécanisée si au moins un outil a été utilisé pour cette opération, à n'importe quel moment de la saison.
+
+```{r}
+mecha_by_area <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP),
+         AREA_CROP != 0,
+         CROP == "PADDY", 
+         SEASON == "KHARIF",
+         (LAB_TYPE %in% c("HF", "FF", "HM", "FM") | is.na(LAB_TYPE))
+         ) |>
+  left_join(with_mecha, by = c("VDS_ID", "PLOT_CODE", "AREA_CROP", "OPERATION")) |>
+  mutate(bin_size = cut(
+      AREA_CROP,
+      breaks = c(seq(0, 5, by = 0.5), Inf),
+      right = TRUE,
+      include.lowest = TRUE)) |>
+  filter(!is.na(bin_size))
+  
+mecha_all <- mecha_by_area |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    mechanized = sum(mech_used == "TRUE"),
+    share_mech = mechanized / total
+  )
+```
+
+```{r}
+mecha_all |>
+  ggplot(aes(x = bin_size, y = share_mech)) +
+  geom_col(fill = "plum3") +
+  labs(
+    title = "Share of mechanized operations by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of plots mechanized"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+#### Test 2
+
+Chaque opération d'un même champ est considérée séparément comme mécanisée ou non, même si plusieurs opérations du même type ont eu lieu sur ce champ au cours de la saison.
+
+```{r}
+proportion_mecha <- Cultivation_expand |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  mutate(
+    MACHINERY = replace_na(MACHINERY, "Non mécanisé"),
+    is_mech = if_else(MACHINERY == "Mécanisé", 1, 0),  # numérique
+    bin_size = cut(
+      AREA_CROP,
+      breaks = c(seq(0, 5, by = 0.5), Inf),
+      right = TRUE,
+      include.lowest = TRUE
+    )
+  ) |>
+  group_by(bin_size) |>
+  summarise(
+    share_mecha = mean(is_mech, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+```
+
+```{r}
+proportion_mecha |>
+  filter(!is.na(bin_size)) |>
+  ggplot(aes(x = bin_size, y = share_mecha)) +
+  geom_col(fill = "slateblue2") +
+  labs(
+    title = "Share of mechanized operations by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of plots mechanized"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+### Par opération
+
+#### Harvesting & Threshing
+
+```{r}
+mecha_harvest <- mecha_by_area |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    mechanized = sum(mech_used == "TRUE"),
+    share_mech_harvest = mechanized / total
+  )
+```
+
+```{r}
+mecha_harvest |>
+  ggplot(aes(x = bin_size, y = share_mech_harvest)) +
+  geom_col(fill = "palegreen3") +
+  labs(
+    title = "Share of mechanized harvesting by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized harvesting"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+#### Land preparation
+
+```{r}
+mecha_land <- mecha_by_area |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    mechanized = sum(mech_used == "TRUE"),
+    share_mech_land = mechanized / total
+  )
+```
+
+```{r}
+mecha_land |>
+  ggplot(aes(x = bin_size, y = share_mech_land)) +
+  geom_col(fill = "hotpink2") +
+  labs(
+    title = "Share of mechanized land preparation by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized land preparation"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+#### Irrigation
+
+```{r}
+mecha_irri <- mecha_by_area |>
+  filter(OPERATION == "IRRIGATION") |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    mechanized = sum(mech_used == "TRUE"),
+    share_mech_irri = mechanized / total
+  )
+```
+
+```{r}
+mecha_irri |>
+  ggplot(aes(x = bin_size, y = share_mech_irri)) +
+  geom_col(fill = "skyblue2") +
+  labs(
+    title = "Share of mechanized irrigation by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized irrigation"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+#### Fertilizer application
+
+```{r}
+mecha_fertilizer <- mecha_by_area |>
+  filter(OPERATION == "CHEMICAL FERTILIZER APPL.") |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    mechanized = sum(mech_used == "TRUE"),
+    share_mech_fertilizer = mechanized / total
+  )
+```
+
+```{r}
+mecha_fertilizer |>
+  ggplot(aes(x = bin_size, y = share_mech_fertilizer)) +
+  geom_col(fill = "yellowgreen") +
+  labs(
+    title = "Share of mechanized fertilizer application by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized fertilizer application"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+#### Transport
+
+```{r}
+mecha_transport <- mecha_by_area |>
+  filter(OPERATION == "TRANSPORT") |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    mechanized = sum(mech_used == "TRUE"),
+    share_mech_transport = mechanized / total
+  )
+```
+
+```{r}
+mecha_transport |>
+  ggplot(aes(x = bin_size, y = share_mech_transport)) +
+  geom_col(fill = "goldenrod2") +
+  labs(
+    title = "Share of mechanized transport by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized transport"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
 
 
 
