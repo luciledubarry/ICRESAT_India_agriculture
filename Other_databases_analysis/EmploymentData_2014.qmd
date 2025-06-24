@@ -748,12 +748,35 @@ Employment_2014 |>
   )
 ```
 
+
+********************************************************************************
+
 ## Travail familial
 
+### Total du travail non employé 
+
+Je regarde le total d'heures de travail non employé par individu et par mois, 
+
+```{r}
+family_work <- hrs_worked |>
+  reframe(family_hrs = rowSums(across(c("Farm work", "OWN_OT_T", "OWN_LST_T", "OWN_DOME_T", "OWN_FARM_T")), na.rm = TRUE)) 
+
+family_work |>
+  ggplot(aes(x = family_hrs)) +
+  geom_histogram(bins = 30, fill = "steelblue2", color = "royalblue4") +
+  theme_minimal() +
+  labs(
+    x = "Travail non employé par mois par individu",
+    y = "",
+    title = "Heures de travail non employé par mois"
+  )
+```
 
 
 
 
+
+********************************************************************************
 
 ## Travail employé (agricole ou non) par genre
 ### Total d'heures
