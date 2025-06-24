@@ -542,6 +542,7 @@ mecha_all <- mecha_by_area |>
 mecha_all |>
   ggplot(aes(x = bin_size, y = share_mech)) +
   geom_col(fill = "plum3") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
   labs(
     title = "Share of mechanized operations by plot size",
     x = "Plot size (in acres)",
@@ -581,6 +582,7 @@ proportion_mecha <- Cultivation_expand |>
 proportion_mecha |>
   filter(!is.na(bin_size)) |>
   ggplot(aes(x = bin_size, y = share_mecha)) +
+  geom_text(aes(label = n), vjust = -0.3, size = 3.5, color = "gray30") +
   geom_col(fill = "slateblue2") +
   labs(
     title = "Share of mechanized operations by plot size",
@@ -611,6 +613,7 @@ mecha_harvest <- mecha_by_area |>
 mecha_harvest |>
   ggplot(aes(x = bin_size, y = share_mech_harvest)) +
   geom_col(fill = "palegreen3") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
   labs(
     title = "Share of mechanized harvesting by plot size",
     x = "Plot size (in acres)",
@@ -638,6 +641,7 @@ mecha_land <- mecha_by_area |>
 mecha_land |>
   ggplot(aes(x = bin_size, y = share_mech_land)) +
   geom_col(fill = "hotpink2") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
   labs(
     title = "Share of mechanized land preparation by plot size",
     x = "Plot size (in acres)",
@@ -665,6 +669,7 @@ mecha_irri <- mecha_by_area |>
 mecha_irri |>
   ggplot(aes(x = bin_size, y = share_mech_irri)) +
   geom_col(fill = "skyblue2") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
   labs(
     title = "Share of mechanized irrigation by plot size",
     x = "Plot size (in acres)",
@@ -692,6 +697,7 @@ mecha_fertilizer <- mecha_by_area |>
 mecha_fertilizer |>
   ggplot(aes(x = bin_size, y = share_mech_fertilizer)) +
   geom_col(fill = "yellowgreen") +
+  geom_text(aes(label = total), vjust = -0.3, size = 3.5, color = "gray30") +
   labs(
     title = "Share of mechanized fertilizer application by plot size",
     x = "Plot size (in acres)",
@@ -719,6 +725,7 @@ mecha_transport <- mecha_by_area |>
 mecha_transport |>
   ggplot(aes(x = bin_size, y = share_mech_transport)) +
   geom_col(fill = "goldenrod2") +
+  geom_text(aes(label = total), vjust = -0.3, size = 3.5, color = "gray30") +
   labs(
     title = "Share of mechanized transport by plot size",
     x = "Plot size (in acres)",
@@ -729,6 +736,107 @@ mecha_transport |>
 ```
 
 
+### Par outil
+
+#### Tous les outils
+
+Je regarde l'utilisation des outils en fonction de la superficie du champ.
+
+```{r}
+outils <- c("TR", "SP", "DS", "SM", "PT", "SD", "ET", "TH", "CH", "MK", "DP")
+
+# Identifier les champs utilisant au moins un outil (toutes opérations confondues)
+with_tools <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP == "PADDY", !is.na(NAME_MAT)) |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  summarise(tool_used = any(NAME_MAT %in% outils), .groups = "drop")
+```
+
+```{r}
+plots_with_tools <- with_tools |> summarise(nb_champs_outils = sum(tool_used == TRUE))
+all_paddy_plots <- with_tools |> distinct(VDS_ID, PLOT_CODE, AREA_CROP)
+
+cat("Nombre de champs utilisant au moins un outil :", plots_with_tools$nb_champs_outils, "\n")
+cat("Sur un total de", nrow(all_paddy_plots), "champs en riz et Kharif soit", round(100 * plots_with_tools$nb_champs_outils / nrow(all_paddy_plots), 1), "%\n")
+```
+
+```{r}
+with_tools <- with_tools |>
+  mutate(bin_size = cut(
+      AREA_CROP,
+      breaks = c(seq(0, 5, by = 0.25), Inf),
+      right = TRUE,
+      include.lowest = TRUE)) |>
+  filter(!is.na(bin_size)) |>
+  group_by(bin_size) |>
+  summarise(
+    total = n(),
+    tools = sum(tool_used == TRUE),
+    share_tools = tools / total
+  )
+```
+
+```{r}
+with_tools |>
+  ggplot(aes(x = bin_size, y = share_tools)) +
+  geom_col(fill = "darkolivegreen3") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of plots with tools by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of plots with tools"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+#### Seulement les tracteurs
+
+```{r}
+# Identifier les champs avec un tracteur (toutes opérations confondues)
+with_tractor <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP == "PADDY", !is.na(NAME_MAT)) |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  summarise(tractor = any(NAME_MAT == "TR"), .groups = "drop")
+```
+
+```{r}
+plots_with_tractor <- with_tractor |> summarise(nb_tractor = sum(tractor == TRUE))
+
+cat("Nombre de champs utilisant au moins un outil :", plots_with_tractor$nb_tractor, "\n")
+cat("Sur un total de", nrow(all_paddy_plots), "champs en riz et Kharif soit", round(100 * plots_with_tractor$nb_tractor / nrow(all_paddy_plots), 1), "%\n")
+```
+
+```{r}
+with_tractor <- with_tractor |>
+  mutate(bin_size = cut(
+      AREA_CROP,
+      breaks = c(seq(0, 5, by = 0.25), Inf),
+      right = TRUE,
+      include.lowest = TRUE)) |>
+  filter(!is.na(bin_size)) |>
+  group_by(bin_size) |>
+  reframe(
+    total = n(),
+    all_tractor = sum(tractor == TRUE),
+    share_tractor = all_tractor / total
+  )
+```
+
+```{r}
+with_tractor |>
+  ggplot(aes(x = bin_size, y = share_tractor)) +
+  geom_col(fill = "burlywood3") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of plots with a tractor by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of plots using a tractor"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
 
 
 
