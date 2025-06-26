@@ -847,27 +847,53 @@ Je repère les champs pour lesquels les variables VDS_ID, PLOT_CODE et SEASON ne
 
 ```{r}
 # Tableau des champs nécessitant CROP pour les identifier
-dup_rows_champs <- Cultivation_expand |>
-  distinct(VDS_ID, PLOT_CODE, CROP, SEASON) |>
-  group_by(VDS_ID, PLOT_CODE, SEASON, CROP) |>
+dup_crop <- Cultivation_expand |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |>
+  distinct() |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
   filter(n() > 1) |>
-  arrange(VDS_ID, PLOT_CODE, SEASON, CROP) |>
   mutate(row_in_group = row_number()) |> 
   ungroup()
 ```
 
 Pour ces 3 champs, je modifie PLOT_CODE, pour identifier ces champs de façon unique.
 
-```{r}
-dup_rows_champs <- dup_rows_champs |>
+CE CODE CREE DES LIGNES EN DOUBLE POUR LE MOMENT!
+
+dup_crop <- dup_crop |>
   mutate(PLOT_CODE_NEW = ifelse(row_in_group == 2, "Z", PLOT_CODE)) |>
-  select(VDS_ID, CROP, SEASON, PLOT_CODE, PLOT_CODE_NEW)
+  select(VDS_ID, CROP, SEASON, AREA_CROP, PLOT_CODE, PLOT_CODE_NEW)
+
+test_cultivation_expand <- Cultivation_expand |>
+  left_join(dup_crop, by = c("VDS_ID", "CROP", "SEASON", "PLOT_CODE", "AREA_CROP")) |>
+  mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
+  select(-PLOT_CODE_NEW)
+
+
+```{r}
+# Tableau des champs en double à cause de VAR_TYPE
+dup_var_type <- Cultivation_expand |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME) |>
+  distinct() |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |>
+  filter(n() > 1) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+Pour ces 4 champs en double à cause de VAR_TYPE, je modifie PLOT_CODE, pour identifier ces champs de façon unique.
+
+```{r}
+dup_var_type <- dup_var_type |>
+  mutate(PLOT_CODE_NEW = ifelse(row_in_group == 2, "ZZ", PLOT_CODE)) |>
+  select(VDS_ID, CROP, SEASON, AREA_CROP, VAR_TYPE, VAR_NAME, PLOT_CODE, PLOT_CODE_NEW)
 
 Cultivation_expand <- Cultivation_expand |>
-  left_join(dup_rows_champs, by = c("VDS_ID", "CROP", "SEASON", "PLOT_CODE")) |>
+  left_join(dup_var_type, by = c("VDS_ID", "CROP", "SEASON", "PLOT_CODE", "AREA_CROP", "VAR_TYPE", "VAR_NAME")) |>
   mutate(PLOT_CODE = coalesce(PLOT_CODE_NEW, PLOT_CODE)) |>
   select(-PLOT_CODE_NEW)
 ```
+
 
 
 ### Verif: Superficie des champs entre les saisons
@@ -1089,13 +1115,35 @@ test_cultivation_expand <- Cultivation_expand |>
 
 
 
-
-
 ********************************************************************************
 
 ## Liens extérieurs
 
 ### Enregistrer Cultivation_cult_distinctes dans le document partagé
+
+```{r}
+# Test final des doublons avant d'enregistrer
+dup_plots <- Cultivation_expand |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, IRRI_CROP, IRRIGATION, CROP_ID) |>
+  distinct() |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
+  filter(n() > 1) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+```{r}
+# Seulement paddy en Kharif
+dup_plots_paddy <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, IRRI_CROP, IRRIGATION, CROP_ID) |>
+  distinct() |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  filter(n() > 1) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
 
 ```{r}
 # Définir le chemin du dossier
