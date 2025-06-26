@@ -857,6 +857,60 @@ transplanting_mean |>
 
 ********************************************************************************
 
+## Utilisation des boeufs par caste
+
+Je regarde les heures de travail des boeufs selon la caste, pour toutes les opérations et pour land preparation spécifiquement, sans prendre en compte la mécanisation. 
+
+```{r}
+bullocks_hrs <- hacre_all_labor |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP) |>
+  mutate(HRS_ALL_O = sum(WORK_O, na.rm = TRUE),
+         HACRE_ALL_O = HRS_ALL_O/AREA_CROP) |>
+  ungroup() |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP, HRS_ALL_O, HACRE_ALL_O) |>
+  reframe(LAND_HRS_O = sum(WORK_O, na.rm = TRUE),
+          LAND_HACRE_O = LAND_HRS_O/AREA_CROP,
+          .groups = "drop") |>
+  distinct()
+```
+
+```{r}
+mean_bullocks_hrs <- bullocks_hrs |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    ALL_OPER = mean(HRS_ALL_O, na.rm = TRUE),
+    LAND_PREP = mean(LAND_HRS_O, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  pivot_longer(cols = c(ALL_OPER, LAND_PREP), names_to = "OPERATION", values_to = "HRS_PER_ACRE")
+```
+
+```{r}
+mean_bullocks_hrs |>
+  ggplot(aes(x = CASTE_GROUP, y = HRS_PER_ACRE, fill = OPERATION)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+
+  labs(
+    title = "Boeufs : Heures de travail selon la caste",
+    x = "",
+    y = "Heures de travail totales",
+    fill = "Opération"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+```
+
+
+********************************************************************************
+
 ## Superficie minimale pour mécaniser
 
 Foster (2022) fonde son modèle avec l'hypothèse d'une superficie minimale de la ferme en-dessous de laquelle il n'y a pas de mécanisation. 
@@ -1190,7 +1244,8 @@ mechanized_tilling <- Cultivation_expand |>
          OPERATION == "LAND PREPARATION"
          ) |>
   group_by(VDS_ID, PLOT_CODE, AREA_CROP, OPERATION, CASTE_GROUP) |>
-  reframe(mechanized_tilling = any(MACHINERY == "Mécanisé", na.rm = TRUE)) 
+  mutate(MACHINERY = replace_na(MACHINERY, "Non mécanisé")) |>
+  reframe(mechanized_tilling = any(MACHINERY == "Mécanisé")) 
   # conserver les champs pour lesquels land preparation = n/a
 ```
 
@@ -1217,9 +1272,10 @@ mechanized_tilling |>
 ## Hr/acre en fonction de la mécanisation du labour
 
 ```{r}
-# Ajouter les heures de travail totales (toutes opérations confondues)
+# Ajouter les heures de travail totales (toutes opérations sauf land preparation)
 hacre_all_labor <- hacre_all_labor |>
   group_by(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP, MACHINERY) |>
+  filter(OPERATION != "LAND PREPARATION") |>
   mutate(ALL_OPER = sum(ALL_WORK, na.rm = TRUE), 
          HR_ACRE_ALL_OPER = ALL_OPER/AREA_CROP,
          .groups = "drop")
