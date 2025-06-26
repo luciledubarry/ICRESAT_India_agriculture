@@ -307,16 +307,18 @@ work_hr_caste_crop
 ```
 
 
-## Superficie des champs
+********************************************************************************
+
+## Superficie par caste
+
+### Par champ
+
+#### Toutes cultures
 
 ```{r}
 # Superficie moyenne de chaque champ (culture distincte) par caste
-# Filtre pour le riz en Kharif
 area_by_caste <- Cultivation_expand |>
-  filter(CROP == "PADDY",
-         SEASON == "KHARIF",
-         !is.na(CASTE_GROUP), 
-         ) |>
+  filter(!is.na(CASTE_GROUP), CASTE_GROUP != "OTHER") |>
   mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
   group_by(CASTE_GROUP, CHAMP_ID) |>
   summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop")
@@ -326,12 +328,12 @@ area_by_caste <- Cultivation_expand |>
 area_by_caste |>
   ggplot(aes(x = CASTE_GROUP, y = AREA, fill = CASTE_GROUP)) +
   geom_boxplot(width = 0.6, alpha = 0.8) +
-  ylim(0, 2) +
+  coord_flip() +
+  ylim(0, 15) +
   labs(
     title = "Superficie des champs par caste",
-    x = "Caste",
-    y = "Superficie par champ (en acres)",
-    fill = "Caste"
+    x = "",
+    y = "Superficie par champ (en acres)"
   ) +
   theme_minimal() +
   theme(
@@ -343,30 +345,70 @@ area_by_caste |>
 ```
 
 
+#### Seulement le riz
+
 ```{r}
-# Superficie moyenne détenue par un même ménage (peut avoir plusieurs champs de de cultures différentes) par caste
-plot_per_caste <- Cultivation_expand |>
+# Superficie moyenne de chaque champ (culture distincte) par caste
+# Filtre pour le riz en Kharif
+area_by_caste_paddy <- Cultivation_expand |>
   filter(CROP == "PADDY",
          SEASON == "KHARIF",
          !is.na(CASTE_GROUP), 
+         CASTE_GROUP != "OTHER"
          ) |>
-  distinct(VDS_ID, PLOT_CODE, CROP, AREA_CROP, CASTE_GROUP) |>
+  mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
+  group_by(CASTE_GROUP, CHAMP_ID) |>
+  summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop")
+```
+
+```{r, message=FALSE, warning=FALSE}
+area_by_caste_paddy |>
+  ggplot(aes(x = CASTE_GROUP, y = AREA, fill = CASTE_GROUP)) +
+  geom_boxplot(width = 0.6, alpha = 0.8) +
+  coord_flip() +
+  ylim(0, 5) +
+  labs(
+    title = "Superficie des champs par caste",
+    x = "",
+    y = "Superficie par champ (en acres)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12),
+    legend.position = "none"
+  )
+```
+
+
+### Par ménage
+
+#### Toutes cultures
+
+```{r}
+# Superficie moyenne détenue par un même ménage en Kharif (peut avoir plusieurs champs de cultures différentes) par caste
+plot_per_caste <- Cultivation_expand |>
+  filter(!is.na(CASTE_GROUP), 
+         CASTE_GROUP != "OTHER",
+         SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP, CROP) |>
   group_by(VDS_ID, CASTE_GROUP) |>
   summarise(area_hh = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
 ```
 
-Ajouter SEASON ou non ? 
+Ajouter SEASON ou non ? Je peux pas mettre CROP sans inclure SEASON
 
 ```{r, message = FALSE, warning = FALSE}
 plot_per_caste |>
   ggplot(aes(x = CASTE_GROUP, y = area_hh, fill = CASTE_GROUP)) +
   geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
-  ylim(0, 5) +
+  coord_flip() +
+  ylim(0, 20) +
   labs(
-    title = "Superficie détenue par ménage par caste",
-    x = "Caste",
-    y = "Superficie par ménage (en acres)",
-    fill = "Caste"
+    title = "Superficie détenue par ménage par caste (Kharif)",
+    x = "",
+    y = "Superficie par ménage (en acres)"
   ) +
   theme_minimal() +
   theme(
@@ -378,6 +420,43 @@ plot_per_caste |>
 ```
 
 
+#### Seulement le riz
+
+```{r}
+# Superficie moyenne détenue par un même ménage en Kharif (peut avoir plusieurs champs de cultures différentes) par caste
+# Filtrer pour le riz en Kharif
+plot_per_caste_paddy <- Cultivation_expand |>
+  filter(CROP == "PADDY", 
+         !is.na(CASTE_GROUP), 
+         CASTE_GROUP != "OTHER",
+         SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP) |>
+  group_by(VDS_ID, CASTE_GROUP) |>
+  summarise(area_hh = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
+```
+
+```{r, message = FALSE, warning = FALSE}
+plot_per_caste_paddy |>
+  ggplot(aes(x = CASTE_GROUP, y = area_hh, fill = CASTE_GROUP)) +
+  geom_boxplot(position = position_dodge(width = 0.7), width = 0.6, alpha = 0.8) +
+  coord_flip() +
+  ylim(0, 10) +
+  labs(
+    title = "Superficie détenue par ménage par caste (riz en Kharif)",
+    x = "",
+    y = "Superficie par ménage (en acres)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 12),
+    legend.position = "none"
+  )
+```
+
+
+********************************************************************************
 
 ## Travail féminin par champ, selon la caste
 
@@ -408,6 +487,7 @@ labor_caste <- Cultivation_expand |>
     WORK_M = HM + FM
   )
 ```
+
 
 ### Total des heures
 
@@ -459,6 +539,7 @@ mean_hr_caste |>
     legend.text = element_text(size = 10)
   )
 ```
+
 
 ### Heures par acre
 
@@ -1002,6 +1083,8 @@ mean_outils_caste |>
     )
 ```
 
+
+********************************************************************************
 
 ## Productivité selon la caste
 
