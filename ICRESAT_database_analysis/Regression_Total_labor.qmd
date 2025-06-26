@@ -36,6 +36,103 @@ p = plot ; H = Household ; o = opération.
 Outcome : Travail total par acre, tout type de travail confondu. 
 
 
+## Préparer la base
+
+*Sélectionner les variables*
+
+```{r}
+# Vérifier qu'il n'y ait pas de champs en double (seulement pour la culture du riz en Kharif)
+dup_plots_paddy <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, IRRI_CROP, IRRIGATION, CROP_ID) |>
+  distinct() |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  filter(n() > 1) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+```{r}
+# Filtrer pour la culture du riz en Kharif
+Cultivation_paddy <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+
+# Sélectionner les variables d'intérêt
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE)
+```
+
+
+*Modifier Machinery*
+
+Je modifie la variable Machinery telle que pour chaque champ, une opération est considérée mécanisée si au moins un outil a été utilisé pour cette opération, à n'importe quel moment de la saison. 
+
+```{r}
+# Identifier les champs ayant utilisé des outils pendant la saison pour chaque opération
+Cultivation_paddy <- Cultivation_paddy |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP, OPERATION) |>
+  mutate(MACHINERY = any(MACHINERY == "Mécanisé"),
+         MACHINERY = replace_na(MACHINERY, FALSE)
+         ) |>
+  ungroup()
+```
+
+Ensuite, j'identifie les champs dont le labour est mécanisé. 
+
+```{r}
+# Identifier les champs mécanisant land preparation 
+mechanized_tilling <- Cultivation_expand |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  mutate(MACHINERY = replace_na(MACHINERY, "Non mécanisé")) |>
+  reframe(mechanized_tilling = any(MACHINERY == "Mécanisé"))
+  # conserver les champs pour lesquels land preparation = n/a
+
+# Ajouter la variable à Cultivation_paddy
+Cultivation_paddy <- Cultivation_paddy |>
+  left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "AREA_CROP"))
+```
+
+
+*Additionner les heures de travail par champ*
+
+```{r}
+Cultivation_sum <- Cultivation_paddy |>
+  group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
+  summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop")
+```
+
+
+*Réécrire les variables en dummies*
+
+```{r}
+Cultivation_paddy <- Cultivation_paddy |>
+  mutate(
+    MACHINERY = if_else(MACHINERY, "1", "0"),
+    IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
+    REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
+    )
+```
+
+```{r}
+# créer les dummies pour State (8 valeurs)
+dummies_state <- model.matrix(~ STATE - 1, data = Cultivation_paddy)
+Cultivation_paddy <- cbind(Cultivation_paddy, dummies_state)
+
+# Pour Village (21 valeurs)
+dummies_village <- model.matrix(~ VILLAGE - 1, data = Cultivation_paddy)
+Cultivation_paddy <- cbind(Cultivation_paddy, dummies_village)
+```
+
+
+Supprimer la première dummy (par exemple)
+dummies <- dummies[, -1] ? 
+
+
+
+
+
+
+
 
 
 
