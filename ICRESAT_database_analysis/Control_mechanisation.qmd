@@ -849,16 +849,38 @@ transplanting_mean |>
 
 Je refais les graphiques précédents sur travail et superficie par opération, en considérant le travail total (pour tout type de travail). Je filtre pour les champs n'ayant pas mécanisé cette opération de toute la saison.
 
+#### Toutes castes et opérations
+
+```{r}
+hacre_no_meca |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP, HR_ACRE_ALL) |>
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
+  labs(
+    title = "Non-mechanized operations: Total labor per acre and plot size",
+    x = "Plot size (in acres)",
+    y = "Labor hours per acre for non-mechanized operations"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+    )
+```
+
 
 #### Harvesting & Threshing
 
 ```{r}
-hacre_all_labor |>
+hacre_no_meca |>
   filter(OPERATION == "HARVESTING & THRESHING") |>
   ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-    coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
+    coord_cartesian(xlim = c(0, 3), ylim = c(0, 400)) +
   labs(
     title = "Non-mechanized harvesting: Total labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
@@ -878,7 +900,7 @@ hacre_all_labor |>
 #### Hand weeding
 
 ```{r}
-hacre_all_labor |>
+hacre_no_meca |>
   filter(OPERATION == "HAND WEEDING") |>
   ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
@@ -904,7 +926,7 @@ hacre_all_labor |>
 #### Transplanting
 
 ```{r}
-hacre_all_labor |>
+hacre_no_meca |>
   filter(OPERATION == "TRANSPLANTING") |>
   ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
@@ -930,12 +952,12 @@ hacre_all_labor |>
 #### Land preparation
 
 ```{r}
-hacre_all_labor |>
+hacre_no_meca |>
   filter(OPERATION == "LAND PREPARATION") |>
   ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-    coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
+    coord_cartesian(xlim = c(0, 3), ylim = c(0, 350)) +
   labs(
     title = "Non-mechanized tilling: Total labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
