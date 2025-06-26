@@ -849,15 +849,15 @@ transplanting_mean |>
 
 Je refais les graphiques précédents sur travail et superficie par opération, en considérant le travail total (pour tout type de travail). Je filtre pour les champs n'ayant pas mécanisé cette opération de toute la saison.
 
-#### Toutes castes et opérations
+#### Toutes castes et opérations non mécanisées
 
 ```{r}
 hacre_no_meca |>
   distinct(VDS_ID, PLOT_CODE, AREA_CROP, HR_ACRE_ALL) |>
   ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL)) +
-  geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
+  geom_point(alpha = 0.3, color = "hotpink2") +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 1.2, color = "hotpink4") +
+  coord_cartesian(xlim = c(0, 5), ylim = c(0, 150)) +
   labs(
     title = "Non-mechanized operations: Total labor per acre and plot size",
     x = "Plot size (in acres)",
