@@ -1,0 +1,41 @@
+---
+title: "Régression (partie 1) : Analyse du travail total par acre selon la caste"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(tibble)
+library(tidyverse)
+library(gt)
+```
+
+```{r}
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+
+L'objectif de ces premières régressions est de comprendre pourquoi on observe un différence de l'intensité du travail (Hr/acre) entre les castes, même après avoir contrôler pour plusieurs variables (mécanisation, superficie du champ). 
+
+Niveau d'analyse : On se concentre au niveau des opérations par champ. 
+p = plot ; H = Household ; o = opération. 
+
+Outcome : Travail total par acre, tout type de travail confondu. 
+
+
+
+
+
