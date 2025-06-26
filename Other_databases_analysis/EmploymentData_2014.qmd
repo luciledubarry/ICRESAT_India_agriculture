@@ -703,9 +703,7 @@ test_hrs_worked |>
 
 ********************************************************************************
 
-## Analyse
-
-### Nombre d'étudiants par genre
+## Nombre d'étudiants par genre
 
 ```{r}
 # Créer la variable STUDENT à partir de REMARKS
@@ -772,6 +770,8 @@ family_work |>
   )
 ```
 
+### 
+
 
 
 
@@ -779,6 +779,7 @@ family_work |>
 ********************************************************************************
 
 ## Travail employé (agricole ou non) par genre
+
 ### Total d'heures
 
 On regarde quelle est la répartition du travail employé agricole et non-agricole par genre. L'idée est de voir si les hommes sont plus présents dans le travail non-agricole, pour expliquer la forte présence des femmes dans le travail agricole employé. 
@@ -913,7 +914,7 @@ ind_summary
 
 ### Travail selon la relation
 
-On regarde comment varie le travail agricole des femmes selon leur relation avec le chef de famille. Je refait le graphique sur le total d'heures travaillée par individu en 2014, en filtrant seulement pour le travail agricole et en différenciant les individus selon leur relation. 
+On regarde comment varie le travail employé agricole des femmes selon leur relation avec le chef de famille. Je refait le graphique sur le total d'heures travaillée par individu en 2014, en filtrant seulement pour le travail agricole et en différenciant les individus selon leur relation. 
 
 ```{r}
 ind_hours_rel <- labor_table |>
