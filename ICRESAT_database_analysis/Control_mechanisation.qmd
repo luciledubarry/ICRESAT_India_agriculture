@@ -500,14 +500,14 @@ test_zero_hours <- hacre_oper |>
 ```{r}
 hacre_oper |>
   filter(OPERATION == "HARVESTING & THRESHING") |>
-  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_FF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 2), ylim = c(0, 80)) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 150)) +
   labs(
-    title = "Non-mechanized harvesting: Family female labor and plot size, by caste",
+    title = "Non-mechanized harvesting: Family female labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Family female labor hours for non-mechanized harvesting in the season",
+    y = "Family female labor hours per acre for non-mechanized harvesting in the season",
     color = "Caste"
   ) +
   theme_minimal() +
@@ -525,14 +525,14 @@ hacre_oper |>
 ```{r}
 hacre_oper |>
   filter(OPERATION == "HAND WEEDING") |>
-  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_FF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 2), ylim = c(0, 80)) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 80)) +
   labs(
-    title = "Hand weeding: Family female labor and plot size, by caste",
+    title = "Hand weeding: Family female labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Family female labor hours for hand weeding in the season",
+    y = "Family female labor hours oer acre for hand weeding in the season",
     color = "Caste"
   ) +
   theme_minimal() +
@@ -550,14 +550,14 @@ hacre_oper |>
 ```{r}
 hacre_oper |>
   filter(OPERATION == "TRANSPLANTING") |>
-  ggplot(aes(x = AREA_CROP, y = FF, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_FF, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-  coord_cartesian(xlim = c(0, 2), ylim = c(0, 80)) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 100)) +
   labs(
-    title = "Non-mechanized transplanting: Family female labor and plot size, by caste",
+    title = "Non-mechanized transplanting: Family female labor time per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Family female labor hours for non-mechanized transplanting in the season",
+    y = "Family female labor hours per acre for non-mechanized transplanting in the season",
     color = "Caste"
   ) +
   theme_minimal() +
@@ -855,14 +855,14 @@ Je refais les graphiques précédents sur travail et superficie par opération, 
 ```{r}
 hacre_all_labor |>
   filter(OPERATION == "HARVESTING & THRESHING") |>
-  ggplot(aes(x = AREA_CROP, y = ALL_WORK, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
     coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
   labs(
-    title = "Non-mechanized harvesting: Total labor and plot size, by caste",
+    title = "Non-mechanized harvesting: Total labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Total labor hours for non-mechanized harvesting in the season",
+    y = "Total labor hours per acre for non-mechanized harvesting in the season",
     color = "Caste"
   ) +
   theme_minimal() +
@@ -880,14 +880,14 @@ hacre_all_labor |>
 ```{r}
 hacre_all_labor |>
   filter(OPERATION == "HAND WEEDING") |>
-  ggplot(aes(x = AREA_CROP, y = ALL_WORK, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
     coord_cartesian(xlim = c(0, 3), ylim = c(0, 150)) +
   labs(
-    title = "Hand weeding: Total labor and plot size, by caste",
+    title = "Hand weeding: Total labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Total labor hours for hand weeding in the season",
+    y = "Total labor hours per acre for hand weeding in the season",
     color = "Caste"
   ) +
   theme_minimal() +
@@ -906,14 +906,14 @@ hacre_all_labor |>
 ```{r}
 hacre_all_labor |>
   filter(OPERATION == "TRANSPLANTING") |>
-  ggplot(aes(x = AREA_CROP, y = ALL_WORK, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-    coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
+    coord_cartesian(xlim = c(0, 3), ylim = c(0, 200)) +
   labs(
-    title = "Non-mechanized transplanting: Total labor and plot size, by caste",
+    title = "Non-mechanized transplanting: Total labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Total labor hours for non-mechanized transplanting in the season",
+    y = "Total labor hours per acre for non-mechanized transplanting in the season",
     color = "Caste"
   ) +
   theme_minimal() +
@@ -932,14 +932,14 @@ hacre_all_labor |>
 ```{r}
 hacre_all_labor |>
   filter(OPERATION == "LAND PREPARATION") |>
-  ggplot(aes(x = AREA_CROP, y = ALL_WORK, color = CASTE_GROUP)) +
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_ALL, color = CASTE_GROUP)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
-    coord_cartesian(xlim = c(0, 3), ylim = c(0, 100)) +
+    coord_cartesian(xlim = c(0, 3), ylim = c(0, 250)) +
   labs(
-    title = "Non-mechanized tilling: Total labor and plot size, by caste",
+    title = "Non-mechanized tilling: Total labor per acre and plot size, by caste",
     x = "Plot size (in acres)",
-    y = "Total labor hours for non-mechanized tilling in the season",
+    y = "Total labor hours per acre for non-mechanized tilling in the season",
     color = "Caste"
   ) +
   theme_minimal() +
