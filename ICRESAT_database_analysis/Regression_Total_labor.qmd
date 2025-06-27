@@ -45,7 +45,7 @@ Outcome : Travail total par acre, tout type de travail confondu.
 
 ```{r}
 # Vérifier qu'il n'y ait pas de champs en double (pour le riz en Kharif)
-dup_plots_paddy <- Cultivation_test |>
+dup_plots_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
   select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
   distinct() |>
@@ -59,7 +59,7 @@ Il y a des champs en double à cause de MULTI_CROPING, OP_MAIN_PROD_QTY et OP_MA
 
 ```{r}
 # Supprimer les doublons causés par OP
-Cultivation_test <- Cultivation_expand |>
+Cultivation_expand <- Cultivation_expand |>
   group_by(across(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT))) |>
   summarise(
     OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY), default = NA),
@@ -67,17 +67,10 @@ Cultivation_test <- Cultivation_expand |>
     .groups = "drop"
   )
 
-Cultivation_test |>
+Cultivation_expand |>
   group_by(across(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT))) |>
   filter(n() > 1)
 ```
-```{r}
-
-```
-
-
-
-
 
 
 ### Modifier les variables
@@ -90,7 +83,7 @@ Cultivation_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
 
 # Sélectionner les variables d'intérêt
-  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, NAME_MAT, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
   distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
 ```
 
@@ -106,7 +99,6 @@ Cultivation_paddy |>
   mutate(row_in_group = row_number()) |>
   ungroup()
 ```
-
 
 *Modifier Machinery*
 
@@ -149,19 +141,6 @@ Cultivation_paddy <- Cultivation_paddy |>
     REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
     )
 ```
-
-
-TEST DUMMIES :
-Créer les dummies pour State (8 valeurs)
-dummies_state <- model.matrix(~ STATE - 1, data = Cultivation_paddy)
-Cultivation_dummy <- cbind(Cultivation_paddy, dummies_state)
-
-Supprimer la première dummy : dummies_state <- dummies_state[, -1] ? 
-
-Pour Village (21 valeurs)
-dummies_village <- model.matrix(~ VILLAGE - 1, data = Cultivation_paddy)
-Cultivation_dummy <- cbind(Cultivation_dummy, dummies_village)
-
 
 Je définie les catégories de référence pour STATE et VILLAGE.
 
@@ -223,20 +202,21 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```
 
 
-
 ********************************************************************************
 
 ## Régression
 
+### Toutes opérations
+
 ```{r}
-reg <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling + VAR_TYPE + STATE, data = Cultivation_paddy)
-summary(reg)
+reg_all <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_paddy)
+summary(reg_all)
+
+reg2 <- lm(HACRE_OPER ~ CASTE_GROUP, data = Cultivation_paddy)
+summary(reg2)
 ```
-
 Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
-
 Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
-
 
 Code pour Var_type : 
 - 1 = Local (catégorie de référence),
@@ -244,4 +224,49 @@ Code pour Var_type :
 - 3 = Hybrid,
 - 4 = BT,
 - 5 = Others
+
+
+### Par opération
+
+Je refais la régression pour les opérations principales du riz en Kharif. 
+
+```{r}
+reg_land <- Cultivation_paddy |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_land)
+```
+
+Attention : Pour cette régression, mechanized_tilling et MACHINERY devraient être identiques. La régression devrait sauter, à cause de la colinéarité --> Comme ce n'est pas le cas, vérifier construction de mechanized_tilling et MACHINERY
+
+
+```{r}
+reg_harvest <- Cultivation_paddy |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_harvest)
+```
+
+```{r}
+reg_weeding <- Cultivation_paddy |>
+  filter(OPERATION == "HAND WEEDING") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_weeding)
+```
+
+```{r}
+reg_trans <- Cultivation_paddy |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_trans)
+
+```
+
+
+
+
 
