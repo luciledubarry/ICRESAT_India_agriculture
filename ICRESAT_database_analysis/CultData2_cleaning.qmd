@@ -338,10 +338,13 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
 
 ```{r}
 # Créer une variable MULTI_CROPING pour identifier les champs ayant plusieurs cultures sur une même saison
+multi_crop <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  summarise(MULTI_CROPING = n_distinct(CROP, na.rm = TRUE) > 1, .groups = "drop")
+
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
-  group_by(VDS_ID, PLOT_CODE, SEASON, DT_OPER, OPERATION, LAB_TYPE, SUR_MON_YR, NAME_MAT, TYPE_MAT) |>
-  mutate(MULTI_CROPING = n() > 1) |>
-  ungroup()
+  left_join(multi_crop, by = c("VDS_ID", "PLOT_CODE", "SEASON"))
 ```
 
 ```{r}
@@ -1192,4 +1195,5 @@ saveRDS(
   file = file.path(folder_path, "Cultivation_expand.rds"),
 )
 ```
+
 
