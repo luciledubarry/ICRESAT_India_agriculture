@@ -36,15 +36,18 @@ p = plot ; H = Household ; o = opération.
 Outcome : Travail total par acre, tout type de travail confondu. 
 
 
+
+********************************************************************************
+
 ## Préparer la base
 
-*Sélectionner les variables*
+### Gérer les doublons dans Cultivation_expand
 
 ```{r}
-# Vérifier qu'il n'y ait pas de champs en double (seulement pour la culture du riz en Kharif)
-dup_plots_paddy <- Cultivation_expand |>
-  filter(SEASON == "KHARIF", CROP == "PADDY") |>
-  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, IRRI_CROP, IRRIGATION, CROP_ID) |>
+# Vérifier qu'il n'y ait pas de champs en double (pour le riz en Kharif)
+dup_plots_paddy <- Cultivation_test |>
+  filter(SEASON == "KHARIF") |>
+  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
   distinct() |>
   group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
   filter(n() > 1) |>
@@ -52,13 +55,56 @@ dup_plots_paddy <- Cultivation_expand |>
   ungroup()
 ```
 
+Il y a des champs en double à cause de MULTI_CROPING, OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.  
+
+```{r}
+# Supprimer les doublons causés par OP
+Cultivation_test <- Cultivation_expand |>
+  group_by(across(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT))) |>
+  summarise(
+    OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY), default = NA),
+    OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT), default = NA),
+    .groups = "drop"
+  )
+
+Cultivation_test |>
+  group_by(across(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT))) |>
+  filter(n() > 1)
+```
+```{r}
+
+```
+
+
+
+
+
+
+### Modifier les variables
+
+*Sélectionner les variables*
+
 ```{r}
 # Filtrer pour la culture du riz en Kharif
 Cultivation_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
 
 # Sélectionner les variables d'intérêt
-  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE)
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
+  distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
+```
+
+```{r}
+# Vérifier les doublons restants après avoir sélectionné les variables
+Cultivation_paddy |>
+  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  filter(n_distinct(IRRIGATION) > 1 |
+         n_distinct(VAR_TYPE) > 1 |
+         n_distinct(CASTE_GROUP) > 1 |
+         n_distinct(STATE) > 1 |
+         n_distinct(VILLAGE) > 1) |>
+  mutate(row_in_group = row_number()) |>
+  ungroup()
 ```
 
 
@@ -93,15 +139,6 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```
 
 
-*Additionner les heures de travail par champ*
-
-```{r}
-Cultivation_sum <- Cultivation_paddy |>
-  group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
-  summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop")
-```
-
-
 *Réécrire les variables en dummies*
 
 ```{r}
@@ -113,26 +150,98 @@ Cultivation_paddy <- Cultivation_paddy |>
     )
 ```
 
-```{r}
-# créer les dummies pour State (8 valeurs)
-dummies_state <- model.matrix(~ STATE - 1, data = Cultivation_paddy)
-Cultivation_paddy <- cbind(Cultivation_paddy, dummies_state)
 
-# Pour Village (21 valeurs)
+TEST DUMMIES :
+Créer les dummies pour State (8 valeurs)
+dummies_state <- model.matrix(~ STATE - 1, data = Cultivation_paddy)
+Cultivation_dummy <- cbind(Cultivation_paddy, dummies_state)
+
+Supprimer la première dummy : dummies_state <- dummies_state[, -1] ? 
+
+Pour Village (21 valeurs)
 dummies_village <- model.matrix(~ VILLAGE - 1, data = Cultivation_paddy)
-Cultivation_paddy <- cbind(Cultivation_paddy, dummies_village)
+Cultivation_dummy <- cbind(Cultivation_dummy, dummies_village)
+
+
+Je définie les catégories de référence pour STATE et VILLAGE.
+
+```{r}
+# State
+Cultivation_paddy$STATE <- factor(Cultivation_paddy$STATE)
+Cultivation_paddy$STATE <- relevel(Cultivation_paddy$STATE, ref = "AP")
+
+# Village
+Cultivation_paddy$VILLAGE <- factor(Cultivation_paddy$VILLAGE)
+Cultivation_paddy$VILLAGE <- relevel(Cultivation_paddy$VILLAGE, ref = "AP14C")
+
+# Caste
+Cultivation_paddy$CASTE_GROUP <- factor(Cultivation_paddy$CASTE_GROUP)
+Cultivation_paddy$CASTE_GROUP <- relevel(Cultivation_paddy$CASTE_GROUP, ref = "BC")
+```
+
+La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité omise étant la catégorie de référence. 
+
+
+
+### Variables créées
+
+*Heures de travail par acre par champ*
+
+```{r}
+# Additionner les heures de travail par champ
+Cultivation_paddy <- Cultivation_paddy |>
+  filter(AREA_CROP != 0) |>  # Enlever les champs dont la superficie est nulle
+  group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
+  summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# Diviser les heures totales par acre
+  mutate(HACRE_OPER = OPER_HRS/AREA_CROP)
 ```
 
 
-Supprimer la première dummy (par exemple)
-dummies <- dummies[, -1] ? 
+*Sommer les champs d'un même ménage*
+
+Je calcule la superficie totale de tous les champs d'un même ménage, pour toutes les cultures (dont le riz) en Kharif. Pour cela, je reviens sur la base Cultivation_expand. 
+
+```{r}
+household_plots <- Cultivation_paddy |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP, .keep_all = TRUE) |>
+  group_by(VDS_ID, CASTE_GROUP, VILLAGE) |>
+  summarise(AREA_HH = sum(AREA_CROP), .groups = "drop")
+
+Cultivation_paddy <- Cultivation_paddy |>
+  left_join(household_plots, by = c("VDS_ID", "CASTE_GROUP", "VILLAGE"))
+```
+
+
+*Superficie au carré*
+
+```{r}
+Cultivation_paddy <- Cultivation_paddy |>
+  mutate(AREA_CROP_SQ = AREA_CROP^2,
+         AREA_HH_SQ = AREA_HH^2)
+```
 
 
 
+********************************************************************************
+
+## Régression
+
+```{r}
+reg <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling + VAR_TYPE + STATE, data = Cultivation_paddy)
+summary(reg)
+```
+
+Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
+
+Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
 
 
-
-
-
-
+Code pour Var_type : 
+- 1 = Local (catégorie de référence),
+- 2 = HYV,
+- 3 = Hybrid,
+- 4 = BT,
+- 5 = Others
 
