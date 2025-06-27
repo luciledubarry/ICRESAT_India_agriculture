@@ -36,7 +36,6 @@ p = plot ; H = Household ; o = opération.
 Outcome : Travail total par acre, tout type de travail confondu. 
 
 
-
 ********************************************************************************
 
 ## Préparer la base
@@ -55,21 +54,29 @@ dup_plots_paddy <- Cultivation_expand |>
   ungroup()
 ```
 
-Il y a des champs en double à cause de MULTI_CROPING, OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.  
+Il y a des champs en double à cause de OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.  
 
 ```{r}
-# Supprimer les doublons causés par OP
-Cultivation_expand <- Cultivation_expand |>
-  group_by(across(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT))) |>
+# CODE A REVOIR: Supprimer les doublons causés par OP
+test_cultivation_expand <- Cultivation_expand |>
+  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
   summarise(
     OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY), default = NA),
     OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT), default = NA),
     .groups = "drop"
-  )
+  ) |>
+  distinct()
 
-Cultivation_expand |>
-  group_by(across(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT))) |>
+test_cultivation_expand |>
+  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
   filter(n() > 1)
+```
+
+```{r}
+# Supprimer les doublons causés par OP
+Cultivation_expand <- Cultivation_expand |>
+  select(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT)) |>
+  distinct()
 ```
 
 
@@ -83,7 +90,7 @@ Cultivation_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
 
 # Sélectionner les variables d'intérêt
-  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, NAME_MAT, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
   distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
 ```
 
@@ -104,12 +111,14 @@ Cultivation_paddy |>
 
 Je modifie la variable Machinery telle que pour chaque champ, une opération est considérée mécanisée si au moins un outil a été utilisé pour cette opération, à n'importe quel moment de la saison. 
 
+Rappel: La variable Machinery indique 'mécanisé' si l'opération a nécessité un outil (TR, SP, DS, SM, PT, ET, CH, TH, SD, MK, DP) ou si la variable TYPE_MAT indique 'Machinery' (concerne également AUTO et CYCLE WEEDER).
+
 ```{r}
 # Identifier les champs ayant utilisé des outils pendant la saison pour chaque opération
 Cultivation_paddy <- Cultivation_paddy |>
   group_by(VDS_ID, PLOT_CODE, AREA_CROP, OPERATION) |>
-  mutate(MACHINERY = any(MACHINERY == "Mécanisé"),
-         MACHINERY = replace_na(MACHINERY, FALSE)
+  mutate(MACHINERY = replace_na(MACHINERY, "Non mécanisé"),
+         MACHINERY = any(MACHINERY == "Mécanisé")
          ) |>
   ungroup()
 ```
@@ -118,12 +127,10 @@ Ensuite, j'identifie les champs dont le labour est mécanisé.
 
 ```{r}
 # Identifier les champs mécanisant land preparation 
-mechanized_tilling <- Cultivation_expand |>
+mechanized_tilling <- Cultivation_paddy |>
   filter(OPERATION == "LAND PREPARATION") |>
   group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
-  mutate(MACHINERY = replace_na(MACHINERY, "Non mécanisé")) |>
-  reframe(mechanized_tilling = any(MACHINERY == "Mécanisé"))
-  # conserver les champs pour lesquels land preparation = n/a
+  reframe(mechanized_tilling = any(MACHINERY == TRUE))
 
 # Ajouter la variable à Cultivation_paddy
 Cultivation_paddy <- Cultivation_paddy |>
@@ -137,6 +144,7 @@ Cultivation_paddy <- Cultivation_paddy |>
 Cultivation_paddy <- Cultivation_paddy |>
   mutate(
     MACHINERY = if_else(MACHINERY, "1", "0"),
+    mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
     IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
     REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
     )
@@ -183,13 +191,14 @@ Cultivation_paddy <- Cultivation_paddy |>
 Je calcule la superficie totale de tous les champs d'un même ménage, pour toutes les cultures (dont le riz) en Kharif. Pour cela, je reviens sur la base Cultivation_expand. 
 
 ```{r}
-household_plots <- Cultivation_paddy |>
-  distinct(VDS_ID, PLOT_CODE, AREA_CROP, .keep_all = TRUE) |>
-  group_by(VDS_ID, CASTE_GROUP, VILLAGE) |>
+household_plots <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP != "SEASONAL FALLOW") |>
+  distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  group_by(VDS_ID) |>
   summarise(AREA_HH = sum(AREA_CROP), .groups = "drop")
 
 Cultivation_paddy <- Cultivation_paddy |>
-  left_join(household_plots, by = c("VDS_ID", "CASTE_GROUP", "VILLAGE"))
+  left_join(household_plots, by = "VDS_ID")
 ```
 
 
@@ -202,6 +211,7 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```
 
 
+
 ********************************************************************************
 
 ## Régression
@@ -211,10 +221,8 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```{r}
 reg_all <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_paddy)
 summary(reg_all)
-
-reg2 <- lm(HACRE_OPER ~ CASTE_GROUP, data = Cultivation_paddy)
-summary(reg2)
 ```
+
 Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
 Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
 
@@ -238,7 +246,7 @@ reg_land <- Cultivation_paddy |>
 summary(reg_land)
 ```
 
-Attention : Pour cette régression, mechanized_tilling et MACHINERY devraient être identiques. La régression devrait sauter, à cause de la colinéarité --> Comme ce n'est pas le cas, vérifier construction de mechanized_tilling et MACHINERY
+Attention : Pour cette régression, c'est normal que mechanized_tilling soit NA, car machinery_tilling et MACHINERY sont identiques. R ne considère pas le deuxième coefficient, à cause du problème de colinéarité que cela causerait. 
 
 
 ```{r}
@@ -249,18 +257,22 @@ reg_harvest <- Cultivation_paddy |>
 summary(reg_harvest)
 ```
 
+
 ```{r}
 reg_weeding <- Cultivation_paddy |>
   filter(OPERATION == "HAND WEEDING") |>
-  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling + STATE,
      data = _)
 summary(reg_weeding)
 ```
 
+Attention: Il faut enlever Machinery pour étudier Hand weeding, car cette opération n'est jamais mécanisé. Il n'y a qu'une seule modalité pour Machinery, donc R ne peut pas créer de dummies. 
+
+
 ```{r}
 reg_trans <- Cultivation_paddy |>
   filter(OPERATION == "TRANSPLANTING") |>
-  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling + STATE,
      data = _)
 summary(reg_trans)
 
