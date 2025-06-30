@@ -236,10 +236,8 @@ inclure dans ce graph les méange qui font que du riz en Kharif seront à 0%) et
 
 ********************************************************************************
 
-
-## Analyse par caste
-
 ## Cultures par caste
+
 ### En nombre de champs
 
 Je comptabilise le nombre de champs distincts pour les principales cultures selon la caste. 
@@ -458,9 +456,9 @@ plot_per_caste_paddy |>
 
 ********************************************************************************
 
-## Travail féminin par champ, selon la caste
+## Hr/acre selon la caste
 
-On regarde la moyenne par champ des heures de travail faites par les femmes selon la caste (travail familial et employé).
+On regarde la moyenne des heures de travail par acre (Hr/acre) selon la caste, en distinguant pour le type de travail (familial/employé) et le genre.
 
 On se concentre sur la culture du riz en Kharif. 
 
@@ -484,66 +482,12 @@ labor_caste <- Cultivation_expand |>
 # 3. Calculer le travail total selon le genre
   mutate(
     WORK_F = HF + FF,
-    WORK_M = HM + FM
+    WORK_M = HM + FM,
+    WORK_T = WORK_F + WORK_M,
+    WORK_HT = HF + HM,
+    WORK_FT = FM + FF
   )
 ```
-
-
-### Total des heures
-
-Moyenne des heures de travail selon la caste : 
-
-```{r}
-mean_hr_caste <- labor_caste |>
-  group_by(CASTE_GROUP) |>
-  summarise(
-    MEAN_WORK_F = mean(WORK_F),
-    MEAN_HF = mean(HF),
-    MEAN_FF = mean(FF)
-    ) |>
-    pivot_longer(
-    cols = c(MEAN_WORK_F, MEAN_HF, MEAN_FF),
-    names_to = "Lab_type",
-    values_to = "Mean_hours"
-  ) 
-```
-
-```{r}
-mean_hr_caste |>
-  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
-  labs(
-    title = "Temps de travail féminin moyen par caste",
-    x = "",
-    y = "Moyenne des heures de travail par champ",
-    fill = "Type de travail"
-  ) +
-  scale_fill_manual(
-    values = c("MEAN_WORK_F" = "lightblue4",
-               "MEAN_HF" = "lightblue2", 
-               "MEAN_FF" = "violet"),
-        labels = c(
-      "MEAN_WORK_F" = "Travail total",
-      "MEAN_HF" = "Travail employé",
-      "MEAN_FF" = "Travail familial"
-    ),
-    name = "Travail féminin"
-    ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(size = 16),
-    axis.text = element_text(size = 10, color = "gray20"),
-    axis.title = element_text(size = 12, color = "gray20"),
-    legend.title = element_text(size = 11),
-    legend.text = element_text(size = 10)
-  )
-```
-
-
-### Heures par acre
-
-Ensuite, on regarde la moyenne de heures de travail (féminin puis masculin) par acre (Hr/acre) selon la caste. 
 
 ```{r}
 # Calculer le ratio Hr/acre selon le type de travail
@@ -555,13 +499,76 @@ hr_acre_caste <- labor_caste |>
     HR_ACRE_F = WORK_F/AREA_CROP,
     HR_ACRE_FM = FM/AREA_CROP,
     HR_ACRE_HM = HM/AREA_CROP,
-    HR_ACRE_M = WORK_M/AREA_CROP
+    HR_ACRE_M = WORK_M/AREA_CROP,
+    HR_ACRE_T = WORK_T/AREA_CROP,
+    HR_ACRE_FT = WORK_FT/AREA_CROP,
+    HR_ACRE_HT = WORK_HT/AREA_CROP
   )
 ```
 
-#### Seulement les femmes
 
-##### Champs de riz
+### Travail total
+
+Tout d'abord, on regarde la moyenne du ratio Hr/acre pour le travail total (féminin et masculin) selon la caste. 
+
+```{r}
+# Calculer la moyenne de Hr/acre selon la caste
+hr_acre_caste_T <- hr_acre_caste |>
+  group_by(CASTE_GROUP) |>
+  summarise(
+    MEAN_HACRE_HT = mean(HR_ACRE_HT, na.rm = TRUE),
+    MEAN_HACRE_FT = mean(HR_ACRE_FT, na.rm = TRUE),
+    MEAN_HACRE_WORK_T = mean(HR_ACRE_T, na.rm = TRUE)
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE_WORK_T, MEAN_HACRE_HT, MEAN_HACRE_FT),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+```
+
+```{r}
+plot_hr_acre_caste_T <- hr_acre_caste_T |>
+  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(
+    title = "Total labor time per acre, by employment and caste",
+    x = "",
+    y = "Average working hours per acre per season",
+    fill = ""
+  ) +
+  scale_fill_manual(
+    values = c("MEAN_HACRE_WORK_T" = "lightblue4",
+               "MEAN_HACRE_HT" = "lightblue2", 
+               "MEAN_HACRE_FT" = "violet"),
+        labels = c(
+      "MEAN_HACRE_WORK_T" = "Total labor",
+      "MEAN_HACRE_HT" = "Hired labor",
+      "MEAN_HACRE_FT" = "Family labor"
+    ),
+    name = "Labor type"
+    ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+  )
+
+plot_hr_acre_caste_T
+```
+
+```{r}
+ggsave("figures/Hr_acre_caste_T.png", plot = plot_hr_acre_caste_T, width = 8, height = 6, dpi = 300)
+```
+
+
+### Travail féminin
+
+#### Champs de riz
 
 ```{r}
 # Calculer la moyenne de Hr/acre pour les femmes selon la caste
@@ -618,11 +625,11 @@ ggsave("figures/Hr_acre_caste_F.png", plot = plot_hr_acre_caste_F, width = 8, he
 ```
 
 
-##### Tous ménages
+#### Ménages avec riz
 
 A FINIR
 
-Le but est de regarder le temps de travail féminin selon la caste, exclusivement pour les ménages cultivant du riz en Kharif. On définit un pourcentage de terre allouée au riz suffisamment haut. 
+Le but est de regarder le temps de travail féminin selon la caste, exclusivement pour les ménages cultivant du riz en Kharif.
 
 ```{r}
 # Identifier les ménages ayant fait du riz en Kharif
@@ -720,25 +727,19 @@ hh_labor_F |>
   )
 ```
 
-Regarder le même graphique pour tous les ménages/cultures (paas seulement le riz), si ça change pas l'ordre des castes, c'est bon signe 
-
-
-
 
 Questions suivantes : 
 
-- Graphique: Hr/acre par acre par caste -> les faire en plus par ménage (plutôt que par champ) --> calucler la supericie totale par méange et le temps de travail total  
+- Graphique sur Hr/acre par caste : les refaire en considérant la superficie par ménage (plutôt que par champ) -> calculer la superficie totale par ménage et le temps de travail total  
 
-A FAIRE --> pour toujours filtrer pour le riz, définir des ménages riz qui ont un pourcentage de terre alloué au riz suffisamment haut
+- Regarder le même graphique pour toutes les cultures confondues (pas seulement le riz), si ça change pas l'ordre des castes, c'est bon signe 
 
 
 
-#### Seulement les hommes
-
-##### Acre par champ
+### Travail masculin
 
 ```{r}
-# Calculer la moyenne de Hr/acre pour les femmes selon la caste
+# Calculer la moyenne de Hr/acre pour les hommes selon la caste
 hr_acre_caste_M <- hr_acre_caste |>
   group_by(CASTE_GROUP) |>
   summarise(
@@ -786,69 +787,49 @@ plot_hr_acre_caste_M <- hr_acre_caste_M |>
 
 plot_hr_acre_caste_M
 ```
+
 ```{r}
 ggsave("figures/Hr_acre_caste_M.png", plot = plot_hr_acre_caste_M, width = 8, height = 6, dpi = 300)
 ```
 
-##### Acre par ménage
 
-A FINIR
+********************************************************************************
 
-Le but est de regarder le temps de travail des hommes selon la caste, exclusivement pour les ménages cultivant du riz en Kharif. On définit un pourcentage de terre allouée au riz suffisamment haut. 
+## Selon la superficie 
 
-```{r}
-# Calculer la moyenne de Hr/acre pour les femmes selon la caste
-hh_labor_M <- hh_labor |>
-  group_by(CASTE_GROUP) |>
-  summarise(
-    MEAN_HACRE_HM = mean(HR_ACRE_HM, na.rm = TRUE),
-    MEAN_HACRE_FM = mean(HR_ACRE_FM, na.rm = TRUE),
-    MEAN_HACRE_WORK_M = mean(HR_ACRE_M, na.rm = TRUE)
-    ) |>
-    pivot_longer(
-    cols = c(MEAN_HACRE_WORK_M, MEAN_HACRE_HM, MEAN_HACRE_FM),
-    names_to = "Lab_type",
-    values_to = "Mean_hours"
-  ) 
-```
+### Travail total 
 
-```{r}
-hh_labor_M |>
-  ggplot(aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
+```{r, message=FALSE, warning=FALSE}
+# Différencié par caste ; seulement pour le riz en Kharif
+plot_work_T_area <- hr_acre_caste |>
+  ggplot(aes(x = AREA_CROP, y = HR_ACRE_T, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 800)) +
   labs(
-    title = "Male labor time per acre, by employment and caste",
-    x = "",
-    y = "Average working hours per acre per season",
-    fill = ""
+    title = "Relationship between total labor and plot size, by caste",
+    x = "Plot size (in acres)",
+    y = "Labor hours per acre",
+    color = "Caste"
   ) +
-  scale_fill_manual(
-    values = c("MEAN_HACRE_WORK_M" = "lightblue4",
-               "MEAN_HACRE_HM" = "lightblue2", 
-               "MEAN_HACRE_FM" = "violet"),
-        labels = c(
-      "MEAN_HACRE_WORK_M" = "Total labor",
-      "MEAN_HACRE_HM" = "Hired labor",
-      "MEAN_HACRE_FM" = "Family labor"
-    ),
-    name = "Male labor"
-    ) +
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16),
-    axis.text = element_text(size = 11, color = "gray20"),
-    axis.title = element_text(size = 12, color = "gray20"),
-    legend.title = element_text(size = 12),
-    legend.text = element_text(size = 11)
-  )
+    axis.text = element_text(size = 12, color = "gray20"),
+    axis.title = element_text(size = 13, color = "gray20"),
+    legend.title = element_text(size = 13),
+    legend.text = element_text(size = 12)
+    )
+
+plot_work_T_area 
+```
+
+```{r}
+ggsave("figures/Work_T_superficie.png", plot = plot_work_T_area, width = 8, height = 6, dpi = 300)
 ```
 
 
-
-### Selon la superficie 
-
-#### Travail féminin selon la superficie
+### Travail féminin familial
 
 ```{r, message=FALSE}
 # Toutes les castes confondues ; seulement travail familial
@@ -895,9 +876,11 @@ plot_work_FF_area <- labor_caste |>
 
 plot_work_FF_area 
 ```
+
 ```{r}
 ggsave("figures/Work_FF_superficie.png", plot = plot_work_FF_area, width = 8, height = 6, dpi = 300)
 ```
+
 
 ```{r, message=FALSE, warning=FALSE}
 # Différencié par caste ; seulement travail employé
@@ -923,6 +906,7 @@ plot_work_HF_area <- labor_caste |>
 
 plot_work_HF_area 
 ```
+
 ```{r}
 ggsave("figures/Work_HF_superficie.png", plot = plot_work_HF_area, width = 8, height = 6, dpi = 300)
 ```
@@ -930,7 +914,7 @@ ggsave("figures/Work_HF_superficie.png", plot = plot_work_HF_area, width = 8, he
 calculer + ajouter au graph écart-type par caste
 
 
-#### Outils selon la superficie (irrigation / méchanisation / HYV)
+### Outils (irrigation / méchanisation / HYV)
                       
 ```{r}
 proportion_outils <- Cultivation_expand |>
@@ -1017,7 +1001,7 @@ mean_outils |>
     )
 ```
 
-##### Irrigation
+#### Irrigation
 
 ```{r, message=FALSE, warning=FALSE}
 # Par caste ; irrigation
@@ -1039,7 +1023,7 @@ mean_outils_caste |>
     )
 ```
 
-##### Méchanisation
+#### Méchanisation
 
 ```{r, message=FALSE, warning=FALSE}
 # Par caste ; méchanisation
@@ -1061,7 +1045,7 @@ mean_outils_caste |>
     )
 ```
 
-##### HYV
+#### HYV
 
 ```{r, message=FALSE, warning=FALSE}
 # Par caste ; HYV
