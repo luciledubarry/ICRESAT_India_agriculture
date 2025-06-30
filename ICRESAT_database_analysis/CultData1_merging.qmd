@@ -23,6 +23,9 @@ library(stringdist)
 library(ggplot2)
 ```
 
+
+********************************************************************************
+
 # Nettoyage des bases
 
 ## Importer les données
@@ -90,7 +93,10 @@ PlotList_2014 <- bind_rows(EAST_PlotList_2014, SAT_PlotList_2014)
 ```
 
 
+********************************************************************************
+
 ## Tests avant toute modification
+
 ### NA pour Lab_type et Work_hr 
 
 Je regarde combien de NA ont les variables LAB_TYPE et WORK_HR, et sur quelles opérations sont répartis ces NA. 
@@ -130,7 +136,7 @@ crop_damage <- CultOutput_2014 |>
 cat(" Nombre de crop damage :", nrow(crop_damage |> filter(CROP_DAMAGE == TRUE)), "\n")
 ```
 
-Autre technique,  Dans le questionnaire, si le champ est perdu, l'inspecteur doit indiquer un temps de travail nul pour la récolte et une production nulle (dans Cult_Output). Je regarde combien de champs ont un temps de travail pour Harvesting égal à 0 dans CultInput.
+Autre technique : dans le questionnaire, si le champ est perdu, l'inspecteur doit indiquer un temps de travail nul pour la récolte et une production nulle (dans Cult_Output). Je regarde combien de champs ont un temps de travail pour Harvesting égal à 0 dans CultInput.
 
 ```{r}
 crop_damage <- CultInput_2014 |>
@@ -142,6 +148,34 @@ cat(" Nombre de potentiel crop damage :", nrow(crop_damage), "\n")
 ```
 Ces 39 lignes ont WORK_HR = NA. 
 
+
+### Enregistrer PlotList_2014 avant modification
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/PlotList_2014"
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer le fichier CSV
+write.csv(
+  PlotList_2014,
+  file = file.path(folder_path, "PlotList_2014.csv"),
+  row.names = FALSE
+)
+
+# Enregistrer le fichier RDS
+saveRDS(
+  PlotList_2014,
+  file = file.path(folder_path, "PlotList_2014.rds"),
+)
+```
+
+
+********************************************************************************
 
 ## Conserver les variables d'intérêt
 
@@ -164,6 +198,8 @@ PlotList_2014 <- PlotList_2014 |>
   rename(PLOT_AREA = CROP_AREA)
 ```
 
+
+********************************************************************************
 
 ## Harmoniser les variables et supprimer les doublons
 
@@ -300,6 +336,8 @@ any(duplicated(CultInput_2014[, c("VDS_ID", "PLOT_CODE", "PLOT_AREA", "DT_OPER",
 any(duplicated(CultOutput_2014[, c("VDS_ID", "PLOT_CODE", "SEASON")]))
 ```
 
+********************************************************************************
+
 # Création d'une clé de jonction
 
 ## Identification unique des champs
@@ -429,6 +467,7 @@ cat(" - Plots sans équivalent dans CultOutput :", n_non_matched2, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
 ```
 
+********************************************************************************
 
 # Création d'une base de vérification des champs
 
@@ -613,6 +652,8 @@ PlotList_2014 <- PlotList_2014 |>
 ```
 
 
+********************************************************************************
+
 # Harmonisation des données
 
 ## ID des cultures
@@ -747,6 +788,8 @@ CultOutput_2014 <- CultOutput_2014 |>
 ```
 
 
+********************************************************************************
+
 # Création d'une base commune
 
 ## Supprimer les doublons avant de joindre toutes les bases
@@ -858,9 +901,12 @@ Cultivation_2014 <- Cultivation_2014 |>
   relocate(TYPE_MAT, .after = NAME_MAT)
 ```
 
-# Travail sur la base commune
 
-## Modifier Cultivation_2014
+********************************************************************************
+
+# Nettoyer le base créée
+
+## Harmoniser Prct_area
 
 ```{r}
 # Harmoniser la variable PRCT_AREA_1
@@ -909,7 +955,8 @@ Cultivation_2014 <- Cultivation_2014 |>
   mutate(CROP_2 = if_else(CROP_2 == "ANNUAL", NA_character_, CROP_2))
 ```
 
-## Harmoniser les variables
+
+## Harmoniser les opérations
 
 ```{r}
 # Harmoniser la variable OPERATION
@@ -917,7 +964,6 @@ Cultivation_2014 <- Cultivation_2014 |>
   mutate(OPERATION = toupper(OPERATION))
 ```
 
-### Opérations
 ```{r}
 # Tableau de correspodance des opérations pour les regouper en catégories simplifiées
 correspondances_oper <- tribble(
@@ -1347,9 +1393,11 @@ cat(" Nombre de ménages dans Cultivation_2014 :", n_households, "\n")
 cat(" Nombre de champs (toutes saisons confondues) :", n_champs, "\n")
 ```
 
+********************************************************************************
+
 # Liens extérieurs
 
-## Enregistrer Cultivation_2014 dans le document partagé
+## Enregistrer Cultivation_2014
 
 ```{r}
 # Définir le chemin du dossier
