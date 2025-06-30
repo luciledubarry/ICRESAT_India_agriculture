@@ -117,11 +117,11 @@ Rappel: La variable Machinery indique 'mécanisé' si l'opération a nécessité
 # Identifier les champs ayant utilisé des outils pendant la saison pour chaque opération
 Cultivation_paddy <- Cultivation_paddy |>
   group_by(VDS_ID, PLOT_CODE, AREA_CROP, OPERATION) |>
-  mutate(MACHINERY = replace_na(MACHINERY, "Non mécanisé"),
-         MACHINERY = any(MACHINERY == "Mécanisé")
-         ) |>
+  mutate(MACHINERY = any(MACHINERY == "Mécanisé")) |>
   ungroup()
 ```
+
+Si on souhaite considérer les opérations sans heure de travail (Machinery = n/a) comme non mécanisée : ajouter MACHINERY = replace_na(MACHINERY, "Non mécanisé"), sachant que cela change le sens du coefficient pour le régression. 
 
 Ensuite, j'identifie les champs dont le labour est mécanisé. 
 
@@ -143,12 +143,13 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```{r}
 Cultivation_paddy <- Cultivation_paddy |>
   mutate(
-    MACHINERY = if_else(MACHINERY, "1", "0"),
     mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
     IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
     REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
     )
 ```
+
+Si on considère les n/a de Machinery comme "Non mécanisé", ajouter : MACHINERY = if_else(MACHINERY, "1", "0"),
 
 Je définie les catégories de référence pour STATE et VILLAGE.
 
@@ -222,6 +223,8 @@ Cultivation_paddy <- Cultivation_paddy |>
 reg_all <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_paddy)
 summary(reg_all)
 ```
+
+Attention : Il y a beaucoup d'observations effacées à cause des n/a de Machinery. 
 
 Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
 Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
