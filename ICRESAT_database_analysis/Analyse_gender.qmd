@@ -257,7 +257,6 @@ oper_per_gender <- Cultivation_expand |>
 ```{r}
 Gender_labor_operation <- oper_per_gender |>
   filter(OPERATION != "OTHERS" & OPERATION != "NURSERY RAISING" & OPERATION != "MARKETING") |>
-  mutate(OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL.")) |>
   mutate(OPERATION = recode(OPERATION, `PLANT PROTECTION MEASURES` = "PLANT PROTECTION")) |>
   filter(GENDER == "Female" | GENDER == "Male") |>
   ggplot(aes(x = OPERATION, y = TOTAL_HR, fill = GENDER)) +
@@ -351,10 +350,7 @@ oper_gender_prct <- Cultivation_expand |>
 ```{r}
 plot_prct_oper_gender <- oper_gender_prct |>
   filter(CROP %in% c("PADDY", "MAIZE", "WHEAT")) |>
-  mutate(
-    OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL."),
-    CROP = recode(CROP, `PADDY` = "RICE")
-  ) |>
+  mutate(CROP = recode(CROP, `PADDY` = "RICE")) |>
   filter(!OPERATION %in% c(
     "SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS",
     "PLANT PROTECTION MEASURES", "TRANSPLANTING", "TRANSPORT", "SEED SOWING"

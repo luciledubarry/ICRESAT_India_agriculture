@@ -1225,7 +1225,7 @@ mecha_land |>
 
 ```{r}
 mecha_fertilizer <- mecha_by_area |>
-  filter(OPERATION == "CHEMICAL FERTILIZER APPL.") |>
+  filter(OPERATION == "FERTILIZER APPL.") |>
   group_by(bin_size) |>
   summarise(
     total = n(),
