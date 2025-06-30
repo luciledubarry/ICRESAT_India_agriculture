@@ -21,10 +21,17 @@ library(knitr)
 library(tibble)
 library(tidyverse)
 library(gt)
+library(xtable)
 ```
 
 ```{r}
 Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+```{r}
+PlotList <- readRDS(here::here("Base de données générées", "PlotList_2014", "Plotlist_2014.rds"))
+
+PlotList$CROP_AREA <- as.numeric(as.character(PlotList$CROP_AREA))
 ```
 
 
@@ -170,15 +177,27 @@ La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité om
 Je calcule la superficie totale de tous les champs d'un même ménage, pour toutes les cultures (dont le riz) en Kharif. Pour cela, je reviens sur la base Cultivation_expand. 
 
 ```{r}
+# Avec Cultivation_expand
 household_plots <- Cultivation_expand |>
-  filter(SEASON == "KHARIF", CROP != "SEASONAL FALLOW") |>
+  filter(SEASON == "KHARIF") |>
   distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
   group_by(VDS_ID) |>
   summarise(AREA_HH = sum(AREA_CROP), .groups = "drop")
+```
+
+```{r}
+# Avec PlotList
+plotlist_area_hh <- PlotList |>
+  filter(SEASON %in% c("Kharif", "KHARIF")) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, PLOT_CODE, CROP_AREA) |>
+  group_by(VDS_ID) |>
+  summarise(AREA_HH = sum(CROP_AREA, na.rm = TRUE), .groups = "drop")
 
 Cultivation_paddy <- Cultivation_paddy |>
-  left_join(household_plots, by = "VDS_ID")
+  left_join(plotlist_area_hh, by = "VDS_ID")
 ```
+
+J'ai utilisé la table PlotList (sans aucune modification) pour calculer la somme des terres par méange, seulement pour Kharif, en incluant les champs en jachère. 
 
 
 *Superficie au carré*
@@ -407,6 +426,248 @@ reg_HM <- lm(HM ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ 
 summary(reg_HM)
 ```
 
+
+********************************************************************************
+
+## Potentiels facteurs de confusion
+
+On regroupe dans un tableau les facteurs susceptibles de confondre les résultats de la régression. J'indique la moyenne et l'écar-type pour chaque variable, pour l'ensemble des champs et par caste. 
+
+On se concentre sur la culture du riz en Kharif. 
+
+Liste des variables : 
+- total land size ; (je me base sur PlotList) 
+- plot size ; (pour l'instant, je ne peux pas le calculer)
+- subplot size ; (j'utilise Cultivation_expand)
+- number of subdivision of plot per household ; 
+- use of tractors, threshers, sprayers ; 
+- irrigation ;
+- HYV use ; 
+- productivity : production of rice per acre ; (faut remettre les variables OP et gérer les doublons)
+- hours worked for each labor type. 
+
+
+Pour avoir la différence entre plot size et subplot size, je me base sur la table PlotList dans laquelle cette distinction est indiquée par ménage. 
+
+
+### Correspondance des champs entre Plotlist et Cultivation_paddy 
+
+```{r Correspondance Cultivation_paddy -> Plotlist}
+# Vérifier les couples (VDS_ID, SUB_PLOT_CODE, AREA_CROP)
+cultivation_keys <- Cultivation_paddy |>
+  rename(PLOT_CO = PLOT_CODE) |>
+  select(VDS_ID, PLOT_CO, AREA_CROP) |>
+  distinct()
+
+plotlist_keys <- PlotList |>
+  rename(PLOT_CO = SUB_PLOT_CODE,
+         AREA_CROP = CROP_AREA) |>
+  select(VDS_ID, PLOT_CO, AREA_CROP) |>
+  distinct()
+
+# Identifier les champs de Cultivation_paddy non trouvés dans PlotList
+non_match <- anti_join(cultivation_keys, plotlist_keys, by = c("VDS_ID", "PLOT_CO", "AREA_CROP"))
+
+n_non_matched <- nrow(non_match)
+n_total <- nrow(cultivation_keys)
+prop_non_matched <- round(n_non_matched / n_total * 100, 2)
+
+cat(" - Plots totaux dans Cultivation_paddy :", n_total, "\n")
+cat(" - Plots sans équivalent dans PlotList :", n_non_matched, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+```
+
+### Comparaison de la superficie par ménage entre les 2 tables
+
+Je compare la superficie totale par ménage (tous les champs du ménage), pour vérifier s'il y a des incohérences entre les 2 tables.
+
+```{r Correspondance des superficies par ménage}
+# Identifier les champs pour lesquels AREA_HH diffère entre les 2 tables
+non_area_hh <- anti_join(household_plots, plotlist_area_hh, by = c("VDS_ID", "AREA_HH"))
+
+n_non_area_hh <- nrow(non_area_hh)
+n_total <- nrow(household_plots)
+prop_non_area <- round(n_non_area_hh / n_total * 100, 2)
+
+cat(" - Ménages dans Cultivation_paddy :", n_total, "\n")
+cat(" - Ménages sans équivalent dans PlotList :", n_non_area_hh, "\n")
+cat(" - Proportion sans équivalent :", prop_non_area, "%\n")
+```
+
+### Tableau des facteurs
+
+```{r}
+# 1. Somme des heures de travail par champ, pour tout LAB_TYPE
+all_factors <- Cultivation_paddy |>
+  filter(AREA_CROP != 0) |>
+  group_by(across(-WORK_HR)) |>
+  summarise(TOTAL_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = TOTAL_HOURS,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF,
+    WORK_M = HM + FM,
+    WORK_O = OB + FB + EB,
+    ALL_WORK = HF + FF + HM + FM + OB + FB + EB + EM + EF + HC + FC + RS
+  ) |>
+  select(-c(`NA`, RS, HC, FC, EF, EM, HB, OB, EB, FB, MACHINERY))
+```
+
+```{r}
+# Additionner les heures de travail par champ et par lab_type (toutes opérations confondues)
+all_factors <- all_factors |>
+  group_by(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE) |>
+  summarise(
+    FM = sum(FM),
+    HM = sum(HM),
+    WORK_M = sum(WORK_M),
+    HF = sum(HF),
+    FF = sum(FF),
+    WORK_F = sum(WORK_F),
+    WORK_O = sum(WORK_O),
+    ALL_WORK = sum(ALL_WORK),
+    .groups = "drop"
+  ) |>
+
+# Calculer le ratio Hr/acre pour chaque lab_type
+  mutate(
+    FM = FM/AREA_CROP,
+    HM = HM/AREA_CROP,
+    WORK_M = WORK_M/AREA_CROP,
+    HF = HF/AREA_CROP,
+    FF = FF/AREA_CROP,
+    WORK_F = WORK_F/AREA_CROP,
+    WORK_O = WORK_O/AREA_CROP,
+    ALL_WORK = ALL_WORK/AREA_CROP
+  ) |>
+
+# Modifier Var_type = 1 if HYV, 0 sinon
+  mutate(
+    VAR_TYPE = as.numeric(as.character(VAR_TYPE)),
+    VAR_TYPE = replace_na(VAR_TYPE, 0),
+    VAR_TYPE = if_else(VAR_TYPE == 2, 1, 0)
+  ) |>
+
+# Hramoniser les colonnes en numérique
+  mutate(
+    IRRIGATION = as.numeric(as.character(IRRIGATION))
+    )
+```
+
+```{r}
+# Pivoter la table en long
+all_factors_long <- all_factors |>
+  pivot_longer(cols = c(AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE, ALL_WORK, FM, HM, HF, FF), names_to = "variable", values_to = "value")
+```
+
+```{r}
+# Calculer les statistiques par caste
+table_factors_caste <- all_factors_long |>
+  filter(!is.na(CASTE_GROUP)) |>
+  group_by(variable, CASTE_GROUP) |>
+  summarise(
+    mean = mean(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) |>
+  mutate(caste_col = paste0(CASTE_GROUP)) |>
+  select(-CASTE_GROUP) |>
+  pivot_wider(
+    names_from = caste_col,
+    values_from = c(mean, sd, n),
+    names_glue = "{caste_col}_{.value}"
+  )
+
+# Ajouter les statistiques pour l'ensemble des champs (toutes castes confondues)
+table_factors_total <- all_factors_long |>
+  group_by(variable) |>
+  summarise(
+    mean_total = mean(value, na.rm = TRUE),
+    sd_total = sd(value, na.rm = TRUE),
+    n_total = n(),
+    .groups = "drop"
+  )
+
+# Fusionner les deux tables
+table_factors <- left_join(table_factors_total, table_factors_caste, by = "variable")
+```
+
+
+TEST 2
+
+*Tableau dans Latex*
+
+```{r}
+vars <- c("AREA_CROP", "AREA_HH", "ALL_WORK", "FF", "HF", "FM", "HM", "IRRIGATION", "VAR_TYPE")
+
+# Fonction pour calculer mean, sd et n
+summary_stats <- function(df, var) {
+  df |>
+    summarise(
+      mean = mean(.data[[var]], na.rm = TRUE),
+      sd   = sd(.data[[var]], na.rm = TRUE),
+      n    = sum(!is.na(.data[[var]]))
+    ) |>
+    mutate(var = var)
+}
+```
+
+```{r}
+# Statistiques pour chaque groupe de caste
+table_stats <- bind_rows(
+  summary_stats(all_factors, "AREA_CROP") |> mutate(CASTE_GROUP = "total"),
+  all_factors |> group_by(CASTE_GROUP) |>
+    summarise(across(all_of(vars),
+                     list(mean = ~mean(.x, na.rm = TRUE),
+                          sd = ~sd(.x, na.rm = TRUE),
+                          n = ~sum(!is.na(.x))),
+                     .names = "{.col}_{.fn}")) |>
+    pivot_longer(-CASTE_GROUP) |>
+    separate(name, into = c("var", "stat"), sep = "_", extra = "merge") |>
+    pivot_wider(names_from = stat, values_from = value, values_fn = mean)
+)
+
+# Reformat pour affichage : lignes = variables, colonnes = groupe caste
+table_final <- table_stats %>%
+  pivot_longer(cols = c(mean, sd), names_to = "stat") %>%
+  pivot_wider(names_from = CASTE_GROUP, values_from = value) %>%
+  pivot_longer(cols = -c(var, stat), names_to = "CASTE_GROUP") %>%
+  unite("value", stat, value, sep = ": ") %>%
+  pivot_wider(names_from = CASTE_GROUP, values_from = value) %>%
+  pivot_wider(names_from = var, values_from = everything(), values_fn = list) %>%
+  unnest(cols = everything()) %>%
+  relocate(any_of(c("AREA_CROP", "AREA_HH", "ALL_WORK", "FF", "HF", "FM", "HM", "IRRIGATION", "VAR_TYPE"))) # ordre lignes
+
+# Ajouter ligne de nombre d'observations à la fin
+n_obs <- all_factors %>%
+  group_by(CASTE_GROUP) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = CASTE_GROUP, values_from = n)
+
+# Ajouter une ligne "N"
+table_final <- bind_rows(table_final, c(var = "N", n_obs))
+
+# Affichage LaTeX
+print(xtable(table_final, align = "lccccc"), include.rownames = FALSE, sanitize.text.function = identity)
+```
+
+
+
+
+
+```{r}
+data <- fread('Example.csv')
+
+print(xtable(data, type='latex'))
+```
 
 
 
