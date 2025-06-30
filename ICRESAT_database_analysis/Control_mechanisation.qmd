@@ -760,14 +760,13 @@ land_mean |>
                "MEAN_HACRE_F" = "lightsteelblue3", 
                "MEAN_HACRE_ALL" = "violet",
                "MEAN_HACRE_O" = "lightblue4"),
-        labels = c(
+    labels = c(
       "MEAN_HACRE_ALL" = "Total labor",
       "MEAN_HACRE_F" = "Female labor",
       "MEAN_HACRE_M" = "Male labor",
-      "MEAN_HACRE_O" = "Bullock labor"
-    ),
+      "MEAN_HACRE_O" = "Bullock labor"),
     name = "Labor type"
-    ) +
+  ) +
   theme_minimal() +
   theme(
     plot.title = element_text(size = 16),
@@ -977,7 +976,44 @@ hacre_no_meca |>
 
 ********************************************************************************
 
-## Utilisation des boeufs par caste
+## Utilisation des outils
+
+### Outils utilisés par opération
+
+On souhaite regarder dans quelles opérations précisement chaque outil est utilisé.
+Je me concentre sur les principaux outils : tractor (TR), thresher (TH), electric motor (ET), sprayer (SP). 
+
+Je regarde pour la culture du riz en Kharif. 
+
+```{r}
+outils_per_oper <- Cultivation_expand |>
+  filter(
+    SEASON == "KHARIF", CROP == "PADDY",
+    !OPERATION %in% c("HAND WEEDING", "SUPERVISION", "MARKETING", "OTHERS")) |>
+  select(SUR_MON_YR, VDS_ID, PLOT_CODE, AREA_CROP, OPERATION, DT_OPER, LAB_TYPE, NAME_MAT) |>
+  distinct()
+```
+
+```{r}
+outils_per_oper |>
+  group_by(OPERATION) |>
+  summarise(
+    total_oper = n(),
+    n_TR = sum(NAME_MAT == "TR", na.rm = TRUE),
+    prct_TR = round(100*n_TR / total_oper, 0),
+    n_TH = sum(NAME_MAT == "TH", na.rm = TRUE),
+    prct_TH = round(100*n_TH / total_oper, 0),
+    n_SP = sum(NAME_MAT == "SP", na.rm = TRUE),
+    prct_SP = round(100*n_SP / total_oper, 0),
+    n_ET = sum(NAME_MAT == "ET", na.rm = TRUE),
+    prct_ET = round(100*n_ET / total_oper, 0),
+    .groups = "drop"
+  ) |>
+  arrange(desc(total_oper))
+```
+
+
+### Boeufs par caste
 
 Je regarde les heures de travail des boeufs selon la caste, pour toutes les opérations et pour land preparation spécifiquement, sans prendre en compte la mécanisation. 
 
@@ -1389,7 +1425,7 @@ mechanized_tilling |>
 ```
 
 
-## Hr/acre en fonction de la mécanisation du labour
+### Hr/acre en fonction de la mécanisation du labour
 
 ```{r}
 # Ajouter les heures de travail totales (toutes opérations sauf land preparation)
