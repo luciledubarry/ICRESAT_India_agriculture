@@ -28,14 +28,6 @@ Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultiv
 ```
 
 
-L'objectif de ces premières régressions est de comprendre pourquoi on observe un différence de l'intensité du travail (Hr/acre) entre les castes, même après avoir contrôler pour plusieurs variables (mécanisation, superficie du champ). 
-
-Niveau d'analyse : On se concentre au niveau des opérations par champ. 
-p = plot ; H = Household ; o = opération. 
-
-Outcome : Travail total par acre, tout type de travail confondu. 
-
-
 ********************************************************************************
 
 ## Préparer la base
@@ -149,7 +141,7 @@ Cultivation_paddy <- Cultivation_paddy |>
     )
 ```
 
-Si on considère les n/a de Machinery comme "Non mécanisé", ajouter : MACHINERY = if_else(MACHINERY, "1", "0"),
+Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"),
 
 Je définie les catégories de référence pour STATE et VILLAGE.
 
@@ -172,20 +164,6 @@ La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité om
 
 
 ### Variables créées
-
-*Heures de travail par acre par champ*
-
-```{r}
-# Additionner les heures de travail par champ
-Cultivation_paddy <- Cultivation_paddy |>
-  filter(AREA_CROP != 0) |>  # Enlever les champs dont la superficie est nulle
-  group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
-  summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
-
-# Diviser les heures totales par acre
-  mutate(HACRE_OPER = OPER_HRS/AREA_CROP)
-```
-
 
 *Sommer les champs d'un même ménage*
 
@@ -212,15 +190,38 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```
 
 
+*Heures de travail par acre par champ*
+
+```{r}
+# Additionner les heures de travail par champ
+Cultivation_all <- Cultivation_paddy |>
+  filter(AREA_CROP != 0) |>  # Enlever les champs dont la superficie est nulle
+  group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
+  summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# Diviser les heures totales par acre
+  mutate(HACRE_OPER = OPER_HRS/AREA_CROP)
+```
+
 
 ********************************************************************************
 
-## Régression
+## Régressions
+
+## Tout type de travail confondu
+
+L'objectif de ces premières régressions est de comprendre pourquoi on observe un différence de l'intensité du travail (Hr/acre) entre les castes, même après avoir contrôler pour plusieurs variables (mécanisation, superficie du champ). 
+
+Niveau d'analyse : On se concentre au niveau des opérations par champ. 
+p = plot ; H = Household ; o = opération. 
+
+Outcome : Travail total par acre, tout type de travail confondu. 
+
 
 ### Toutes opérations
 
 ```{r}
-reg_all <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_paddy)
+reg_all <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_all)
 summary(reg_all)
 ```
 
@@ -242,7 +243,7 @@ Code pour Var_type :
 Je refais la régression pour les opérations principales du riz en Kharif. 
 
 ```{r}
-reg_land <- Cultivation_paddy |>
+reg_land <- Cultivation_all |>
   filter(OPERATION == "LAND PREPARATION") |>
   lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
      data = _)
@@ -253,7 +254,7 @@ Attention : Pour cette régression, c'est normal que mechanized_tilling soit NA,
 
 
 ```{r}
-reg_harvest <- Cultivation_paddy |>
+reg_harvest <- Cultivation_all |>
   filter(OPERATION == "HARVESTING & THRESHING") |>
   lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
      data = _)
@@ -262,7 +263,7 @@ summary(reg_harvest)
 
 
 ```{r}
-reg_weeding <- Cultivation_paddy |>
+reg_weeding <- Cultivation_all |>
   filter(OPERATION == "HAND WEEDING") |>
   lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling + STATE,
      data = _)
@@ -273,13 +274,139 @@ Attention: Il faut enlever Machinery pour étudier Hand weeding, car cette opér
 
 
 ```{r}
-reg_trans <- Cultivation_paddy |>
+reg_trans <- Cultivation_all |>
   filter(OPERATION == "TRANSPLANTING") |>
   lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling + STATE,
      data = _)
 summary(reg_trans)
 
 ```
+
+
+### Avec le min de variables explicatives
+
+```{r}
+reg_min <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + STATE, data = Cultivation_all)
+summary(reg_min)
+```
+
+Variables nécessaires pour n'avoir aucune différence significative entre BC et FC: STATE + AREA_CROP ou AREA_HH
+
+
+********************************************************************************
+
+## Par type de travail
+
+On refait les régressions précédentes, avec comme outcome les heures de travail par acre pour chaque type de travail (femme/homme, familial/employé).
+
+
+### Créer la base par type de travail
+
+Je calcule les heures de travail par champ, en différenciant par le type de travail
+
+```{r}
+Cultivation_labor <- Cultivation_paddy |>
+  filter(!LAB_TYPE %in% c("RS", "HC", "FC")) |>
+
+# 1. Somme des heures de travail par champ, caste et lab_type
+  group_by(across(-WORK_HR)) |>
+  summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = WORK_HR,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF + EF,
+    WORK_M = HM + FM + EM,
+    WORK_O = OB + HB + EB + FB
+  ) |>
+  select(-'NA')
+```
+
+```{r}
+# Diviser les heures de travail par acre
+Cultivation_labor <- Cultivation_labor |>
+  group_by(across(everything())) |>
+  summarise(FF = FF/AREA_CROP,
+            HF = HF/AREA_CROP,
+            EF = EF/AREA_CROP,
+            HM = HM/AREA_CROP,
+            FM = FM/AREA_CROP,
+            EM = EM/AREA_CROP,
+            OB = OB/AREA_CROP,
+            HB = HB/AREA_CROP,
+            EB = EB/AREA_CROP,
+            FB = FB/AREA_CROP,
+            WORK_F = WORK_F/AREA_CROP,
+            WORK_M = WORK_M/AREA_CROP,
+            WORK_O = WORK_O/AREA_CROP,
+            .groups = "drop")
+```
+
+
+
+### FF: Travail féminin familial
+
+En se concentrant sur le ratio Hr/acre pour le travail féminin familial, on regarde s'il y a une différence significative entre FC et BC, avec les mêmes variables de contrôle. Notre hypothèse est que la demande de travail familial féminin soit moindre pour les FC. 
+
+```{r}
+reg_FF <- lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_FF)
+```
+#### Hand weeding
+
+```{r}
+reg_FF <- Cultivation_labor |>
+  filter(OPERATION == "HAND WEEDING") |>
+  lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+#### Harvesting
+
+```{r}
+reg_FF <- Cultivation_labor |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+#### Transplanting
+
+```{r}
+reg_FF <- Cultivation_labor |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+
+### HF: Travail féminin employé
+
+```{r}
+reg_HF <- lm(HF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_HF)
+```
+
+### FM: Travail masculin familial
+
+```{r}
+reg_FM <- lm(FM ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_FM)
+```
+
+### HM: Travail masculin employé
+
+```{r}
+reg_HM <- lm(HM ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_HM)
+```
+
 
 
 
