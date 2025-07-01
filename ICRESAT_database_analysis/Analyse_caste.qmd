@@ -37,7 +37,7 @@ Cultivation_expand |>
   group_by(CASTE_GROUP) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
-    `Champs par saison` = n_distinct(paste(VDS_ID, PLOT_CODE, SEASON, sep = "_"))
+    `Champs par saison` = n_distinct(paste(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, sep = "_"))
   ) |>
   gt() |>
   tab_header(
@@ -53,9 +53,9 @@ Cultivation_expand |>
 # 1. Comptage des champs
 # J'inclue SEASON pour identifier le ménage pour compenser de compter en double les champs (pour les deux saisons).
 plot_per_hh <- Cultivation_expand |>
-  distinct(VDS_ID, PLOT_CODE, CROP, SEASON) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
   group_by(VDS_ID, SEASON) |> 
-  summarise(nb_cultures = n_distinct(PLOT_CODE), .groups = "drop")
+  summarise(nb_cultures = n_distinct(SUB_PLOT_CODE), .groups = "drop")
 
 # 2. Rattacher la caste à chaque ménage
 nb_caste <- Cultivation_expand |>
@@ -96,9 +96,9 @@ Combien de champs font du riz en Kharif ?
 ```{r}
 crop_choice_kharif <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, CROP)
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP)
 
-total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE, crop_choice_kharif$CROP)
+total_champs_kharif <- n_distinct(crop_choice_kharif$VDS_ID, crop_choice_kharif$PLOT_CODE, crop_choice_kharif$SUB_PLOT_CODE, crop_choice_kharif$CROP)
 
 crop_choice_kharif|>
   count(CROP, sort = TRUE) |>
@@ -121,10 +121,10 @@ plot_paddy_kharif <- Cultivation_expand |>
 crop_choice_rabi <- Cultivation_expand |>
   left_join(plot_paddy_kharif, by = c("VDS_ID")) |>
   filter(PADDY_KHARIF == TRUE, SEASON == "RABI") |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, IRRIGATION)
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CASTE_GROUP, IRRIGATION)
 
 # Nombre total de champs ayant eu du riz en Kharif
-total_champs_rabi <- n_distinct(crop_choice_rabi$VDS_ID, crop_choice_rabi$PLOT_CODE)
+total_champs_rabi <- n_distinct(crop_choice_rabi$VDS_ID, crop_choice_rabi$PLOT_CODE, crop_choice_rabi$SUB_PLOT_CODE)
 
 # Comptage des cultures en Rabi
 crop_rabi <- crop_choice_rabi |>
@@ -187,7 +187,7 @@ vérifier en nombre de champs et nombre de méange, pour avoir un résultat coh�
 
 ```{r}
 hh_other_cultiv |>
-  distinct(VDS_ID, PLOT_CODE, CROP) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, CROP) |>
   count(CROP, sort = TRUE)
 ```
 
@@ -198,7 +198,7 @@ Pour les ménages ayant une autre culture en plus du riz en Kharif, quelle est l
 area_plot_kharif <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
   semi_join(hh_paddy_kharif, by = "VDS_ID") |>
-  distinct(VDS_ID, PLOT_CODE, CROP, AREA_CROP) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, CROP, AREA_CROP) |>
   group_by(VDS_ID) |>
   filter(n_distinct(CROP) > 1) |>
   ungroup()
@@ -246,7 +246,7 @@ Je comptabilise le nombre de champs distincts pour les principales cultures selo
 nb_champs_caste_crop <- Cultivation_expand |>
   filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN"),
          !is.na(CASTE_GROUP)) |>
-  mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
+  mutate(CHAMP_ID = paste(VDS_ID, SUB_PLOT_CODE, SEASON, CROP, sep = "_")) |>
   distinct(CASTE_GROUP, CROP, CHAMP_ID) |>
   count(CASTE_GROUP, CROP, name = "NB_CHAMPS") |>
   pivot_wider(
@@ -317,7 +317,7 @@ work_hr_caste_crop
 # Superficie moyenne de chaque champ (culture distincte) par caste
 area_by_caste <- Cultivation_expand |>
   filter(!is.na(CASTE_GROUP), CASTE_GROUP != "OTHER") |>
-  mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
+  mutate(CHAMP_ID = paste(VDS_ID, SUB_PLOT_CODE, SEASON, CROP, sep = "_")) |>
   group_by(CASTE_GROUP, CHAMP_ID) |>
   summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop")
 ```
@@ -354,7 +354,7 @@ area_by_caste_paddy <- Cultivation_expand |>
          !is.na(CASTE_GROUP), 
          CASTE_GROUP != "OTHER"
          ) |>
-  mutate(CHAMP_ID = paste(VDS_ID, PLOT_CODE, SEASON, CROP, sep = "_")) |>
+  mutate(CHAMP_ID = paste(VDS_ID, SUB_PLOT_CODE, SEASON, CROP, sep = "_")) |>
   group_by(CASTE_GROUP, CHAMP_ID) |>
   summarise(AREA = mean(AREA_CROP, na.rm = TRUE), .groups = "drop")
 ```
@@ -390,7 +390,7 @@ plot_per_caste <- Cultivation_expand |>
   filter(!is.na(CASTE_GROUP), 
          CASTE_GROUP != "OTHER",
          SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP, CROP) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP, CASTE_GROUP, CROP) |>
   group_by(VDS_ID, CASTE_GROUP) |>
   summarise(area_hh = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
 ```
@@ -428,7 +428,7 @@ plot_per_caste_paddy <- Cultivation_expand |>
          !is.na(CASTE_GROUP), 
          CASTE_GROUP != "OTHER",
          SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, AREA_CROP, CASTE_GROUP) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP, CASTE_GROUP) |>
   group_by(VDS_ID, CASTE_GROUP) |>
   summarise(area_hh = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
 ```
@@ -469,7 +469,7 @@ labor_caste <- Cultivation_expand |>
          CROP == "PADDY", 
          SEASON == "KHARIF",
          LAB_TYPE %in% c("HF", "FF", "HM", "FM")) |>
-  group_by(VDS_ID, PLOT_CODE, CROP, SEASON, CASTE_GROUP, LAB_TYPE, AREA_CROP) |>
+  group_by(VDS_ID, SUB_PLOT_CODE, CROP, SEASON, CASTE_GROUP, LAB_TYPE, AREA_CROP) |>
   summarise(TOTAL_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
 
 # 2. Pivoter et créer les valeurs 0 quand le travail est nul
@@ -641,7 +641,7 @@ hh_paddy_kharif <- Cultivation_expand |>
 # Superficie totale par ménage (pour les ménages faisant du riz en Kharif uniquement)
 hh_area <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP) |>
   group_by(VDS_ID) |>
   summarise(HH_AREA = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
 ```
@@ -921,7 +921,7 @@ proportion_outils <- Cultivation_expand |>
   filter(!is.na(CASTE_GROUP),
          CROP == "PADDY", 
          SEASON == "KHARIF") |>
-  group_by(VDS_ID, PLOT_CODE, CROP, SEASON, CASTE_GROUP, MACHINERY, IRRIGATION, VAR_TYPE, AREA_CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, CASTE_GROUP, MACHINERY, IRRIGATION, VAR_TYPE, AREA_CROP) |>
   reframe(
     VAR_TYPE = recode(VAR_TYPE,
                       `2` = "1",
@@ -1085,7 +1085,7 @@ Sur 1,007 ménages présents dans la base initiale Cultivation_2014, 831 n'ont p
 ```{r}
 cultivation_paddy <- Cultivation_expand |>
   filter(CROP == "PADDY", SEASON == "KHARIF") |>
-  group_by(VDS_ID, PLOT_CODE, SEASON, CROP, CASTE_GROUP, AREA_CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CASTE_GROUP, AREA_CROP) |>
   summarise(
     OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY)),
     OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT)),
@@ -1114,7 +1114,7 @@ cultivation_paddy |>
   group_by(CASTE_GROUP) |>
   summarise(
     `Nombre de ménages` = n_distinct(VDS_ID),
-    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, AREA_CROP, sep = "_")),
+    `Nombre de champs` = n_distinct(paste(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, sep = "_")),
     .groups = "drop"
   ) |>
   arrange(desc(`Nombre de ménages`)) |>
