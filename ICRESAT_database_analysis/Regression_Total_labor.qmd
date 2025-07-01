@@ -32,6 +32,7 @@ Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultiv
 PlotList <- readRDS(here::here("Base de données générées", "PlotList_2014", "Plotlist_2014.rds"))
 
 PlotList$CROP_AREA <- as.numeric(as.character(PlotList$CROP_AREA))
+PlotList$PLOT_AREA <- as.numeric(as.character(PlotList$PLOT_AREA))
 ```
 
 
@@ -377,6 +378,9 @@ En se concentrant sur le ratio Hr/acre pour le travail féminin familial, on reg
 reg_FF <- lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
 summary(reg_FF)
 ```
+Refaire cette régression sans MACHINERY, mechanized_tilling qui peuvent être des stratégies de substitution pour faire baisser FF
+
+
 #### Hand weeding
 
 ```{r}
@@ -411,6 +415,8 @@ summary(reg_FF)
 reg_HF <- lm(HF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
 summary(reg_HF)
 ```
+Rajouter un dummy OPERATION pour les régressions toutes opérations confondues 
+
 
 ### FM: Travail masculin familial
 
@@ -446,35 +452,53 @@ Liste des variables :
 - productivity : production of rice per acre ; (faut remettre les variables OP et gérer les doublons)
 - hours worked for each labor type. 
 
-
 Pour avoir la différence entre plot size et subplot size, je me base sur la table PlotList dans laquelle cette distinction est indiquée par ménage. 
 
 
 ### Correspondance des champs entre Plotlist et Cultivation_paddy 
 
+Je vérifie les couples (VDS_ID, AREA_CROP, PLOT_CODE) dans Cultivation_paddy en les comparant à soit PLOT_CODE soit SUB_PLOT_CODE dans PlotList.
+
 ```{r Correspondance Cultivation_paddy -> Plotlist}
-# Vérifier les couples (VDS_ID, SUB_PLOT_CODE, AREA_CROP)
+# Préparer les clés de Cultivation_paddy
 cultivation_keys <- Cultivation_paddy |>
-  rename(PLOT_CO = PLOT_CODE) |>
-  select(VDS_ID, PLOT_CO, AREA_CROP) |>
+  mutate(AREA_CROP = round(AREA_CROP, 2)) |>
+  select(VDS_ID, PLOT_CODE, AREA_CROP) |>
   distinct()
 
+# Préparer les clés de PlotList en utilisant PLOT_CODE et SUB_PLOT_CODE
 plotlist_keys <- PlotList |>
-  rename(PLOT_CO = SUB_PLOT_CODE,
-         AREA_CROP = CROP_AREA) |>
-  select(VDS_ID, PLOT_CO, AREA_CROP) |>
+  mutate(AREA_CROP = round(CROP_AREA, 2),
+         AREA_CROP = if_else(is.na(AREA_CROP), PLOT_AREA, AREA_CROP)) |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
   distinct()
 
-# Identifier les champs de Cultivation_paddy non trouvés dans PlotList
-non_match <- anti_join(cultivation_keys, plotlist_keys, by = c("VDS_ID", "PLOT_CO", "AREA_CROP"))
+# Créer deux versions de PlotList : une avec PLOT_CODE et une avec SUB_PLOT_CODE
+plotlist_pcode <- plotlist_keys |>
+  rename(PLOT_CODE_MATCH = PLOT_CODE)
+
+plotlist_spcode <- plotlist_keys |>
+  rename(PLOT_CODE_MATCH = SUB_PLOT_CODE)
+
+# Fusionner les deux ensembles possibles
+plotlist_combined <- bind_rows(plotlist_pcode, plotlist_spcode) |>
+  select(VDS_ID, PLOT_CODE_MATCH, AREA_CROP) |>
+  distinct()
+
+# Identifier les lignes dans Cultivation_paddy qui n'ont aucun match
+non_match <- anti_join(
+  cultivation_keys,
+  plotlist_combined,
+  by = c("VDS_ID" = "VDS_ID", "PLOT_CODE" = "PLOT_CODE_MATCH", "AREA_CROP" = "AREA_CROP")
+)
 
 n_non_matched <- nrow(non_match)
 n_total <- nrow(cultivation_keys)
 prop_non_matched <- round(n_non_matched / n_total * 100, 2)
 
-cat(" - Plots totaux dans Cultivation_paddy :", n_total, "\n")
-cat(" - Plots sans équivalent dans PlotList :", n_non_matched, "\n")
-cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+cat(" - Total de champs dans Cultivation_paddy :", n_total, "\n")
+cat(" - Champs sans correspondance dans PlotList :", n_non_matched, "\n")
+cat(" - Proportion sans correspondance :", prop_non_matched, "%\n")
 ```
 
 ### Comparaison de la superficie par ménage entre les 2 tables
