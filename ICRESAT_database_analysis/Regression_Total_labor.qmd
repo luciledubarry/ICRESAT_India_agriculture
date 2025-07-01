@@ -473,23 +473,11 @@ plotlist_keys <- PlotList |>
   select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
   distinct()
 
-# Créer deux versions de PlotList : une avec PLOT_CODE et une avec SUB_PLOT_CODE
-plotlist_pcode <- plotlist_keys |>
-  rename(PLOT_CODE_MATCH = PLOT_CODE)
-
-plotlist_spcode <- plotlist_keys |>
-  rename(PLOT_CODE_MATCH = SUB_PLOT_CODE)
-
-# Fusionner les deux ensembles possibles
-plotlist_combined <- bind_rows(plotlist_pcode, plotlist_spcode) |>
-  select(VDS_ID, PLOT_CODE_MATCH, AREA_CROP) |>
-  distinct()
-
 # Identifier les lignes dans Cultivation_paddy qui n'ont aucun match
 non_match <- anti_join(
   cultivation_keys,
-  plotlist_combined,
-  by = c("VDS_ID" = "VDS_ID", "PLOT_CODE" = "PLOT_CODE_MATCH", "AREA_CROP" = "AREA_CROP")
+  plotlist_keys,
+  by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP")
 )
 
 n_non_matched <- nrow(non_match)
