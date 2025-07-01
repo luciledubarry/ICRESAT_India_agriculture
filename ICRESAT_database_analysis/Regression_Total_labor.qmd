@@ -46,9 +46,9 @@ PlotList$PLOT_AREA <- as.numeric(as.character(PlotList$PLOT_AREA))
 # Vérifier qu'il n'y ait pas de champs en double (pour le riz en Kharif)
 dup_plots_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, PLOT_AREA, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
   distinct() |>
-  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  group_by(VDS_ID, SUB_PLOT_CODE, AREA_CROP) |>
   filter(n() > 1) |>
   mutate(row_in_group = row_number()) |> 
   ungroup()
@@ -88,16 +88,17 @@ Cultivation_expand <- Cultivation_expand |>
 # Filtrer pour la culture du riz en Kharif
 Cultivation_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  filter(AREA_CROP != 0) |>  # Enlever les champs dont la superficie est nulle
 
 # Sélectionner les variables d'intérêt
-  select(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
   distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
 ```
 
 ```{r}
 # Vérifier les doublons restants après avoir sélectionné les variables
 Cultivation_paddy |>
-  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
   filter(n_distinct(IRRIGATION) > 1 |
          n_distinct(VAR_TYPE) > 1 |
          n_distinct(CASTE_GROUP) > 1 |
@@ -116,7 +117,7 @@ Rappel: La variable Machinery indique 'mécanisé' si l'opération a nécessité
 ```{r}
 # Identifier les champs ayant utilisé des outils pendant la saison pour chaque opération
 Cultivation_paddy <- Cultivation_paddy |>
-  group_by(VDS_ID, PLOT_CODE, AREA_CROP, OPERATION) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, OPERATION) |>
   mutate(MACHINERY = any(MACHINERY == "Mécanisé")) |>
   ungroup()
 ```
@@ -129,12 +130,12 @@ Ensuite, j'identifie les champs dont le labour est mécanisé.
 # Identifier les champs mécanisant land preparation 
 mechanized_tilling <- Cultivation_paddy |>
   filter(OPERATION == "LAND PREPARATION") |>
-  group_by(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
   reframe(mechanized_tilling = any(MACHINERY == TRUE))
 
 # Ajouter la variable à Cultivation_paddy
 Cultivation_paddy <- Cultivation_paddy |>
-  left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "AREA_CROP"))
+  left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP"))
 ```
 
 
@@ -181,9 +182,9 @@ Je calcule la superficie totale de tous les champs d'un même ménage, pour tout
 # Avec Cultivation_expand
 household_plots <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA) |>
   group_by(VDS_ID) |>
-  summarise(AREA_HH = sum(AREA_CROP), .groups = "drop")
+  summarise(AREA_HH = sum(PLOT_AREA, na.rm = TRUE), .groups = "drop")
 ```
 
 ```{r}
@@ -215,7 +216,6 @@ Cultivation_paddy <- Cultivation_paddy |>
 ```{r}
 # Additionner les heures de travail par champ
 Cultivation_all <- Cultivation_paddy |>
-  filter(AREA_CROP != 0) |>  # Enlever les champs dont la superficie est nulle
   group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
   summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
 
@@ -463,7 +463,7 @@ Je vérifie les couples (VDS_ID, AREA_CROP, PLOT_CODE) dans Cultivation_paddy en
 # Préparer les clés de Cultivation_paddy
 cultivation_keys <- Cultivation_paddy |>
   mutate(AREA_CROP = round(AREA_CROP, 2)) |>
-  select(VDS_ID, PLOT_CODE, AREA_CROP) |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
   distinct()
 
 # Préparer les clés de PlotList en utilisant PLOT_CODE et SUB_PLOT_CODE
@@ -547,7 +547,7 @@ all_factors <- Cultivation_paddy |>
 ```{r}
 # Additionner les heures de travail par champ et par lab_type (toutes opérations confondues)
 all_factors <- all_factors |>
-  group_by(VDS_ID, CASTE_GROUP, PLOT_CODE, AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE) |>
+  group_by(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE) |>
   summarise(
     FM = sum(FM),
     HM = sum(HM),
