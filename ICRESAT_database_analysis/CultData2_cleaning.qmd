@@ -149,13 +149,13 @@ tableau_valeurs
 ## Pivoter Cultivation : mettre les CROP en ligne
 
 ```{r}
-# Diviser PLOT_AREA pour chaque culture, selon les variables PRCT_AREA
+# Diviser CROP_AREA pour chaque culture, selon les variables PRCT_AREA
 Cultivation_cult_distinctes <- Cultivation_2014 |>
   mutate(
-    AREA_CROP_1 = PLOT_AREA * PRCT_AREA_1 / 100,
-    AREA_CROP_2 = if_else(!is.na(PRCT_AREA_2), PLOT_AREA * PRCT_AREA_2 / 100, NA_real_),
-    AREA_CROP_3 = if_else(!is.na(PRCT_AREA_3), PLOT_AREA * PRCT_AREA_3 / 100, NA_real_),
-    AREA_CROP_4 = if_else(!is.na(PRCT_AREA_4), PLOT_AREA * PRCT_AREA_4 / 100, NA_real_)
+    AREA_CROP_1 = CROP_AREA * PRCT_AREA_1 / 100,
+    AREA_CROP_2 = if_else(!is.na(PRCT_AREA_2), CROP_AREA * PRCT_AREA_2 / 100, NA_real_),
+    AREA_CROP_3 = if_else(!is.na(PRCT_AREA_3), CROP_AREA * PRCT_AREA_3 / 100, NA_real_),
+    AREA_CROP_4 = if_else(!is.na(PRCT_AREA_4), CROP_AREA * PRCT_AREA_4 / 100, NA_real_)
   )
 
 # Diviser IRRI_AREA pour chaque culture, selon les variables PRCT_AREA
@@ -181,7 +181,7 @@ WORK_HR_4 = if_else(PRCT_AREA_4 == 0, NA_real_, WORK_HR * PRCT_AREA_4 / 100),
 
 ```{r}
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
-  select(-WORK_HR, -WAGE_PER_HR, -WAGE, -IRRI_AREA, -PLOT_AREA, -OPER_ID)
+  select(-WORK_HR, -WAGE_PER_HR, -WAGE, -IRRI_AREA, -CROP_AREA, -OPER_ID)
 
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   rename(CROP_ID_1 = CROP_1_ID) |>
@@ -194,7 +194,7 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
 # Pivoter Cultivation en lignes pour les variables CROP, CROP_ID, PRCT_AREA, VAR_NAME, VAR_TYPE, AREA_CROP, HR_WORK, HR_PER_ACRE
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   pivot_longer(
-    cols = matches("^(CROP|CROP_ID|PRCT_AREA|VAR_NAME|VAR_TYPE|AREA_CROP|IRRI_CROP|WORK_HR)_[1-4]$"),
+    cols = matches("^(CROP|CROP_ID|PRCT_AREA|OP_MAIN_PROD_QTY|OP_MAIN_PROD_UNIT|VAR_NAME|VAR_TYPE|AREA_CROP|IRRI_CROP|WORK_HR)_[1-4]$"),
     names_to = c(".value", "NB"),
     names_pattern = "(.*)_(\\d)"
   )
@@ -205,7 +205,7 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   filter(!PRCT_AREA == 0) |>
   select(-NB, -PRCT_AREA) |>
-  relocate(AREA_CROP, .after = PLOT_CODE) |>
+  relocate(AREA_CROP, .after = PLOT_AREA) |>
   relocate(IRRI_CROP, .after = AREA_CROP) |>
   relocate(VAR_TYPE, .before = VAR_NAME)
 ```
@@ -582,50 +582,6 @@ test_nb_survey |>
 ```
 On constate que les enquêtes faites auprès des ménages sont plus nombreuses lors des mois avec le plus de travail (juillet, août), au contraire des mois creux (mai, juin). Cela justifie l'hypothèse que les opérations ne sont pas indiquées comme vide lorsqu'aucun travail n'est fait. 
 
-#### Selon les saisons
-
-Je refais le même graphique séparement pour les champs en Kharif et ceux en Rabi. 
-
-```{r Kharif}
-test_nb_survey <- Cultivation_cult_distinctes |>
-  filter(SEASON == "KHARIF") |>
-  group_by(MONTH) |> 
-  count(VDS_ID, name = "nb_survey") |>
-  mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
-
-test_nb_survey |>
-  ggplot(aes(x = nb_survey, y = MONTH)) +
-  geom_col(fill = "darkgreen", width = 0.7) +
-  coord_flip() +
-  scale_x_continuous() +
-  labs(
-    title = "Kharif- Nombre d'enquêtes faites par mois (ménages distincts)",
-    x = "",
-    y = ""
-  ) +
-  theme_minimal()
-```
-
-```{r Rabi}
-test_nb_survey <- Cultivation_cult_distinctes |>
-  filter(SEASON == "RABI") |>
-  group_by(MONTH) |> 
-  count(VDS_ID, name = "nb_survey") |>
-  mutate(MONTH = factor(MONTH, levels = month_levels, ordered = TRUE))
-
-test_nb_survey |>
-  ggplot(aes(x = nb_survey, y = MONTH)) +
-  geom_col(fill = "darkgreen", width = 0.7) +
-  coord_flip() +
-  scale_x_continuous() +
-  labs(
-    title = "Rabi- Nombre d'enquêtes faites par mois (ménages distincts)",
-    x = "",
-    y = ""
-  ) +
-  theme_minimal()
-```
-
 
 ********************************************************************************
 
@@ -635,13 +591,13 @@ On estime que si une opération n'est pas complétée pour un mois et un champ d
 
 *Version sans Month*
 
-La base full_operation regroupe tous les couples existants VDS_ID / PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
+La base full_operation regroupe tous les couples existants VDS_ID / SUB_PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
 
 J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que je souhaite indiquer dans tous les lignes d'un même champ. 
 
 ```{r}
 plots_by_household <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, CROP_ID, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME, MULTI_CROPING, REGION, STATE, VILLAGE)
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CROP_ID, PLOT_AREA, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME, MULTI_CROPING, REGION, STATE, VILLAGE)
 
 full_operation <- expand_grid(
   plots_by_household,
@@ -654,60 +610,16 @@ Avec le code suivant, les doublons sont bien conservés puisque toutes les ligne
 ```{r, message=FALSE, warning=FALSE}
 base_to_join <- Cultivation_cult_distinctes |>
   select(
-    VDS_ID, PLOT_CODE, SEASON, CROP, OPERATION,
+    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION,
     MONTH, GENDER, EMPLOYMENT, HUMAN_LABOR, MACHINERY, DT_OPER, SUR_MON_YR,
     FERTILIZER, LAB_TYPE, WORK_HR, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, NAME_MAT, TYPE_MAT, MACHINERY
   )
 
 # Jointure sans conflit de colonnes
 Cultivation_expand <- full_operation |>
-  left_join(base_to_join, by = c("VDS_ID", "PLOT_CODE", "SEASON", "CROP", "OPERATION")) |>
+  left_join(base_to_join, by = c("VDS_ID", "SUB_PLOT_CODE", "PLOT_CODE", "SEASON", "CROP", "OPERATION")) |>
   mutate(WORK_HR = replace_na(WORK_HR, 0))
 ```
-
-
-Les prochains test visent à inclure MONTH dans la base Cultivation_expand. 
-
-*1er test: Créer des lignes pour tous les mois (même manquants)*
-
-Je regroupe toutes les combinaisons possibles de MONTH / OPERATION et tous les couples existants VDS_ID / PLOT_CODE.
-
-Pas besoin d'ajouter SEASON pour identifier le champs parce qu'on a déjà le mois qui sous-entend donc la saison ? Faux car les deux saisons se superposent sur certains mois
-
-```{r}
-plots_by_household <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, PLOT_CODE)
-
-full_operation <- expand_grid(
-  plots_by_household,
-  MONTH = unique(Cultivation_cult_distinctes$MONTH),
-  OPERATION = unique(Cultivation_cult_distinctes$OPERATION)
-)
-```
-
-Puis l'idée de créer la base Cultivation_expand en joignant avec "MONTH", "VDS_ID", "PLOT_CODE", "OPERATION"
-
-Ma méthode de faire pour tous les mois est fausse, parce que certains champs n'existent que pour une saison donnée, notamment en jachère ? donc associer un WORK_HR = 0 à ces champs revient à créer des valeurs qui n'existent pas
-
-*2ème test: Créer des lignes seulement pour les mois existants*
-
-Je refais la base full_operations en identifiant les champs existants par les variables (VDS_ID, PLOT_CODE, SEASON, MONTH)
-
-Ce choix repose sur l'hypothèse qu'un champ qui n'a pas fait une opération en un mois est un champ en jachère. Mais ça peut être faux si on voit des champs cultivés les mois précédents et suivants (ex: nov, janv sans dec)
-
-et faux si l'enquête n'a pas été faite pendant un mois entier (mais dans ce cas, faut mieux supposer NA que mettre 0 qui n'est pas nécessairement juste)
-
-```{r}
-plots_by_household <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, MONTH)
-
-full_operation <- expand_grid(
-  plots_by_household,
-  OPERATION = unique(Cultivation_cult_distinctes$OPERATION)
-)
-```
-
-Dans ce cas, je joindrais Cultivation_cult_distinctes et full_operation2 avec "MONTH", "VDS_ID", "PLOT_CODE", "SEASON", "OPERATION"
 
 
 ********************************************************************************
@@ -835,7 +747,7 @@ Cultivation_expand <- Cultivation_expand |>
 ```{r}
 Cultivation_expand <- Cultivation_expand |>
   select(
-    SUR_MON_YR, MONTH, SEASON, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, AREA_CROP, IRRI_CROP, CROP, IRRIGATION, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, everything()  # place les colonnes restantes à la fin
+    SUR_MON_YR, MONTH, SEASON, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, IRRI_CROP, CROP, IRRIGATION, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, everything()  # place les colonnes restantes à la fin
   )
 ```
 
@@ -846,14 +758,14 @@ Cultivation_expand <- Cultivation_expand |>
 
 ### Modifier Plot_code : unicité des champs
 
-Je repère les champs pour lesquels les variables VDS_ID, PLOT_CODE et SEASON ne sont pas suffisantes pour les identifier de façon unique et qui doivent être différenciés avec CROP. 
+Je repère les champs pour lesquels les variables VDS_ID, SUB_PLOT_CODE et SEASON ne sont pas suffisantes pour les identifier de façon unique et qui doivent être différenciés avec CROP. 
 
 ```{r}
 # Tableau des champs nécessitant CROP pour les identifier
 dup_crop <- Cultivation_expand |>
-  select(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |>
+  select(VDS_ID, SUB_PLOT_CODE, SEASON, CROP, AREA_CROP) |>
   distinct() |>
-  group_by(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
+  group_by(VDS_ID, SUB_PLOT_CODE, SEASON, AREA_CROP) |>
   filter(n() > 1) |>
   mutate(row_in_group = row_number()) |> 
   ungroup()
