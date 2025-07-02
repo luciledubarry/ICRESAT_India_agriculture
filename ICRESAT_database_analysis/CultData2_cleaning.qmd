@@ -562,7 +562,9 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
 
 ### Ménages cultivant du riz
 
-J'identifie les méanges ayant au moins un champ de riz par saison (peu importe la superficie). 
+#### Variable binaire
+
+J'identifie les ménages ayant au moins un champ de riz par saison (peu importe la superficie). 
 
 ```{r}
 households_with_paddy <- Cultivation_cult_distinctes |>
@@ -577,6 +579,37 @@ households_with_paddy <- Cultivation_cult_distinctes |>
 # Ajouter la variable à la base principale par ménage et saison
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   left_join(households_with_paddy, by = c("VDS_ID", "SEASON"))
+```
+
+
+#### Pourcentage de la terre dédié au riz
+
+Je définie maintenant la part de la terre du ménage (somme de tous ses champs) dédiée à la culture du riz par saison. 
+
+```{r}
+# Superficie totale cultivée par ménage et par saison
+hh_area <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP, SEASON) |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(AREA_HH = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
+
+# Superficie et part de la terre dédiée au riz, par saison
+paddy_area <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON) |>
+  filter(CROP == "PADDY") |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(paddy_area = sum(AREA_CROP, na.rm = TRUE), .groups = "drop") |>
+  left_join(hh_area, by = c("VDS_ID", "SEASON")) |>
+  mutate(paddy_prct = if_else(AREA_HH > 0, paddy_area/AREA_HH, NA_real_),
+         paddy_prct = round(100*paddy_prct, 0))
+```
+
+```{r}
+# Joindre les variables AREA_HH et prct_paddy à la base principale
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  left_join(hh_area, by = c("VDS_ID", "SEASON")) |>
+  left_join(paddy_area |> select(VDS_ID, SEASON, paddy_prct), by = c("VDS_ID", "SEASON")) |>
+  relocate(AREA_HH, .after = VDS_ID)
 ```
 
 
