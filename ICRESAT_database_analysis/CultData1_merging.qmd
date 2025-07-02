@@ -1011,6 +1011,14 @@ Cultivation_2014 <- Cultivation_2014 |>
 
 ## Harmoniser les opérations
 
+Avant d'harmoniser les opérations, je crée la variable Fertilizer qui indique si l'opération a nécessité de l'engrais.
+
+```{r}
+# Variable FERTILIZER
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(FERTILIZER = str_detect(OPERATION, "FERTILIZ|FERTIGATION"))
+```
+
 ```{r}
 # Harmoniser la variable OPERATION
 Cultivation_2014 <- Cultivation_2014 |>

@@ -222,20 +222,10 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
 
 ### Recatégoriser Opération
 
-Avant de recatégoriser les opérations en une dizaine d'opérations, je créé les variables Fertilizer et Herbicide qui indiquent si l'opération a nécessité de l'engrais ou de l'herbicide respectivement; 
+Avant de recatégoriser les opérations en une dizaine d'opérations, je crée la variable Herbicide qui indique si l'opération a nécessité de l'herbicide/weedicide.
 
 ```{r}
-# Variable FERTILIZER
-Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
-  mutate(FERTILIZER = str_detect(OPERATION, "FERTILIZ|FERTIGATION")) |>
-  relocate(FERTILIZER, .after = OPERATION)
-```
-
-A MODIFIER : Ce code est sans intérêt car les opérations sont déjà harmonisées (donc ne précisent pas si de l'engrais a été utilisé) !
-
-```{r}
-# Variable HERBICIDE
-# L'opération implique de l'herbicide/weedicide si l'une des deux conditions est remplie. 
+# Variable HERBICIDE: indique TRUE si l'une des deux conditions est remplie. 
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   mutate(
     HERBICIDE = OPERATION == "HERBICIDE" | 
