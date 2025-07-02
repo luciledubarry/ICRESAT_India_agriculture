@@ -21,6 +21,7 @@ library(ggplot2)
 library(scales)
 library(stringr)    
 library(gt)
+library(here)
 ```
 
 
@@ -1062,7 +1063,7 @@ dup_plots_paddy <- Cultivation_expand |>
 
 ```{r}
 # Définir le chemin du dossier
-folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_cult_distinctes"
+folder_path <- here("Base de données générées", "Cultivation_cult_distinctes")
 
 # Créer le dossier s'il n'existe pas
 if (!dir.exists(folder_path)) {
@@ -1087,7 +1088,7 @@ saveRDS(
 
 ```{r}
 # Définir le chemin du dossier
-folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_expand"
+folder_path <- here("Base de données générées", "Cultivation_expand")
 
 # Créer le dossier s'il n'existe pas
 if (!dir.exists(folder_path)) {
