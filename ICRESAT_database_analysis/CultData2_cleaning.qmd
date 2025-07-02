@@ -222,6 +222,29 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
 
 ### Recatégoriser Opération
 
+Avant de recatégoriser les opérations en une dizaine d'opérations, je créé les variables Fertilizer et Herbicide qui indiquent si l'opération a nécessité de l'engrais ou de l'herbicide respectivement; 
+
+```{r}
+# Variable FERTILIZER
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(FERTILIZER = str_detect(OPERATION, "FERTILIZ|FERTIGATION")) |>
+  relocate(FERTILIZER, .after = OPERATION)
+```
+
+A MODIFIER : Ce code est sans intérêt car les opérations sont déjà harmonisées (donc ne précisent pas si de l'engrais a été utilisé) !
+
+```{r}
+# Variable HERBICIDE
+# L'opération implique de l'herbicide/weedicide si l'une des deux conditions est remplie. 
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  mutate(
+    HERBICIDE = OPERATION == "HERBICIDE" | 
+    replace_na(str_detect(TYPE_MAT, "Weed|Herb"), FALSE)
+    # considère FALSE si TYPE_MAT = n/a
+  )
+```
+
+
 ```{r}
 # Nouvelles catégories OPERATION
 cat_operations <- tribble(
@@ -255,8 +278,8 @@ cat_operations <- tribble(
   "UPROOTING",           "TRANSPLANTING",
   "PLANT PROTECTION",    "PLANT PROTECTION MEASURES",
   "PESTICIDE",           "PLANT PROTECTION MEASURES",
-  "HERBICIDE",           "PLANT PROTECTION MEASURES",
   "FUMIGATION",          "PLANT PROTECTION MEASURES",
+  "HERBICIDE",           "PLANT PROTECTION MEASURES",
   "FERTILIZER",          "FERTILIZER APPL.",
   "SUPERVISION",         "SUPERVISION",
   "TRANSPORT",           "TRANSPORT",
@@ -270,7 +293,7 @@ cat_operations <- tribble(
 ```
 
 ```{r, warning=FALSE}
-# Ajouter les nouvelles catégories d'OPERATION dans Cultivation_cult_distinctes
+# Ajouter les opérations recatégorisées dans Cultivation_cult_distinctes
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   rename(OLD_OPERATION = OPERATION) |>
   left_join(cat_operations, by = "OLD_OPERATION") |>
@@ -332,26 +355,18 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   )
 ```
 
-### Variable Fertilizer
-
-```{r}
-# Créer la variable FERTILIZER qui précise si l'opération a nécessité de l'engrais ou non
-Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
-  mutate(FERTILIZER = str_detect(OPERATION, "FERTILIZ|FERTIGATION")) |>
-  relocate(FERTILIZER, .after = OPERATION)
-```
 
 ### Variable Multi-cropping
 
 ```{r}
 # Créer une variable MULTI_CROPING pour identifier les champs ayant plusieurs cultures sur une même saison
 multi_crop <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, PLOT_CODE, SEASON, CROP) |>
-  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, PLOT_CODE, SEASON, CROP) |>
+  group_by(VDS_ID, SUB_PLOT_CODE, PLOT_CODE, SEASON) |>
   summarise(MULTI_CROPING = n_distinct(CROP, na.rm = TRUE) > 1, .groups = "drop")
 
 Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
-  left_join(multi_crop, by = c("VDS_ID", "PLOT_CODE", "SEASON"))
+  left_join(multi_crop, by = c("VDS_ID", "SUB_PLOT_CODE", "PLOT_CODE", "SEASON"))
 ```
 
 ```{r}
@@ -365,7 +380,7 @@ nb_champ <- Cultivation_cult_distinctes |>
   summarise(nb_champ = n(), .groups = "drop")
 
 cat("Nombre de lignes incluant le multi-croping :", nrow(nb_multi_croping), "\n")
-cat("Sur un total de", nrow(nb_champ), "lignes soit", round(100 * nrow(nb_multi_croping) / nrow(nb_champ), 1), "%\n")
+cat("Sur un total de", nrow(nb_champ), "lignes soit", round(100 * nrow(nb_multi_croping) / nrow(nb_champ), 2), "%\n")
 ```
 
 ### Variable Human labor
@@ -380,6 +395,7 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
     )
   )
 ```
+
 
 ### Variable Machinery
 
