@@ -21,6 +21,7 @@ library(readxl)
 library(stringr)
 library(stringdist)
 library(ggplot2)
+library(here)
 ```
 
 
@@ -158,7 +159,7 @@ Ces 39 lignes ont WORK_HR = NA.
 
 ```{r}
 # Définir le chemin du dossier
-folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/PlotList_2014"
+folder_path <- here("Base de données générées", "PlotList_2014")
 
 # Créer le dossier s'il n'existe pas
 if (!dir.exists(folder_path)) {
@@ -1453,7 +1454,7 @@ cat(" Nombre de champs (toutes saisons confondues) :", n_champs, "\n")
 
 ```{r}
 # Définir le chemin du dossier
-folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_2014"
+folder_path <- here("Base de données générées", "Cultivation_2014")
 
 # Créer le dossier s'il n'existe pas
 if (!dir.exists(folder_path)) {
