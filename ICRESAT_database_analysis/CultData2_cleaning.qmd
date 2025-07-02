@@ -34,6 +34,9 @@ Cultivation_2014 <- Cultivation_2014 |>
   mutate(SEASON = toupper(SEASON))
 ```
 
+
+********************************************************************************
+
 ## Premières analyses
 
 ### Principales cultures
@@ -137,15 +140,16 @@ Cultivation_2014 |>
 ```
 
 ```{r}
-tableau_valeurs <- Cultivation_2014 |>
+Cultivation_2014 |>
   summarize(
     Supérieur_50 = sum(WAGE_PER_HR > 50, na.rm = TRUE),
     Supérieur_100 = sum(WAGE_PER_HR > 100, na.rm = TRUE),
     Supérieur_1000 = sum(WAGE_PER_HR > 1000, na.rm = TRUE)
   )
-
-tableau_valeurs
 ```
+
+
+********************************************************************************
 
 ## Pivoter Cultivation : mettre les CROP en ligne
 
@@ -211,6 +215,8 @@ Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
   relocate(VAR_TYPE, .before = VAR_NAME)
 ```
 
+
+********************************************************************************
 
 ## Nouvelles variables
 
@@ -523,6 +529,8 @@ cultures_per_season |>
 ```
 
 
+********************************************************************************
+
 ## Verifs
 
 ### Enquêtes par ménage
@@ -581,6 +589,7 @@ test_nb_survey |>
   ) +
   theme_minimal()
 ```
+
 On constate que les enquêtes faites auprès des ménages sont plus nombreuses lors des mois avec le plus de travail (juillet, août), au contraire des mois creux (mai, juin). Cela justifie l'hypothèse que les opérations ne sont pas indiquées comme vide lorsqu'aucun travail n'est fait. 
 
 
@@ -589,8 +598,6 @@ On constate que les enquêtes faites auprès des ménages sont plus nombreuses l
 ## Modifier Cultivation : créer les lignes pour les opérations non complétées
 
 On estime que si une opération n'est pas complétée pour un mois et un champ donnés, alors son temps de travail est égal à 0. Le but est de créer une base qui indique WORK_HR = 0 pour toutes les opérations pas complétées pour un mois (MONTH) et un champ donnée (VDS_ID, PLOT_CODE, SEASON)
-
-*Version sans Month*
 
 La base full_operation regroupe tous les couples existants VDS_ID / SUB_PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
 
@@ -989,6 +996,44 @@ bind_rows(
 
 Pour retomber sur le total de 3 956 champs distincts, additionner Kharif seulement + Rabi seulement + (Kharif et Rabi x 2)
 
+
+
+
+
+### Verif: Superficie des champs entre les saisons
+
+On veut vérifier si la superficie d'un même champ diffère entre deux saisons (au cas où les champs serainet consolidés d'une saison à une autre). 
+
+Pour cela, je pivote en large la base selon la saison (pour les variables AREA_CROP et CROP). Le but est d'indiquer les potentielles différences de superficie d'un chap entre les saisons et de repérer les champs manquants (donc en jachère). 
+
+
+Problème: Les couples (VDS_ID, PLOT_CODE, CROP, SEASON, AREA_CROP) ne sont pas uniques. Cela signifie que des champs ont plusieurs valeurs de AREA_CROP pour la même saison et culture.
+
+En regardant la base Cultivation_2014 (avant d'avoir pivoter en long les cultures et calculer ARE_CROP en pourcentage de PLOT_AREA), on voit qu'il y a seulement 3 champs (VDS_ID et PLOT_CODE) qui ont des superficies différentes (même avec CROP, VAR_NAME et VAR_TYPE identiques). 
+
+Les autres doublons présents dans Cultivation_expand sont dûs à des différences dans VAR_NAME ET VAR_TYPE, donc correspondent à des champs distincts. 
+
+```{r}
+# Champs ayant plusieurs valeurs de AREA_CROP pour la même saison
+dup_champs_area <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  filter(n() > 1) |>
+  arrange(VDS_ID, PLOT_CODE, SEASON, AREA_CROP, VAR_NAME, VAR_TYPE, CROP) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+
+
+
+
+cultivation_wider_season <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, AREA_CROP) |>
+  pivot_wider(
+    names_from = SEASON,
+    values_from = AREA_CROP
+  )
 
 
 

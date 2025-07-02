@@ -1,8 +1,11 @@
 ---
-title: "Fichier 1 : Créer la base Cultivation 2014"
+title: "Test- Cultivation_data_cleaning/merging"
 format: html
 editor: source
 ---
+
+Dans cette version, j'essaie harmoniser la variable CROP (et ajouter la variable CROP_ID) après le merge des 3 bases en Cultivation_2014. Pour l'instant, j'ai simplement placé après le merge la partie "Culture" sans modifier le contenu des chunks. 
+
 
 ```{r}
 #| message: false
@@ -13,65 +16,45 @@ cat("\014")
 
 ```{r}
 #| message: false
-here::i_am("ICRESAT_database_analysis/CultData1_merging.qmd")
+here::i_am("INCRESAT_Micro_database.Rproj")
 library(dplyr)
 library(tidyr)
-library(knitr)
 library(readxl)
 library(stringr)
 library(stringdist)
-library(ggplot2)
-library(here)
 ```
-
-
-********************************************************************************
 
 # Nettoyage des bases
 
 ## Importer les données
 
 ```{r Importer les données, message=FALSE, warning=FALSE}
-EAST_CultInput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Input_2014.xlsx"))
-SAT_CultInput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Input_2014.xlsx"))
-EAST_CultOutput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Output_2014.xlsx"))
-SAT_CultOutput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Output_2014.xlsx"))
-EAST_PlotList_2014 <- read_excel(here::here("raw_data", "EAST_Plot_List_2014.xlsx"))
-SAT_PlotList_2014 <- read_excel(here::here("raw_data", "SAT_Plot_List_2014.xlsx"))
+EAST_CultInput_2014 <- read_excel("raw_data/EAST_Cultivation_Input_2014.xlsx")
+SAT_CultInput_2014 <- read_excel("raw_data/SAT_Cultivation_Input_2014.xlsx")
+EAST_CultOutput_2014 <- read_excel("raw_data/EAST_Cultivation_Output_2014.xlsx")
+SAT_CultOutput_2014 <- read_excel("raw_data/SAT_Cultivation_Output_2014.xlsx")
+EAST_PlotList_2014 <- read_excel("raw_data/EAST_Plot_List_2014.xlsx")
+SAT_PlotList_2014 <- read_excel("raw_data/SAT_Plot_List_2014.xlsx")
 ```
-
 
 ## Rassembler par région
-
-J'ajoute dans la base CultInput une variable pour identifier de quelle région proviennent les données. 
-
-```{r Création la variable REGION}
-SAT_CultInput_2014 <- SAT_CultInput_2014 |>
-  mutate(REGION = "SAT")
-  
-EAST_CultInput_2014 <- EAST_CultInput_2014 |>
-  mutate(REGION = "EAST")
-```
 
 ```{r Harmoniser les noms des variables}
 SAT_PlotList_2014 <- SAT_PlotList_2014 |>
   rename(VDS_ID = PL_ID)
 
 EAST_CultOutput_2014 <- EAST_CultOutput_2014 |>
-  rename(CROP_AREA = PLO_AREA)
-SAT_CultOutput_2014 <- SAT_CultOutput_2014 |>
-  rename(CROP_AREA = PLOT_AREA)
+  rename(PLOT_AREA = PLO_AREA)
 
-EAST_CultInput_2014 <- EAST_CultInput_2014 |>
-  rename(CROP_AREA = PLOT_AREA)
-SAT_CultInput_2014 <- SAT_CultInput_2014 |>
-  rename(CROP_AREA = PLOT_AREA)
+SAT_PlotList_2014 <- SAT_PlotList_2014 %>%
+  mutate(PLOT_AREA = round(PLOT_AREA, 2))
+
+EAST_PlotList_2014 <- EAST_PlotList_2014 %>%
+  mutate(PLOT_AREA = round(PLOT_AREA, 2))
 ```
 
-Attention: PLOT_AREA désigne la superficie du plot et CROP_AREA celle du subplot (égale au plot s'il n'y a pas de division du champ). Idem, PLOT_CODE désigne l'identifiant du plot et SUB_PLOT_CODE l'identifiant du subplot. 
-
 ```{r Harmoniser les types de chaque colonne}
-# Je repère si les colonnes ayant le même nom et vérifie si elles sont du même type  (numeric ou character). Si ce n'est pas le cas, je les convertis en character, ce qui limite le nombre de NA. Il est nécessaire que les colonnes soient du même type pour utiliser la fonction bind_rows. 
+# Je repère si les colonnes ayant le même nom et vérifie si elles sont du même type  (numeric ou character). Dans le cas de colonnes avec le même nom mais d'un type différent, je les convertis en character, ce qui limite le nombre de NA. IL est nécessaire que les colonnes soient du même type pour utiliser la fonction bind_rows. 
 
 common_cols_cultinput <- intersect(names(EAST_CultInput_2014), names(SAT_CultInput_2014))
 for (col in common_cols_cultinput) {
@@ -92,242 +75,80 @@ for (col in common_cols_plotlist) {
 }
 ```
 
+## Vérifications des bases et questions spécifiques
+
+### CultOutput
+On vérifie comment a été remplie la variable OPERATION, variable mensuelle.
+Est-ce qu'il y a 12 lignes OPERATION par ménage (identifié par VDS_ID) ? 
+
 ```{r}
 CultInput_2014 <- bind_rows(EAST_CultInput_2014, SAT_CultInput_2014)
 CultOutput_2014 <- bind_rows(EAST_CultOutput_2014, EAST_CultOutput_2014)
 PlotList_2014 <- bind_rows(EAST_PlotList_2014, SAT_PlotList_2014)
 ```
 
-
-********************************************************************************
-
-## Tests avant toutes modifications
-
-### NA pour Lab_type et Work_hr 
-
-Je regarde combien de NA ont les variables LAB_TYPE et WORK_HR, et sur quelles opérations sont répartis ces NA. 
-
-```{r}
-na_LAB_TYPE <- nrow(CultInput_2014 |> filter(is.na(LAB_TYPE)))
-na_WORK_HR <- nrow(CultInput_2014 |> filter(is.na(WORK_HR)))
-
-cat(" - N/a dans LAB_TYPE :", na_LAB_TYPE, "soit", round(100 * na_LAB_TYPE / nrow(CultInput_2014), 1), "% de la base CultInput \n")
-cat(" - N/a dans WORK_HR :", na_WORK_HR, "soit", round(100 * na_WORK_HR / nrow(CultInput_2014), 1), "% de la base CultInput \n")
-```
-
-Refaire ce tableau après l'harmonisation des noms d'opérations !!
-
-```{r}
-test_oper <- CultInput_2014 |>
-  filter(is.na(WORK_HR)) |>
-  count(OPERATION, sort = TRUE) 
-
-test_oper |>
-  slice_max(n, n = 10) |>
-  select(OPERATION, n) |>
-  kable(
-    caption = "Opérations avec le plus de n/a pour WORK_HR",
-    col.names = c("Opération", "Nombre de n/a")
-  )
-```
-
-### Crop damage 
-
-Je regarde combien de cultures ont été arrêtées en cours de saison (crop damage), à partir des remarques mises dans la base CultOutput. 
-
-```{r, warning=FALSE}
-crop_damage <- CultOutput_2014 |> 
-  summarise(CROP_DAMAGE = str_detect(REMARKS, "DAMAGE|DESTROI|DAMGED"))
-
-cat(" Nombre de crop damage :", nrow(crop_damage |> filter(CROP_DAMAGE == TRUE)), "\n")
-```
-
-Autre technique : Dans le questionnaire, si le champ est perdu, l'inspecteur doit indiquer un temps de travail nul pour la récolte et une production nulle (dans Cult_Output). Je regarde combien de champs ont un temps de travail pour Harvesting égal à 0 dans CultInput.
-
-```{r}
-crop_damage <- CultInput_2014 |>
-  mutate(HARVEST = str_detect(OPERATION, "Harves|HARVES")) |>
-  filter(HARVEST == TRUE) |>
-  filter(WORK_HR == 0 | is.na(WORK_HR))
-
-cat(" Nombre de potentiel crop damage :", nrow(crop_damage), "\n")
-```
-Ces 39 lignes ont WORK_HR = NA. 
-
-
-### Enregistrer PlotList_2014 avant modification
-
-```{r}
-# Définir le chemin du dossier
-folder_path <- here("Base de données générées", "PlotList_2014")
-
-# Créer le dossier s'il n'existe pas
-if (!dir.exists(folder_path)) {
-  dir.create(folder_path, recursive = TRUE)
-}
-
-# Enregistrer le fichier CSV
-write.csv(
-  PlotList_2014,
-  file = file.path(folder_path, "PlotList_2014.csv"),
-  row.names = FALSE
-)
-
-# Enregistrer le fichier RDS
-saveRDS(
-  PlotList_2014,
-  file = file.path(folder_path, "PlotList_2014.rds"),
-)
-```
-
-
-********************************************************************************
-
 ## Conserver les variables d'intérêt
-
-Je pense que la variable PLOT_CODE complétée dans les bases CultIput et CultOutput représente l'identifiant du subplot (plutôt que du plot). C'est pourquoi, je renomme la variable SUB_PLOT_CODE pour ces 2 bases. 
 
 ```{r}
 CultInput_2014 <- CultInput_2014 |>
-  select(-UNIT_MAT, -QTY_MAT, -RATE_MAT, -VAL_MAT, -SOURCE_MAT, -REMARKS) |>
-  filter(!is.na(LAB_TYPE)) |>
+  rename(PLOT_CODE = PLOT_CO) |>
+  select(-NAME_MAT, -UNIT_MAT, -QTY_MAT, -RATE_MAT, -VAL_MAT, -SOURCE_MAT, -TYPE_MAT, -REMARKS) |>
+  filter(!is.na(LAB_TYPE)) |> 
   filter(!is.na(VDS_ID)) |>
-  filter(!LAB_TYPE %in% c("0", "8", "B")) |>
-  rename(SUB_PLOT_CODE = PLOT_CO)
+  filter(LAB_TYPE != 0)
 
 CultOutput_2014 <- CultOutput_2014 |>
   filter(!is.na(VDS_ID)) |>
-  select(-RENT_VAL, -OP_MAIN_PROD_RATE, -OP_BY_PROD_UNIT, -OP_BY_PROD_QTY, -OP_BY_PROD_RATE, -OP_OT_PROD_UNIT, -OP_OT_PROD_QTY, -OP_OT_PROD_RATE, -REMARKS) |>
-  rename(SUB_PLOT_CODE = PLOT_CODE)
+  select(-RENT_VAL, -OP_MAIN_PROD_UNIT, -OP_MAIN_PROD_QTY, -OP_MAIN_PROD_RATE, -OP_BY_PROD_UNIT, -OP_BY_PROD_QTY, -OP_BY_PROD_RATE, -OP_OT_PROD_UNIT, -OP_OT_PROD_QTY, -OP_OT_PROD_RATE, -REMARKS)
 
 PlotList_2014 <- PlotList_2014 |>
   filter(!is.na(VDS_ID)) |>
-  select(-CROP_3, - CROP_4, -OW_STAT, -RENT_REC_PAID, -REMARKS, -HH_NO)
+  select(-CROP_3, - CROP_4, -OW_STAT, -RENT_REC_PAID, -REMARKS, -PLOT_CODE, -PLOT_AREA) |>
+  rename(PLOT_CODE = SUB_PLOT_CODE) |>
+  rename(PLOT_AREA = CROP_AREA)
 ```
-
-
-********************************************************************************
 
 ## Harmoniser les variables et supprimer les doublons
 
 ### CultInput
-
 ```{r Enlever les doublons de CultInput}
 # Arrondir WORK_HR à la première décimale (il y a des doublons créés à cause de cela)
 CultInput_2014$WORK_HR <- as.numeric(as.character(CultInput_2014$WORK_HR))
 CultInput_2014$WORK_HR <- round(CultInput_2014$WORK_HR, 1)
 CultInput_2014 <- CultInput_2014 |> 
-  filter(!is.na(WORK_HR))
+  filter(!is.na(WORK_HR)) |> 
+  filter(WORK_HR != 0)
 
-# Arrondir CROP_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
-CultInput_2014$CROP_AREA <- as.numeric(as.character(CultInput_2014$CROP_AREA))
-CultInput_2014$CROP_AREA <- round(CultInput_2014$CROP_AREA, 2)
+# Arrondir PLOT_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
+CultInput_2014$PLOT_AREA <- as.numeric(as.character(CultInput_2014$PLOT_AREA))
+CultInput_2014$PLOT_AREA <- round(CultInput_2014$PLOT_AREA, 2)
 
 # Supprimer les doublons lorsque seule la date SUR_MON_YR diffère (en conservant la date la plus ancienne)
 CultInput_2014 <- CultInput_2014 |>
   arrange(SUR_MON_YR) |>
-  distinct(across(-SUR_MON_YR), .keep_all = TRUE)
-```
+  distinct(VDS_ID, PLOT_NAME, PLOT_CODE, SEASON, PLOT_AREA, WORK_HR, DT_OPER, OPERATION, LAB_TYPE, IRRI_AREA, .keep_all = TRUE)
 
-On vérifie si les doublons de WORK_HR dans CultInput sont dûs à des salaires différents et pourraient donc représenter des travailleurs distincts. On identifie les doublons pour lesquels les différences entre temps de travail et salaire sont cohérentes. 
-
-```{r Doublons de WORK_HR dans CultInput}
-# Tableau des doublons par rapport à WORK_HR et WAGE
-dup_rows_CultInput_2014 <- CultInput_2014 |>
-  group_by(across(-c(WAGE, WORK_HR))) |>
-  filter(n() > 1) |>
-  mutate(row_id = row_number()) |> 
-  filter(!is.na(WAGE)) |>
-  filter(!is.na(WORK_HR)) |>
-  ungroup()
-
-# Créer la variable comparison pour vérifier la cohérence de WORK_HR et WAGE entre chaque doublon
-dup_rows_CultInput_2014 <- dup_rows_CultInput_2014 |>
-  mutate(
-    WAGE = as.numeric(WAGE),
-    WORK_HR = as.numeric(WORK_HR)
-  )
-
-dup_rows_CultInput_2014 <- dup_rows_CultInput_2014 |>
-  pivot_wider(
-    names_from = row_id,
-    values_from = c(WAGE, WORK_HR),
-    names_glue = "{.value}_row{row_id}"
-  ) |>
-  mutate(
-    wage_diff = WAGE_row1 - WAGE_row2,
-    work_hr_diff = WORK_HR_row1 - WORK_HR_row2,
-    comparison = sign(wage_diff) == sign(work_hr_diff) & wage_diff != 0
-)
-
-cat("Nombre de doublons avec un salaire et un temps de travail cohérents :", nrow(dup_rows_CultInput_2014 |> filter(comparison)), "\n")
-cat("Sur un total de", nrow(dup_rows_CultInput_2014), "doublons soit", round(100 * nrow(dup_rows_CultInput_2014 |> filter(comparison)) / nrow(dup_rows_CultInput_2014), 1), "%\n")
-```
-
-```{r Doublons de WORK_HR dans CultInput}
-# Supprimer les doublons entre WAGE et WORK_HR quand les salaires et les heures de travail ne sont pas cohérents (en conservant le nombre le plus haut)
-dup_rows_CultInput_2014 <- dup_rows_CultInput_2014 |>
-  select(VDS_ID, PLOT_NAME, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, DT_OPER, OPERATION, LAB_TYPE, NAME_MAT, TYPE_MAT, comparison)
-
-CultInput_2014 <- CultInput_2014 |>
-  left_join(dup_rows_CultInput_2014, by = c("VDS_ID", "PLOT_NAME", "SUB_PLOT_CODE", "CROP_AREA", "IRRI_AREA", "SEASON", "DT_OPER", "OPERATION", "LAB_TYPE", "NAME_MAT", "TYPE_MAT"))
-
+# Supprimer les doublons lorsque seul WORK_HR diffère (en conservant le nombre le plus haut)
 n_avant <- nrow(CultInput_2014)
 CultInput_2014 <- CultInput_2014 |>
-  filter(is.na(comparison) | comparison) |>
   arrange(desc(WORK_HR)) |>
-  select(-comparison)
+  distinct(VDS_ID, PLOT_NAME, PLOT_CODE, SEASON, PLOT_AREA, DT_OPER, OPERATION, LAB_TYPE, IRRI_AREA, .keep_all = TRUE)
 n_avant - nrow(CultInput_2014)
 ```
 
 ### PlotList 
-
 ```{r Enlever les doublons de PlotList}
-# Arrondir les variables PLOT_AREA, CROP_AREA et IRRI_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
+# Arrondir les variables IRRI_AREA et PLOT_AREA à la deuxième décimale 
 PlotList_2014$IRRI_AREA <- as.numeric(as.character(PlotList_2014$IRRI_AREA))
 PlotList_2014$IRRI_AREA <- round(PlotList_2014$IRRI_AREA, 2)
-
-PlotList_2014$CROP_AREA <- as.numeric(as.character(PlotList_2014$CROP_AREA))
-PlotList_2014$CROP_AREA <- round(PlotList_2014$CROP_AREA, 2)
-
 PlotList_2014$PLOT_AREA <- as.numeric(as.character(PlotList_2014$PLOT_AREA))
 PlotList_2014$PLOT_AREA <- round(PlotList_2014$PLOT_AREA, 2)
 
 # Supprimer les doublons causés par des valeurs de IRRI_AREA différentes
 PlotList_2014 <- PlotList_2014 |>
   arrange(IRRI_AREA) |>
-  distinct(across(-IRRI_AREA), .keep_all = TRUE) |>
-
-# Lorsque la superficie du subplot est manquante (CROP_AREA = n/a), je considère alors la superficie du plot (PLOT_AREA)
-  mutate(CROP_AREA = if_else(is.na(CROP_AREA), PLOT_AREA, CROP_AREA)) |>
-
-# De la même manière, si SUB_PLOT_CODE n'est pas indiqué, je considère l'identifiant du plot (PLOT_CODE)
-  mutate(SUB_PLOT_CODE = if_else(is.na(SUB_PLOT_CODE), PLOT_CODE, SUB_PLOT_CODE))
+  distinct(VDS_ID, PLOT_NAME, PLOT_CODE, PLOT_AREA, SEASON, CROP_1, CROP_2, HH_NO, .keep_all = TRUE)
 ```
-
-```{r}
-# Je modifie SUB_PLOT_CODE pour des champs spécifiques, pour lequels SUB_PLOT_CODE et PLOT_CODE sont incohérents. 
-PlotList_2014 <- PlotList_2014 |>
-  mutate(
-    SUB_PLOT_CODE = if_else(
-      VDS_ID == "IBH14A0201" & PLOT_CODE == "J" & CROP_AREA == "0.85",
-      "J",
-      SUB_PLOT_CODE),
-    SUB_PLOT_CODE = if_else(
-      VDS_ID == "IBH14A0201" & PLOT_CODE == "H" & CROP_AREA == "0.16",
-      "H",
-      SUB_PLOT_CODE),
-    SUB_PLOT_CODE = if_else(
-      VDS_ID == "IBH14A0201" & PLOT_CODE == "G" & CROP_AREA == "0.70",
-      "G",
-      SUB_PLOT_CODE),
-    SUB_PLOT_CODE = if_else(
-      VDS_ID == "IBH14D0032" & PLOT_CODE == "B" & CROP_AREA == "0.25",
-      "B",
-      SUB_PLOT_CODE)
-  ) 
-```
-
 
 ```{r}
 # Supprimer les lignes exactement identiques
@@ -336,71 +157,55 @@ CultInput_2014 <- CultInput_2014 |> distinct()
 CultOutput_2014 <- CultOutput_2014 |> distinct()
 ```
 
-
-### CultOutput
-
-```{r Modifier les variables}
-# Pivoter les variables CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT et OP_MAIN_PROD_QTY en colonnes
+### CultOuput
+```{r Modifier les variables et enlever les doublons de CultOutput}
+# Pivoter les variables CROP, PRCT_AREA, VAR_NAME et VAR_TYPE en colonne
 CultOutput_2014 <- CultOutput_2014 |>
-  group_by(SUR_YEAR, VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
+  group_by(VDS_ID, PLOT_NAME, PLOT_CODE, SEASON, PLOT_AREA, OW_STAT, IRRI_AREA, RENT_FOR) |>
   mutate(crop_id = row_number()) |>
   ungroup() |>
+  
   pivot_wider(
-    id_cols = c(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SUR_YEAR, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
+    id_cols = c(VDS_ID, PLOT_CODE, PLOT_NAME, PLOT_AREA, SUR_YEAR, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
     names_from = crop_id,
-    values_from = c(CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY),
+    values_from = c(CROP, PRCT_AREA, VAR_NAME, VAR_TYPE),
     names_glue = "{.value}_{crop_id}"
   )
-```
-
-```{r Enlever les doublons de CultOutput}
-# Tableau des doublons CultOutput
-dup_rows_CultOutput_2014 <- CultOutput_2014 |>
-  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
-  filter(n() > 1) |>
-  ungroup()
 
 # Supprimer les lignes avec les mêmes variables VDS_ID / PLOT_CODE / SEASON en double. Supprimer celles avec le plus de NA.
 CultOutput_2014 <- CultOutput_2014 |>
   mutate(n_na = rowSums(across(everything(), is.na))) |>
-  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
   slice_min(order_by = n_na, with_ties = FALSE) |>
   ungroup() |>
   select(-n_na)
 ```
 
-
-********************************************************************************
-
-## Vérification des doublons restants
-
+### Vérification des doublons restants
 ```{r Tableaux de vérification des doublons}
-any(duplicated(PlotList_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_1", "CROP_2", "SEASON")]))
+any(duplicated(PlotList_2014[, c("VDS_ID", "PLOT_CODE", "CROP_1", "CROP_2", "SEASON")]))
 
 # Tableau des doublons PlotList
 dup_rows_PlotList_2014 <- PlotList_2014 |>
-  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
   filter(n() > 1) |>
   ungroup()
 
-any(duplicated(CultInput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_AREA", "DT_OPER", "OPERATION", "LAB_TYPE", "SEASON", "NAME_MAT", "TYPE_MAT")]))
+any(duplicated(CultInput_2014[, c("VDS_ID", "PLOT_CODE", "PLOT_AREA", "DT_OPER", "OPERATION", "LAB_TYPE", "SEASON")]))
 
-any(duplicated(CultOutput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
+any(duplicated(CultOutput_2014[, c("VDS_ID", "PLOT_CODE", "SEASON")]))
 ```
-
-
-********************************************************************************
 
 # Création d'une clé de jonction
 
-## Identification unique des champs
+## Identification unique des plots
 
 ```{r Test PlotList: Différentes cultures selon la saison pour le même champ}
-#  Vérifier si un champ (identifié par VDS_ID et SUB_PLOT_CODE) change de culture (CROP_1) selon la SEASON 
+#  Vérifier si un champ (identifié par VDS_ID et PLOT_CODE) change de culture (CROP_1) selon la SEASON 
 champs_avec_cultures_differentes <- PlotList_2014 |>
   filter(CROP_1 != "SEASONAL FALLOW" & !is.na(CROP_1)) |>
   filter(SEASON != "Perennial") |>
-  group_by(VDS_ID, PLOT_NAME, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA) |>
+  group_by(VDS_ID, PLOT_NAME, PLOT_CODE, PLOT_AREA, IRRI_AREA) |>
   summarise(
     cultures = paste(unique(CROP_1), collapse = ", "),
     nb_cultures = n_distinct(CROP_1),
@@ -417,43 +222,33 @@ all(CultInput_2014$VDS_ID %in% PlotList_2014$VDS_ID)
 setdiff(CultInput_2014$VDS_ID, PlotList_2014$VDS_ID)
 length(setdiff(unique(CultInput_2014$VDS_ID), unique(PlotList_2014$VDS_ID)))
 
-# Vérifier si les VDS_ID dans CultInput sont présents dans CultOutput
+# Vérifier si les VDS_ID dans CultInput sont présents dans PlotList
 all(CultInput_2014$VDS_ID %in% CultOutput_2014$VDS_ID)
 length(setdiff(unique(CultInput_2014$VDS_ID), unique(CultOutput_2014$VDS_ID)))
 ```
 
 ```{r Correspondance des régions}
 # Faire ressortir les codes de chaque région puis comparer les bases
-CultInput_2014 <- CultInput_2014 |> mutate(STATE = substr(VDS_ID, 2, 3))
-PlotList_2014  <- PlotList_2014  |> mutate(STATE = substr(VDS_ID, 2, 3))
-CultOutput_2014 <- CultOutput_2014 |> mutate(STATE = substr(VDS_ID, 2, 3))
+CultInput_2014 <- CultInput_2014 |> mutate(REGION_CODE = substr(VDS_ID, 2, 3))
+PlotList_2014  <- PlotList_2014  |> mutate(REGION_CODE = substr(VDS_ID, 2, 3))
+CultOutput_2014 <- CultOutput_2014 |> mutate(REGION_CODE = substr(VDS_ID, 2, 3))
 
-region_cultinput <- unique(CultInput_2014$STATE)
-region_plotlist <- unique(PlotList_2014$STATE)
-region_cultoutput <- unique(CultOutput_2014$STATE)
+region_cultinput <- unique(CultInput_2014$REGION_CODE)
+region_plotlist <- unique(PlotList_2014$REGION_CODE)
+region_cultoutput <- unique(CultOutput_2014$REGION_CODE)
 
 list(
   CultInput = sort(region_cultinput),
   PlotList = sort(region_plotlist),
   CultOutput = sort(region_cultoutput)
 )
-```
 
-```{r Correspondance des villages}
-# Faire ressortir les codes de chaque village puis comparer les bases
-CultInput_2014 <- CultInput_2014 |> mutate(VILLAGE = substr(VDS_ID, 2, 6))
-PlotList_2014  <- PlotList_2014  |> mutate(VILLAGE = substr(VDS_ID, 2, 6))
-CultOutput_2014 <- CultOutput_2014 |> mutate(VILLAGE = substr(VDS_ID, 2, 6))
-
-village_cultinput <- unique(CultInput_2014$VILLAGE)
-village_plotlist <- unique(PlotList_2014$VILLAGE)
-village_cultoutput <- unique(CultOutput_2014$VILLAGE)
-
-list(
-  CultInput = sort(village_cultinput),
-  PlotList = sort(village_plotlist),
-  CultOutput = sort(village_cultoutput)
-)
+PlotList_2014 <- PlotList_2014 |>
+  select(- REGION_CODE)
+CultInput_2014 <- CultInput_2014 |>
+  select(- REGION_CODE)
+CultOutput_2014 <- CultOutput_2014 |>
+  select(- REGION_CODE)
 ```
 
 ```{r Correspondance PLOT_NAME}
@@ -465,30 +260,72 @@ length(setdiff(CultInput_2014$PLOT_NAME, PlotList_2014$PLOT_NAME))
 all(CultInput_2014$PLOT_NAME %in% CultOutput_2014$PLOT_NAME)
 length(setdiff(CultInput_2014$PLOT_NAME, CultOutput_2014$PLOT_NAME))
 
-# Nombre de n/a dans PLOT_NAME pour chaque base
 sum(is.na(PlotList_2014$PLOT_NAME))
 sum(is.na(CultInput_2014$PLOT_NAME))
 sum(is.na(CultOutput_2014$PLOT_NAME))
 # La variable PLOT_NAME est largement incomplète dans CultInput.  
 ```
 
+```{r Correspondance SEASON}
+sum(is.na(PlotList_2014$SEASON))
+sum(is.na(CultInput_2014$SEASON))
+sum(is.na(CultOutput_2014$SEASON))
+```
 
-********************************************************************************
+## Couple ID des plots
 
-## Correspondance des ID dans chaque base
+### Base validation_ID
 
-```{r Correspondance CultInput -> PlotList}
-# Vérifier les couples (VDS_ID, SUB_PLOT_CODE, SEASON)
+```{r Correspondance couple VDS_ID / PLOT_CODE / SEASON entre les bases}
 cultinput_keys <- CultInput_2014 |>
-  select(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  select(VDS_ID, PLOT_CODE, PLOT_NAME, PLOT_AREA, SEASON) |>
   distinct()
 
 plotlist_keys <- PlotList_2014 |>
-  select(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  select(VDS_ID, PLOT_CODE, PLOT_NAME, PLOT_AREA, SEASON, CROP_1, CROP_2) |>
+  distinct()
+
+cultoutput_keys <- CultOutput_2014 |>
+  select(VDS_ID, PLOT_CODE, PLOT_NAME, PLOT_AREA, SEASON, CROP_1, CROP_2) |>
+  distinct() |>
+  rename(
+    PLOT_NAME_CO = PLOT_NAME,
+    PLOT_AREA_CO = PLOT_AREA,
+    CROP_1_CO = CROP_1,
+    CROP_2_CO = CROP_2
+  )
+
+validation_ID <- cultinput_keys |>
+  rename(
+    PLOT_NAME_CI = PLOT_NAME,
+    PLOT_AREA_CI = PLOT_AREA,
+  ) |>
+  left_join(
+    plotlist_keys |> rename(
+      PLOT_NAME_PL = PLOT_NAME,
+      PLOT_AREA_PL = PLOT_AREA,
+      CROP_1_PL = CROP_1,
+      CROP_2_PL = CROP_2,
+    ),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
+  ) |>
+  left_join(cultoutput_keys, by = c("VDS_ID", "PLOT_CODE", "SEASON"))
+```
+
+### Correspondance des ID dans chaque base
+
+```{r Correspondance CultInput -> PlotList}
+# Vérifier les couples (VDS_ID, PLOT_CO, SEASON)
+cultinput_keys <- CultInput_2014 |>
+  select(VDS_ID, PLOT_CODE, SEASON) |>
+  distinct()
+
+plotlist_keys <- PlotList_2014 |>
+  select(VDS_ID, PLOT_CODE, SEASON) |>
   distinct()
 
 # Identifier les champs de CultInput non trouvés dans PlotList
-non_match <- anti_join(cultinput_keys, plotlist_keys, by = c("VDS_ID", "SEASON", "SUB_PLOT_CODE"))
+non_match <- anti_join(cultinput_keys, plotlist_keys, by = c("VDS_ID", "SEASON", "PLOT_CODE"))
 
 n_non_matched <- nrow(non_match)
 n_total <- nrow(cultinput_keys)
@@ -501,12 +338,16 @@ cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
 
 ```{r Correspondance CultInput -> CultOutput}
 # Vérifier les couples (VDS_ID, PLOT_CODE, SEASON)
+cultinput_keys <- CultInput_2014 |>
+  select(VDS_ID, PLOT_CODE, SEASON) |>
+  distinct()
+
 cultoutput_keys <- CultOutput_2014 |>
-  select(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  select(VDS_ID, PLOT_CODE, SEASON) |>
   distinct()
 
 # Identifier les champs de CultInput non trouvés dans CultOutput
-non_match2 <- anti_join(cultinput_keys, cultoutput_keys, by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON"))
+non_match2 <- anti_join(cultinput_keys, cultoutput_keys, by = c("VDS_ID", "PLOT_CODE", "SEASON"))
 
 n_non_matched2 <- nrow(non_match2)
 n_total2 <- nrow(cultinput_keys)
@@ -517,50 +358,7 @@ cat(" - Plots sans équivalent dans CultOutput :", n_non_matched2, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
 ```
 
-
-********************************************************************************
-
-# Création d'une base de vérification des champs
-
-## Base validation_ID
-
-```{r Correspondance couple VDS_ID / PLOT_CODE / SEASON entre les bases, message=FALSE, warning=FALSE}
-cultinput_keys <- CultInput_2014 |>
-  select(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON) |>
-  distinct()
-
-plotlist_keys <- PlotList_2014 |>
-  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON, CROP_1, CROP_2) |>
-  distinct()
-
-cultoutput_keys <- CultOutput_2014 |>
-  select(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON, CROP_1, CROP_2) |>
-  distinct() |>
-  rename(
-    PLOT_NAME_CO = PLOT_NAME,
-    CROP_AREA_CO = CROP_AREA,
-    CROP_1_CO = CROP_1,
-    CROP_2_CO = CROP_2
-  )
-
-validation_ID <- cultinput_keys |>
-  rename(
-    PLOT_NAME_CI = PLOT_NAME,
-    CROP_AREA_CI = CROP_AREA,
-  ) |>
-  left_join(
-    plotlist_keys |> rename(
-      PLOT_NAME_PL = PLOT_NAME,
-      CROP_AREA_PL = CROP_AREA,
-      CROP_1_PL = CROP_1,
-      CROP_2_PL = CROP_2,
-    ),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
-  ) |>
-  left_join(cultoutput_keys, by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON"))
-```
-
-## Modifier Base validation_ID
+### Modifier Base validation_ID
 
 ```{r Harmoniser: Méthode fonction}
 # Harmoniser la base validation_ID: quand 2 des 3 sources (_CI, _CO, _PL) sont identiques pour une même variable, remplacer la 3e valeur par cette valeur majoritaire.
@@ -569,7 +367,7 @@ harmonise_ID <- function(df, var) {
   var_CO <- sym(paste0(var, "_CO"))
   var_PL <- sym(paste0(var, "_PL"))
 
-  df <- df |>
+  df <- df %>%
     mutate(
       "{var}_CI" := as.character(!!var_CI),
       "{var}_CO" := as.character(!!var_CO),
@@ -593,7 +391,7 @@ harmonise_ID <- function(df, var) {
   return(df)
 }
 
-validation_ID <- harmonise_ID(validation_ID, "CROP_AREA")
+validation_ID <- harmonise_ID(validation_ID, "PLOT_AREA")
 validation_ID <- harmonise_ID(validation_ID, "PLOT_NAME")
 ```
 
@@ -601,19 +399,19 @@ validation_ID <- harmonise_ID(validation_ID, "PLOT_NAME")
 validation_ID <- validation_ID |>
   mutate(
     PLOT_NAME_match = PLOT_NAME_CI == PLOT_NAME_PL & PLOT_NAME_CI == PLOT_NAME_CO,
-    CROP_AREA_match = CROP_AREA_CI == CROP_AREA_PL & CROP_AREA_CI == CROP_AREA_CO
+    PLOT_AREA_match = PLOT_AREA_CI == PLOT_AREA_PL & PLOT_AREA_CI == PLOT_AREA_CO
   )
 
 validation_ID_false <- validation_ID |>
-  filter(!PLOT_NAME_match | !CROP_AREA_match)
+  filter(!PLOT_NAME_match | !PLOT_AREA_match)
 
 n_validation_ID <- nrow(validation_ID)
-area_match <- nrow(validation_ID |> filter(CROP_AREA_match))
-two_match <- nrow(validation_ID |> filter(CROP_AREA_match & PLOT_NAME_match))
-one_match <- nrow(validation_ID |> filter(CROP_AREA_match | PLOT_NAME_match))
-one_na <- nrow(validation_ID |> filter((is.na(CROP_AREA_match) | !CROP_AREA_match) &
+area_match <- nrow(validation_ID |> filter(PLOT_AREA_match))
+two_match <- nrow(validation_ID |> filter(PLOT_AREA_match & PLOT_NAME_match))
+one_match <- nrow(validation_ID |> filter(PLOT_AREA_match | PLOT_NAME_match))
+one_na <- nrow(validation_ID |> filter((is.na(PLOT_AREA_match) | !PLOT_AREA_match) &
                       (is.na(PLOT_NAME_match) | !PLOT_NAME_match)))
-one_false <- nrow(validation_ID |> filter(!CROP_AREA_match | !PLOT_NAME_match))
+one_false <- nrow(validation_ID |> filter(!PLOT_AREA_match | !PLOT_NAME_match))
 
 cat("Total des champs identifiés dans CultInput :", n_validation_ID, "\n")
 cat(" - 2 matchs :", two_match, "\n")
@@ -622,7 +420,7 @@ cat(" - Aucun match (soit NA soit False) :", one_na, "\n")
 cat(" - Au moins 1 False :", one_false, "\n")
 ```
 
-## Identifier les champs validés
+### Identifier les plots validés
 
 Je crée la variable OK pour identifier et sélectionner seulement les champs ayant au moins un match (validation du champ par PLOT_AREA et/ou PLOT_NAME).
 
@@ -631,7 +429,7 @@ Je crée la variable OK pour identifier et sélectionner seulement les champs ay
 validation_ID <- validation_ID |>
   mutate(
     OK = coalesce(PLOT_NAME_match, FALSE) | 
-      coalesce(CROP_AREA_match, FALSE)
+      coalesce(PLOT_AREA_match, FALSE)
   )
 
 nb_OK <- sum(validation_ID$OK, na.rm = TRUE)
@@ -648,22 +446,22 @@ cat("Pourcentage du total : ", pourcentage_OK, "%\n")
 # CultInput: 
 CultInput_2014 <- CultInput_2014 |>
   left_join(
-    validation_ID |> select(VDS_ID, SUB_PLOT_CODE, SEASON, OK),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
+    validation_ID |> select(VDS_ID, PLOT_CODE, SEASON, OK),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
   )
 
 # CultOutput
 CultOutput_2014 <- CultOutput_2014 |>
   left_join(
-    validation_ID |> select(VDS_ID, SUB_PLOT_CODE, SEASON, OK),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
+    validation_ID |> select(VDS_ID, PLOT_CODE, SEASON, OK),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
   )
 
 # PlotList
 PlotList_2014 <- PlotList_2014 |>
   left_join(
-    validation_ID |> select(VDS_ID, SUB_PLOT_CODE, SEASON, OK), 
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
+    validation_ID |> select(VDS_ID, PLOT_CODE, SEASON, OK), 
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
   )
 
 nb_cultinput_OK <- sum(CultInput_2014$OK, na.rm = TRUE)
@@ -689,7 +487,7 @@ print(lignes_validees)
 ```
 
 ```{r}
-# Sélectionner dans toutes les bases seulement les lignes validées
+# Sélectionner dans toutes les bases seulement lignes validées
 CultInput_2014 <- CultInput_2014 |>
   filter(OK==TRUE) |>
   select(-OK)
@@ -702,12 +500,177 @@ PlotList_2014 <- PlotList_2014 |>
   filter(OK==TRUE)
 ```
 
+# Création d'une base commune
 
-********************************************************************************
+## Supprimer les doublons avant de joindre toutes les bases
 
-# Harmonisation des données
+```{r}
+# Supprimer les lignes exactement identiques
+PlotList_2014 <- PlotList_2014 |> distinct()
+CultInput_2014 <- CultInput_2014 |> distinct()
+CultOutput_2014 <- CultOutput_2014 |> distinct()
+```
 
-## ID des cultures
+```{r}
+# Je modifie la variable OK en FALSE pour un plot identifé, dont les variables d'identification sont en double et qui ont le même nombre de NA. 
+PlotList_2014 <- PlotList_2014 |>
+  mutate(
+    OK = if_else(
+      VDS_ID == "IBH14D0032" & PLOT_NAME == "KOLAI BADH" & PLOT_CODE == "C" & SEASON == "Kharif" & PLOT_AREA == "0.25",
+      FALSE,
+      OK
+    )
+  ) 
+
+# Dans PlotList, je supprime les champs en double (même VDS_ID, PLOT_CODE et SEASON) en gardant la ligne avec le moins de NA.
+PlotList_2014 <- PlotList_2014 |>
+  mutate(n_na = rowSums(across(everything(), is.na))) |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  slice_min(order_by = n_na, with_ties = FALSE) |>
+  ungroup() |>
+  select(-n_na)
+```
+
+```{r}
+# Vérifier les doublons restants
+any(duplicated(PlotList_2014[, c("VDS_ID", "PLOT_CODE", "SEASON")]))
+
+any(duplicated(CultInput_2014[, c("VDS_ID", "PLOT_CODE", "PLOT_AREA", "DT_OPER", "OPERATION", "LAB_TYPE", "SEASON")]))
+
+any(duplicated(CultOutput_2014[, c("VDS_ID", "PLOT_CODE", "SEASON")]))
+```
+
+```{r}
+CultInput_2014 |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  summarise(na_irri_cultinput = sum(is.na(IRRI_AREA)), .groups = "drop")
+
+na_irri_plotlist <- PlotList_2014 |>
+  group_by(VDS_ID, PLOT_CODE, SEASON) |>
+  summarise(na_irri_plotlist = sum(is.na(IRRI_AREA)), .groups = "drop")
+```
+
+## Joindre en colonne les bases
+
+```{r}
+# Supprimer la variable IRRI_AREA de CultInput (je vais garder celle de PlotList)
+Cultivation_2014 <- CultInput_2014 |>
+  select(-SUR_YR, -IRRI_AREA, -PLOT_NAME)
+
+# D'abord joindre avec CultOutput
+Cultivation_2014 <- Cultivation_2014 |>
+  left_join(
+    CultOutput_2014 |> select(VDS_ID, PLOT_CODE, SEASON, CROP_1, CROP_2, CROP_3, CROP_4, CROP_1_ID, CROP_2_ID, CROP_3_ID, CROP_4_ID, PRCT_AREA_1, PRCT_AREA_2, PRCT_AREA_3, PRCT_AREA_4,VAR_NAME_1, VAR_NAME_2, VAR_NAME_3, VAR_NAME_4, VAR_TYPE_1, VAR_TYPE_2, VAR_TYPE_3, VAR_TYPE_4),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
+  )
+  
+# Puis joindre avec PlotList
+Cultivation_2014 <- Cultivation_2014 |>
+  left_join(
+    PlotList_2014 |> select(
+      VDS_ID, PLOT_CODE, SEASON, SUR_YR, IRRI_AREA,
+      CROP_1_PL = CROP_1,
+      CROP_2_PL = CROP_2,
+      CROP_1_ID_PL = CROP_1_ID,
+      CROP_2_ID_PL = CROP_2_ID
+    ),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
+  )
+
+# Remplacer les NA avec les infos de PlotList
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(
+    CROP_1 = coalesce(CROP_1, CROP_1_PL),
+    CROP_2 = coalesce(CROP_2, CROP_2_PL),
+    CROP_1_ID = coalesce(CROP_1_ID, CROP_1_ID_PL),
+    CROP_2_ID = coalesce(CROP_2_ID, CROP_2_ID_PL)
+  ) |>
+  select(-CROP_1_PL, -CROP_2_PL, -CROP_1_ID_PL, -CROP_2_ID_PL)
+```
+
+```{r}
+# Changer l'ordre des colonnes de Cultivation_2014
+Cultivation_2014 <- Cultivation_2014 |>
+  relocate(SUR_YR, .before = VDS_ID) |>
+  relocate(SUR_MON_YR, .after = SUR_YR) |>
+  relocate(IRRI_AREA, .after = PLOT_AREA) |>
+  relocate(CROP_1_ID, .after = CROP_1) |>
+  relocate(CROP_2_ID, .after = CROP_2) |>
+  relocate(CROP_3_ID, .after = CROP_3) |>
+  relocate(CROP_4_ID, .after = CROP_4) |>
+  relocate(VAR_TYPE_1, .after = VAR_NAME_1) |>
+  relocate(VAR_TYPE_2, .after = VAR_NAME_2) |>
+  relocate(VAR_TYPE_3, .after = VAR_NAME_3) |>
+  relocate(VAR_TYPE_4, .after = VAR_NAME_4)
+```
+
+# Travail sur la base commune
+
+## Modifier Cultivation_2014
+
+```{r}
+# Harmoniser la variable PRCT_AREA_1
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(
+    across(starts_with("PRCT_AREA"), as.numeric, .names = "{.col}")) |>
+  mutate(
+    PRCT_AREA_1 = if_else(
+      (is.na(PRCT_AREA_2)) & (is.na(PRCT_AREA_3)) & (is.na(PRCT_AREA_4)),
+      100,
+      PRCT_AREA_1
+    ) 
+  ) |>
+  mutate(
+    across(starts_with("PRCT_"), ~ if_else(is.na(.), 0, .), .names = "{.col}")
+  )
+```
+
+```{r}
+# Compter le nombre de lignes pour lesquelles la somme des pRCT_AREA n'est pas égale à 100
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(
+    PRCT_SUM = rowSums(across(starts_with("PRCT_AREA")), na.rm = TRUE)
+  )
+
+# Modifier PRCT_AREA_1 tel que la somme des PRCT soit égale à 100
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(
+    PRCT_AREA_1 = if_else(
+      PRCT_SUM != 100,
+      50,
+      PRCT_AREA_1
+    ),
+    PRCT_AREA_2 = if_else(
+      PRCT_SUM != 100,
+      50,
+      PRCT_AREA_2
+    )
+  ) |>
+  select(-PRCT_SUM)
+```
+
+```{r}
+# Enlever ANNUAL de la variable CROP
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(CROP_2 = if_else(CROP_2 == "ANNUAL", NA_character_, CROP_2))
+```
+
+```{r}
+# Créer la variable FERTILIZER qui précise si l'opération a nécessité de l'engrais ou non
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(FERTILIZER = str_detect(OPERATION, "FERTILIZ|FERTIGATION")) |>
+  relocate(FERTILIZER, .after = OPERATION)
+```
+
+## Harmoniser les variables
+
+```{r}
+# Harmoniser la variable OPERATION
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(OPERATION = toupper(OPERATION))
+```
+
+### Cultures
 
 ```{r}
 # Créer une liste avec toutes les valeurs uniques de CROP pour associer un numéro à chaque culture
@@ -773,8 +736,8 @@ correspondances <- tribble(
 # PlotList :
 plotlist_allcult <- PlotList_2014 |>
     semi_join(
-    CultInput_2014 |> select(VDS_ID, SEASON, SUB_PLOT_CODE),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
+    CultInput_2014 |> select(VDS_ID, SEASON, PLOT_CODE),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
   ) |>
   select(CROP_1, CROP_2) |>
   pivot_longer(everything(), names_to = "CROP_COL", values_to = "CULTURE_VARIANT") |> 
@@ -788,8 +751,8 @@ plotlist_allcult <- PlotList_2014 |>
 # CultOuput : 
 cultoutput_allcult <- CultOutput_2014 |>
   semi_join(
-    CultInput_2014 |> select(VDS_ID, SEASON, SUB_PLOT_CODE),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
+    CultInput_2014 |> select(VDS_ID, SEASON, PLOT_CODE),
+    by = c("VDS_ID", "PLOT_CODE", "SEASON")
   ) |>
   select(CROP_1, CROP_2, CROP_3, CROP_4) |> 
   mutate(across(c(CROP_1, CROP_2, CROP_3, CROP_4), toupper))|> 
@@ -824,7 +787,7 @@ PlotList_2014 <- PlotList_2014 |>
             by = "CULTURE_VARIANT_2") |>
   select(-CULTURE_VARIANT_1, -CULTURE_VARIANT_2)
 
-#Pour CultOutput
+#Pour CultOuput
 CultOutput_2014 <- CultOutput_2014 |>
   mutate(across(c(CROP_1, CROP_2, CROP_3, CROP_4), ~ trimws(toupper(.)))) |>
   rename(CULTURE_VARIANT_1 = CROP_1, CULTURE_VARIANT_2 = CROP_2, CULTURE_VARIANT_3 = CROP_3, CULTURE_VARIANT_4 = CROP_4) |>
@@ -838,185 +801,23 @@ CultOutput_2014 <- CultOutput_2014 |>
             by = "CULTURE_VARIANT_4")
 ```
 
-
-********************************************************************************
-
-# Création d'une base commune
-
-## Supprimer les doublons avant de joindre toutes les bases
-
 ```{r}
-# Supprimer les lignes exactement identiques
-PlotList_2014 <- PlotList_2014 |> distinct()
-CultInput_2014 <- CultInput_2014 |> distinct()
-CultOutput_2014 <- CultOutput_2014 |> distinct()
-```
-
-```{r}
-# Je modifie la variable OK en FALSE pour un plot identifé, dont les variables d'identification sont en double et qui ont le même nombre de NA. 
-PlotList_2014 <- PlotList_2014 |>
-  mutate(
-    OK = if_else(
-      VDS_ID == "IBH14D0032" & PLOT_NAME == "KOLAI BADH" & SUB_PLOT_CODE == "C" & SEASON == "Kharif" & CROP_AREA == "0.25",
-      FALSE,
-      OK
-    )
-  ) 
-
-# Dans PlotList, je supprime les champs en double (même VDS_ID, PLOT_CODE, SUB_PLOT_CODE et SEASON) en gardant la ligne avec le moins de NA.
-PlotList_2014 <- PlotList_2014 |>
-  mutate(n_na = rowSums(across(everything(), is.na))) |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON) |>
-  slice_min(order_by = n_na, with_ties = FALSE) |>
-  ungroup() |>
-  select(-n_na)
-```
-
-```{r}
-# Vérifier les doublons restants
-any(duplicated(PlotList_2014[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
-
-any(duplicated(CultInput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_AREA", "DT_OPER", "OPERATION", "LAB_TYPE", "SEASON")]))
-
-any(duplicated(CultOutput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
-```
-
-```{r}
-na_irri_cultinput <- CultInput_2014 |>
-  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
-  summarise(na_irri_cultinput = sum(is.na(IRRI_AREA)), .groups = "drop")
-
-na_irri_plotlist <- PlotList_2014 |>
-  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
-  summarise(na_irri_plotlist = sum(is.na(IRRI_AREA)), .groups = "drop")
-
-cat("Nombre de champs sans information sur l'irrigation dans CultInput : \n")
-cat("- dans CultInput :", nrow(na_irri_cultinput), "\n")
-cat("- dans PlotList :", nrow(na_irri_plotlist), "\n")
-```
-Il y a plus de champs qui ont indiqué l'irrigation dans CultInput, je vais garder la variable Irrigation de CultInput pour la base finale. 
-
-
-## Joindre en colonne les bases
-
-```{r}
-# Supprimer la variable IRRI_AREA de CultInput (je vais garder celle de PlotList)
-Cultivation_2014 <- CultInput_2014 |>
-  select(-SUR_YR, -PLOT_NAME)
-
-# D'abord joindre avec CultOutput
+# Ajouter le tableau de correspondance des cultures dans Cultivation_2014
 Cultivation_2014 <- Cultivation_2014 |>
-  left_join(
-    CultOutput_2014 |> select(VDS_ID, SUB_PLOT_CODE, SEASON, OP_MAIN_PROD_UNIT_1, OP_MAIN_PROD_UNIT_2, OP_MAIN_PROD_UNIT_3, OP_MAIN_PROD_QTY_1, OP_MAIN_PROD_QTY_2, OP_MAIN_PROD_QTY_3, CROP_1, CROP_2, CROP_3, CROP_4, CROP_1_ID, CROP_2_ID, CROP_3_ID, CROP_4_ID, PRCT_AREA_1, PRCT_AREA_2, PRCT_AREA_3, PRCT_AREA_4,VAR_NAME_1, VAR_NAME_2, VAR_NAME_3, VAR_NAME_4, VAR_TYPE_1, VAR_TYPE_2, VAR_TYPE_3, VAR_TYPE_4),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
-  )
-  
-# Puis joindre avec PlotList
-Cultivation_2014 <- Cultivation_2014 |>
-  left_join(
-    PlotList_2014 |> select(
-      VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, SEASON, SUR_YR,
-      CROP_1_PL = CROP_1,
-      CROP_2_PL = CROP_2,
-      CROP_1_ID_PL = CROP_1_ID,
-      CROP_2_ID_PL = CROP_2_ID
-    ),
-    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
-  )
+  pivot_longer(cols = starts_with("CROP_"), names_to = "CROP_COL", values_to = "CULTURE_VARIANT") |>
+  filter(!is.na(CULTURE_VARIANT)) |>
+  mutate(CULTURE_VARIANT = trimws(toupper(CULTURE_VARIANT))) |>
+  left_join(correspondances, by = "CULTURE_VARIANT") |>
+  mutate(CULTURE_FINAL = coalesce(CULTURE_STANDARD, CULTURE_VARIANT)) |>
+  select(-CROP_COL, -CULTURE_STANDARD)
 
-# Remplacer les NA avec les infos de PlotList
-Cultivation_2014 <- Cultivation_2014 |>
-  mutate(
-    CROP_1 = coalesce(CROP_1, CROP_1_PL),
-    CROP_2 = coalesce(CROP_2, CROP_2_PL),
-    CROP_1_ID = coalesce(CROP_1_ID, CROP_1_ID_PL),
-    CROP_2_ID = coalesce(CROP_2_ID, CROP_2_ID_PL)
-  ) |>
-  select(-CROP_1_PL, -CROP_2_PL, -CROP_1_ID_PL, -CROP_2_ID_PL)
+# Ajouter les CROP_IDs
+cultivation_allcult <- cultivation_allcult |>
+  filter(CULTURE_FINAL != "ANNUAL") |>
+  left_join(crop_ids, by = "CULTURE_FINAL")
 ```
 
-```{r}
-# Changer l'ordre des colonnes de Cultivation_2014
-Cultivation_2014 <- Cultivation_2014 |>
-  relocate(SUR_YR, .before = VDS_ID) |>
-  relocate(PLOT_CODE, .before = SUB_PLOT_CODE) |>
-  relocate(PLOT_AREA, .before = CROP_AREA) |>
-  relocate(SUR_MON_YR, .after = SUR_YR) |>
-  relocate(IRRI_AREA, .after = CROP_AREA) |>
-  relocate(CROP_1_ID, .after = CROP_1) |>
-  relocate(CROP_2_ID, .after = CROP_2) |>
-  relocate(CROP_3_ID, .after = CROP_3) |>
-  relocate(CROP_4_ID, .after = CROP_4) |>
-  relocate(VAR_TYPE_1, .after = VAR_NAME_1) |>
-  relocate(VAR_TYPE_2, .after = VAR_NAME_2) |>
-  relocate(VAR_TYPE_3, .after = VAR_NAME_3) |>
-  relocate(VAR_TYPE_4, .after = VAR_NAME_4) |>
-  relocate(TYPE_MAT, .after = NAME_MAT)
-```
-
-
-********************************************************************************
-
-# Nettoyer le base créée
-
-## Harmoniser Prct_area
-
-```{r}
-# Harmoniser la variable PRCT_AREA_1
-Cultivation_2014 <- Cultivation_2014 |>
-  mutate(
-    across(starts_with("PRCT_AREA"), as.numeric, .names = "{.col}")) |>
-  mutate(
-    PRCT_AREA_1 = if_else(
-      (is.na(PRCT_AREA_2)) & (is.na(PRCT_AREA_3)) & (is.na(PRCT_AREA_4)),
-      100,
-      PRCT_AREA_1
-    ) 
-  ) |>
-  mutate(
-    across(starts_with("PRCT_"), ~ if_else(is.na(.), 0, .), .names = "{.col}")
-  )
-```
-
-```{r}
-# Compter le nombre de lignes pour lesquelles la somme des PRCT_AREA n'est pas égale à 100
-Cultivation_2014 <- Cultivation_2014 |>
-  mutate(
-    PRCT_SUM = rowSums(across(starts_with("PRCT_AREA")), na.rm = TRUE)
-  )
-
-# Modifier PRCT_AREA_1 tel que la somme des PRCT soit égale à 100
-Cultivation_2014 <- Cultivation_2014 |>
-  mutate(
-    PRCT_AREA_1 = if_else(
-      PRCT_SUM != 100,
-      50,
-      PRCT_AREA_1
-    ),
-    PRCT_AREA_2 = if_else(
-      PRCT_SUM != 100,
-      50,
-      PRCT_AREA_2
-    )
-  ) |>
-  select(-PRCT_SUM)
-```
-
-```{r}
-# Enlever ANNUAL de la variable CROP
-Cultivation_2014 <- Cultivation_2014 |>
-  mutate(CROP_2 = if_else(CROP_2 == "ANNUAL", NA_character_, CROP_2))
-```
-
-
-## Harmoniser les opérations
-
-```{r}
-# Harmoniser la variable OPERATION
-Cultivation_2014 <- Cultivation_2014 |>
-  mutate(OPERATION = toupper(OPERATION))
-```
-
+### Opérations
 ```{r}
 # Tableau de correspodance des opérations pour les regouper en catégories simplifiées
 correspondances_oper <- tribble(
@@ -1338,7 +1139,7 @@ correspondances_oper <- tribble(
 )
 ```
 
-```{r, message=FALSE, warning=FALSE}
+```{r}
 # Créer un ID des opérations
 correspondances_oper <- correspondances_oper |>
   arrange(OPERATION, OPERATION_VARIANT) |>
@@ -1399,10 +1200,17 @@ cat("Nombre de lignes ayant plusieurs opérations  :", sum(!is.na(Cultivation_20
 cat("Pourcentage du total :", sum(!is.na(Cultivation_2014$OPER_2))/sum(is.na(Cultivation_2014$OPER_2)), "%")
 ```
 
-Comme les lignes regroupant plusieurs opérations représentent une partie minime de la base, je considère ces lignes dans la variable OPERATION. 
-
-
 ## Créations de variables
+
+### Heure de travail par hectare
+```{r}
+# Créer la variable WORK_PER_AREA, nombre d'heures par hectare
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(
+    HR_PER_ACRE = if_else(PLOT_AREA == 0, NA_real_, WORK_HR / PLOT_AREA)
+  )
+Cultivation_2014$HR_PER_ACRE <- round(Cultivation_2014$HR_PER_ACRE, 4)
+```
 
 ### Salaire horaire
 
@@ -1416,45 +1224,21 @@ Cultivation_2014$WAGE_PER_HR <- round(Cultivation_2014$WAGE_PER_HR, 2)
 ```
 
 ```{r}
-# Supprimer les variables non utilisées
 Cultivation_2014 <- Cultivation_2014 |>
-  select(-OPER_1, -OPER_2, -OPERATION_VARIANT)
-```
-
-```{r}
-Cultivation_2014 <- Cultivation_2014 |>
-  relocate(OPERATION, .after = DT_OPER) |>
+  relocate(OPERATION, .after = OPERATION_VARIANT) |>
   relocate(OPER_ID, .before = OPERATION) |>
-  relocate(WAGE_PER_HR, .after = WAGE)
+  relocate(OPERATION_VARIANT, .before = OPER_1) |>
+  relocate(HR_PER_ACRE, .after = WORK_HR) |>
+  relocate(WAGE_PER_HR, .after = WAGE) 
 ```
-
-
-### Nombre de ménages et champs distincts
-
-```{r}
-n_households <- Cultivation_2014 |>
-  distinct(VDS_ID) |>
-  summarise(n_households = n()) |>
-  pull(n_households)
-
-n_champs <- Cultivation_2014 |>
-  distinct(VDS_ID, SUB_PLOT_CODE) |>
-  summarise(n_champs = n()) |>
-  pull(n_champs)
-
-cat(" Nombre de ménages dans Cultivation_2014 :", n_households, "\n")
-cat(" Nombre de champs (toutes saisons confondues) :", n_champs, "\n")
-```
-
-********************************************************************************
 
 # Liens extérieurs
 
-## Enregistrer Cultivation_2014
+## Enregistrer Cultivation_2014 dans le document partagé
 
 ```{r}
 # Définir le chemin du dossier
-folder_path <- here("Base de données générées", "Cultivation_2014")
+folder_path <- "C:/Users/documentation/OneDrive - Université Paris-Dauphine/CDD projet Inde/Data sources/R Project- Micro database/Base de données générées/Cultivation_2014"
 
 # Créer le dossier s'il n'existe pas
 if (!dir.exists(folder_path)) {

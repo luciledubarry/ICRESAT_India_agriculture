@@ -28,6 +28,18 @@ library(gt)
 Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
 ```
 
+```{r}
+# Sélectionner avec la base Cultivation_top_25 les 25 cultures les plus répandues (celles avec le plus grand nombre de champs distincts)
+top_25_crops <- Cultivation_expand |>
+  filter(CROP != "SEASONAL FALLOW") |>
+  distinct(VDS_ID, PLOT_CODE, SEASON, CROP, AREA_CROP) |> 
+  count(CROP, name = "nb_occurrences") |>
+  arrange(desc(nb_occurrences)) |>
+  slice_head(n = 25)
+
+Cultivation_top_25 <- Cultivation_expand |>
+  semi_join(top_25_crops, by = "CROP") 
+```
 
 ********************************************************************************
 
@@ -245,7 +257,6 @@ oper_per_gender <- Cultivation_expand |>
 ```{r}
 Gender_labor_operation <- oper_per_gender |>
   filter(OPERATION != "OTHERS" & OPERATION != "NURSERY RAISING" & OPERATION != "MARKETING") |>
-  mutate(OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL.")) |>
   mutate(OPERATION = recode(OPERATION, `PLANT PROTECTION MEASURES` = "PLANT PROTECTION")) |>
   filter(GENDER == "Female" | GENDER == "Male") |>
   ggplot(aes(x = OPERATION, y = TOTAL_HR, fill = GENDER)) +
@@ -339,10 +350,7 @@ oper_gender_prct <- Cultivation_expand |>
 ```{r}
 plot_prct_oper_gender <- oper_gender_prct |>
   filter(CROP %in% c("PADDY", "MAIZE", "WHEAT")) |>
-  mutate(
-    OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL."),
-    CROP = recode(CROP, `PADDY` = "RICE")
-  ) |>
+  mutate(CROP = recode(CROP, `PADDY` = "RICE")) |>
   filter(!OPERATION %in% c(
     "SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS",
     "PLANT PROTECTION MEASURES", "TRANSPLANTING", "TRANSPORT", "SEED SOWING"
@@ -494,7 +502,6 @@ hr_per_gender <- Cultivation_top_25 |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
 
-A faire: Calculer la variable IRRIGATION dans Cultivation_expand puis l'ajouter à Cultivation_top_25
 
 ```{r}
 hr_per_gender |>
@@ -648,7 +655,7 @@ L'hypothèse semble vérifiée (à regarder plus en détails) : les femmes trava
 
 ********************************************************************************
 
-## Relation travail féminin familial et employé
+### Relation travail féminin familial et employé
 
 On veut représenter le temps de travail féminin familial (LAB_TYPE = FF) par rapport au temps de travail féminin total ou employé. On se concentre sur la culture de riz en Kharif. 
 
@@ -664,7 +671,7 @@ female_work_hours <- Cultivation_expand |>
   ungroup()
 ```
 
-### Scatter point
+#### Scatter point
 
 Graphique avec nuage de points + courbe de régression locale : loess (locally estimated scatterplot smoothing)
 
@@ -734,7 +741,7 @@ ggsave("figures/Point_female_work_hr.png",
 essayer de faire ce graph par caste : soit un graph par caste, soit tout dans le même
 
 
-### Histogram
+#### Histogram
 
 Graphique par catégories agrégées du travail employé
 
@@ -785,4 +792,21 @@ histogram_female_work_hr
 ```{r}
 ggsave("figures/Histogram_female_work_hr.png", plot = histogram_female_work_hr, width = 8, height = 6, dpi = 300)
 ```
+
+
+********************************************************************************
+
+### Salaire horaire par genre et type d'emploi
+
+On regarde le salaire horaire par type d'emploi (familial ou salarié) et par genre. 
+Le but est de notamment regarder si le travail féminin familial est effectivement moins coûteux que le travail féminin employé. 
+
+
+AJOUTER LA VARIABLE WAGE! à Cultivation_cult_distinctes
+
+Calcul du salaire horaire
+wage_gender <- Cultivation_expand |>
+  mutate(WAGE_PER_HR = WAGE / WORK_HR)
+wage_gender$WAGE_PER_HR <- round(wage_gender$WAGE_PER_HR, 2) 
+
 

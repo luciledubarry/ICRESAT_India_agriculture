@@ -21,6 +21,7 @@ library(stringr)
 library(stringdist)
 library(ggplot2)
 library(gt)
+library(lubridate)
 ```
 
 On vérifie si tous les ménages ont été interviewés chaque mois dans la base Employment_2014 qui est censée être mensuelle (comme Cultivation_2014)
@@ -358,8 +359,351 @@ Employment_2014 <- Employment_2014 |>
 ```
 
 
-## Analyse
-### Nombre d'étudiants par genre
+********************************************************************************
+
+## Cleaning + verif
+
+### Vérifier les enquêtes par mois
+
+#### Compter le nombre d'enquêtes par individu
+
+Certains doublons par individu et par mois s'expliquent à cause du mois enregistré qui ne correspond pas au mois de l'interview. 
+
+Je vérifie combien d'interviews ont fait chaque individu : nombre de mois avec une interview, nombre de mois distints (pour prednre en compte les mois doublés). 
+
+```{r}
+# Nombre d'interview par individu
+month_ind <- Employment_2014 |>
+  distinct(DT_INT, SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  summarise(nb_month = n(), .groups = "drop")
+
+table(month_ind$nb_month)
+
+# Nombre de mois distincts par individu
+dis_month_ind <- Employment_2014 |>
+  distinct(DT_INT, SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  summarise(nb_month = n_distinct(SUR_MON_YR), .groups = "drop")
+
+table(dis_month_ind$nb_month)
+```
+
+```{r}
+dup_date_int <- Employment_2014 |>
+  distinct(DT_INT, SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+Résumé : lien entre DT_INT et SUR_MON_YR par individu :
+- 1 DT = plusieurs SUR_MON_YR : une interview peut concerner plusieurs mois --> doublons à conserver
+- 1 DT = 1 SUR_MON_YR mais plusieurs lignes -> doublons à conserver selon le type de travail
+- 1 SUR_MON_YR = plusieurs DT_INT -> soit information en double (lignes identiques ou légers changements) soit SUR_MON_YR ne correpond pas à DT_INT
+
+
+Idée : distinct pour les lignes identiques (sauf DT_INT) --> pour éliminer les doublosn avec des dates d'interview différentes
+
+
+
+
+#### Harmoniser les variables sur les dates 
+
+Il faut vérifier que DT_INT (JJ/MM/AAAA) correspond bien au mois suivant de SUR_MON_YR (MM/AA) tel que DT_INT = SUR_MON_YR + 1.
+
+```{r}
+# Convertir la classe des variables DT_INT et SUR_MON_YR en date
+Employment_2014 <- Employment_2014 |>
+  mutate(DT_INT = recode(DT_INT,
+                         `31/11/2014` = "30/11/2014",
+                         `31/06/2015` = "30/06/2015",
+                         `11/01/ 215` = "11/01/2015"
+                         )
+         ) |>
+  mutate(
+    DT_INT = parse_date_time(DT_INT, orders = c("dmy", "ymd", "dmY", "d m Y")), # conversion des différents formats
+    SUR_MON_YR = as.Date(paste0("01/", SUR_MON_YR), format = "%d/%m/%y")
+  )  # conversion du format MM/YY
+```
+
+
+```{r}
+# Individus ayant plusieurs interview (à des dates différentes) dans le même mois
+dup_date_int <- Employment_2014 |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, CO_NF_WORK, WORK_PLACE) |>
+  distinct(DT_INT) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+Attention : Parfois le mois et le jours sont inversés dans DT_INT. C'ets pourquoi, je vérifie la correspondance de DT_INT avec SUR_MON_YR en prennant en compte cette possible inversion. 
+
+```{r}
+# Lignes pour lesquelles DT_INT et SUR_MON_YR ne correspondent pas, pour les individus ayant plusieurs interviews dans le même mois
+unmatch_date <- dup_date_int |>
+  mutate(
+    SUR_MON_PLUS1 = SUR_MON_YR %m+% months(1),  # ajouter 1 mois
+    same_month = month(DT_INT) == month(SUR_MON_PLUS1)  &
+                 year(DT_INT) == year(SUR_MON_PLUS1) |
+                 day(DT_INT) == month(SUR_MON_PLUS1)  &
+                 year(DT_INT) == year(SUR_MON_PLUS1) 
+  ) |>
+  select(VDS_ID, PRE_MEM_ID, REL, AGE, GENDER, SUR_MON_YR, SUR_MON_PLUS1, DT_INT, same_month)
+  
+
+# Modifier SUR_MON_YR en cas de unmatch
+unmatch_date <- unmatch_date |>
+  filter(!same_month) |>
+  mutate(
+    SUR_MON_YR_modif = floor_date(DT_INT %m-% months(1), unit = "month")
+  )
+```
+
+Cette méthode permet d'harmoniser la date de l'enquête (SUR_MON_YR_modif) pour les individus ayant plusieurs enquêtes par mois et d'éliminer tous ces doublons. 
+
+--> Les résultats ne sont pas logiques dans la plupart des cas. Garder seulement si modifier la méthode !!
+
+
+
+
+
+### Calculer les heures travaillées par mois
+
+Je me base sur les heures travaillées par mois et par individu, en différenciant par type de travail (employé agricole ou non-agricole, domestique, livestock, familial).
+
+```{r, message=FALSE, warning=FALSE}
+cols_to_convert <- c("WORK_DAYS", "AVG_WORK_HRS", "INV_UNEMP_DAYS", "OWN_FARM_D", 
+                     "OWN_FARM_H", "OWN_DOME_D", "OWN_DOME_H", "OWN_LST_D", 
+                     "OWN_LST_H", "OWN_OT_D", "OWN_OT_H", "SERI_ILL")
+
+hrs_worked <- Employment_2014 |>
+  select(SUR_MON_YR, DT_INT, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, 
+         WORK_TYPE,WORK_DAYS, AVG_WORK_HRS, INV_UNEMP_DAYS, OWN_FARM_D, OWN_FARM_H,
+         OWN_DOME_D, OWN_DOME_H, OWN_LST_D, OWN_LST_H, OWN_OT_D, OWN_OT_H,
+         SERI_ILL) |>
+  mutate(across((all_of(cols_to_convert)), ~ as.numeric(.)))
+```
+
+```{r}
+# Nombre de NA avant conversion
+test1 <- Employment_2014 |>
+  summarise(across(all_of(cols_to_convert), ~ sum(is.na(.)), .names = "na_{.col}")) |> 
+  pivot_longer(everything(), names_to = "variable", values_to = "n_na_emp")
+
+# Nombre de NA après conversion
+test2 <- hrs_worked |>
+  summarise(across(all_of(cols_to_convert), ~ sum(is.na(.)), .names = "na_{.col}")) |> 
+  pivot_longer(everything(), names_to = "variable", values_to = "n_na_hrs")
+
+test1 |>
+  left_join(test2, by = "variable") |>
+  mutate(diff = n_na_hrs - n_na_emp)
+```
+
+Convertir en numérique n'a créé des n/a seulement pour la variable OWN_DOME_D. 
+
+
+Calcul des heures travaillées par type de travail (employé, familial, domestique, livestock, autre) : 
+
+Si le nombre de jours travaillés est indiqué mais pas le nombre d'heures quotidiennes, je considère que chaque jour correspond à une journée entière donc 8h de travail. 
+
+```{r}
+# Calcul des heures travaillées par ligne
+hrs_worked <- hrs_worked |>
+  mutate(
+    HIRED_WORK_T = case_when(
+      is.na(WORK_DAYS) ~ 0,
+      is.na(AVG_WORK_HRS) ~ WORK_DAYS * 8,
+      TRUE ~ WORK_DAYS * AVG_WORK_HRS
+    ),
+    OWN_FARM_T = case_when(
+      is.na(OWN_FARM_D) ~ 0,
+      is.na(OWN_FARM_H) ~ OWN_FARM_D * 8,
+      TRUE ~ OWN_FARM_D * OWN_FARM_H
+    ),
+    OWN_DOME_T = case_when(
+      is.na(OWN_DOME_D) ~ 0,
+      is.na(OWN_DOME_H) ~ OWN_DOME_D * 8,
+      TRUE ~ OWN_DOME_D * OWN_DOME_H
+    ),
+    OWN_LST_T = case_when(
+      is.na(OWN_LST_D) ~ 0,
+      is.na(OWN_LST_H) ~ OWN_LST_D * 8,
+      TRUE ~ OWN_LST_D * OWN_LST_H
+    ),
+    OWN_OT_T = case_when(
+      is.na(OWN_OT_D) ~ 0,
+      is.na(OWN_OT_H) ~ OWN_OT_D * 8,
+      TRUE ~ OWN_OT_D * OWN_OT_H
+    ),
+    SERI_ILL_T = SERI_ILL * 8,
+    INV_UNEMP_T = INV_UNEMP_DAYS * 8
+  )
+```
+
+
+### Gérer les doublons 
+
+```{r}
+# Tableau des individus en double par mois dans Employment
+dup_rows_Employment_2014 <- hrs_worked |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+Dans cette base, il y a des individus en double (pour le même mois) à conserver et d'autres non. 
+
+Doublons à conserver : 
+- différent WORK_TYPE : un individu peut avoir fait dans le mois à la fois du travail employé agricole et non-agricole
+- différent WORK_DAYS (même WORK_TYPE) : un individu peut avoit fait plusieurs travaux employés dans le mois
+
+
+#### relatifs au travail employé
+
+Dans le cas de plusieurs travaux employés réalisés dans le mois (du même type : agricole ou non-agricole), j'additionne par individu les heures de ces travaux employés, puis supprime les lignes en doublon. 
+
+```{r}
+hrs_hired_sums <- hrs_worked |>
+  filter(!is.na(WORK_TYPE)) |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE) |>
+  summarise(HIRED_WORK_T = sum(HIRED_WORK_T, na.rm = TRUE), .groups = "drop") |>
+  distinct()
+
+# Joindre la somme des heures employées dans la base
+hrs_worked <- hrs_worked |>
+  select(-HIRED_WORK_T) |>
+  left_join(hrs_hired_sums, by = setdiff(names(hrs_hired_sums), "HIRED_WORK_T")) |>
+  
+# Par type de travail employé, enlever les doublons
+  distinct(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, HIRED_WORK_T, .keep_all = TRUE)
+```
+
+```{r}
+# Tableau des individus en double par mois à cause du travail employé
+dup_hired_work <- hrs_worked |>
+  filter(!is.na(WORK_TYPE)) |>
+  group_by(across(-c(WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, INV_UNEMP_T))) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+Problème : pour certains individus, les heures de travail par mois sont trop hautes, les gens travaillent pas tant. Je pense qu'il ne fait pas additionner tous les doublons des différents travaux employés ?
+
+
+Explications des doublons :
+
+- Pour certains individus, le doublon s'explique à cause du mois enregistré qui ne correspond pas au mois de l'interview. Il faut vérifier que DT_INT (JJ/MM/AAAA) correspond bien au mois suivant de SUR_MON_YR (MM/AA) : DT_INT = SUR_MONT_YR + 1
+
+- Si CO_NF_WORK/WORK_PLACE sont différents, cela signifie que c'est bien des travaux distintcs (et non des doublons) et qu'il faut donc les additionner
+
+- Si le deuxième doublon est entièrement des NA -> pas un problème car NA = 0
+
+
+#### relatifs à d'autres variables
+
+```{r}
+# Tableau des individus en double par mois, hors travail employé
+dup_non_hired_work <- hrs_worked |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+Pour les doublons relatifs à d'autres variables que le travail employé (WORK_TYPE, WORK_DAYS, CO_NF_WORK, WORK_PLACE), je supprime les individus en double (pour le même mois et/ou date d'interview) en gardant la ligne avec le moins de NA.
+
+Je filtre pour les individus ne faisant pas de travail employé : is.na(WORK_TYPE)
+
+```{r}
+# 1. Identifier les doublons à enlever
+hrs_worked_cleaned <- hrs_worked |>
+  filter(is.na(WORK_TYPE)) |>
+  mutate(n_na = rowSums(across(everything(), is.na))) |>
+  group_by(SUR_MON_YR, VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, GENDER, AGE, WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, HIRED_WORK_T) |>
+  slice_min(order_by = n_na, with_ties = FALSE) |>
+  ungroup() |>
+  select(-n_na)
+
+# 2. Supprimer les doublons dans la base d'origine
+hrs_worked <- hrs_worked |>
+  anti_join(hrs_worked_cleaned, by = c("SUR_MON_YR", "VDS_ID", "PRE_MEM_ID", "OLD_MEM_ID", "REL", "GENDER", "AGE", "WORK_TYPE")) |>
+  bind_rows(hrs_worked_cleaned) |>
+  distinct()
+```
+
+
+### Séparer le travail employé agricole et non-agricole
+
+```{r}
+# Séparer en deux colonnes les heures travaillées par mois (HIRED_WORK_T) entre travail employé agricole et non-agricole (WORK_TYPE)
+hrs_worked <- hrs_worked |>
+  pivot_wider(
+    names_from = WORK_TYPE, 
+    values_from = HIRED_WORK_T,
+    values_fill = 0,
+    ) |>
+  select(-`NA`)
+```
+
+```{r}
+farm_above_240 <- hrs_worked |>
+  filter(`Farm work` > 240) |>
+  mutate(daily_hours = AVG_WORK_HRS*WORK_DAYS) |>
+  select(SUR_MON_YR, DT_INT, VDS_ID, PRE_MEM_ID, daily_hours, `Farm work`, REL, GENDER, AGE)
+
+nf_above_240 <- hrs_worked |>
+  filter(`Non-farm work` > 240) |>
+  mutate(daily_hours = AVG_WORK_HRS*WORK_DAYS) |>
+  select(SUR_MON_YR, DT_INT, VDS_ID, PRE_MEM_ID, daily_hours, `Non-farm work`, REL, GENDER, AGE)
+
+cat("travail agricole :", nrow(farm_above_240), "\n")
+cat("travail non agricole :", nrow(nf_above_240), "\n")
+```
+
+Pour le travail agricole, la somme des heures travaillées pour le travail agricole correspond à la multiplication --> aucune erreur
+
+Pour le travail employé non-agricole, 
+
+
+
+### Vérification des heures travaillées par mois
+
+Je calcule la somme des heures travaillées par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu. 
+
+```{r}
+test_hrs_worked <- hrs_worked |>
+  reframe(hours_month = rowSums(across(c("Non-farm work", "Farm work", "OWN_OT_T", "OWN_LST_T", "OWN_DOME_T", "OWN_FARM_T", "SERI_ILL_T", "INV_UNEMP_T")), na.rm = TRUE))
+```
+
+Je vérifie si la somme des heures par mois est inférieure à 240h = 30j x 8h.
+
+```{r}
+zero_hours <- test_hrs_worked |>
+  filter(hours_month == 0)
+
+cat("Individus ne déclarant aucune heure travaillée par mois :", nrow(zero_hours), "\n")
+```
+
+```{r}
+test_hrs_worked |>
+  filter(hours_month != 0) |>
+  ggplot(aes(x = hours_month)) +
+  geom_histogram(bins = 30, fill = "steelblue2", color = "royalblue4") +
+  theme_minimal() +
+  labs(
+    x = "Heures de travail par mois par individu",
+    y = "",
+    title = "Répartition des heures de travail par mois"
+  )
+```
+
+
+
+
+********************************************************************************
+
+## Nombre d'étudiants par genre
 
 ```{r}
 # Créer la variable STUDENT à partir de REMARKS
@@ -403,81 +747,36 @@ Employment_2014 |>
 ```
 
 
-### Vérification des jours travaillés
+********************************************************************************
 
-*Méthode avec total de jours*
+## Travail familial
 
-On vérifie tout d'abord si la somme des jours travaillés par mois pour toutes les catégories (employé, agricole, domestique, livestock) par individu est égal à 30 jours. 
+### Total du travail non employé 
 
-```{r}
-# Tableau des individus en double dans Employment
-dup_rows_Employment_2014 <- Employment_2014 |>
-  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR, REL, WORK_TYPE, WORK_DAYS) |>
-  filter(n() > 1) |>
-  ungroup()
-```
 
-La variable WORK_DAYS (travail employé) est pour certains individus doublée lorsqu'ils font à la fois du travail employé agricole et non_agricole.  
-
-Etape 1: Je crée une table qui regroupe tous les individus et additionne les jours de travail agricole et non-agricole pour les individus qui sont en double. 
+Je regarde le total d'heures de travail non employé par individu et par mois, 
 
 ```{r}
-# 1. J'additionne les valeurs différentes de WORK_DAYS par individu
-# FAUX parce qu'il y a des doublons qui ne sont pas dus à WORK_DAYS et ne doivent pas être additionnés
-ind_work_days <- Employment_2014 |>
-  distinct(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, SUR_MON_YR, WORK_DAYS, OWN_DOME_D, OWN_LST_D, OWN_FARM_D, INV_UNEMP_DAYS, SERI_ILL, OWN_OT_D) |>
-  mutate(across(c(WORK_DAYS, OWN_DOME_D, OWN_LST_D, OWN_FARM_D, INV_UNEMP_DAYS, SERI_ILL, OWN_OT_D), as.numeric)) |>
-  group_by(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, REL, SUR_MON_YR) |>
-  mutate(HIRED_WORK_D = sum(WORK_DAYS, na.rm = TRUE), .groups = "drop") |>
-  select(-WORK_DAYS) |>
-  distinct()
+family_work <- hrs_worked |>
+  reframe(family_hrs = rowSums(across(c("Farm work", "OWN_OT_T", "OWN_LST_T", "OWN_DOME_T", "OWN_FARM_T")), na.rm = TRUE)) 
+
+family_work |>
+  ggplot(aes(x = family_hrs)) +
+  geom_histogram(bins = 30, fill = "steelblue2", color = "royalblue4") +
+  theme_minimal() +
+  labs(
+    x = "Travail non employé par mois par individu",
+    y = "",
+    title = "Heures de travail non employé par mois"
+  )
 ```
-
-
-
-
-*Méthode avec total d'heures*
-
-La base est complétée telle que tout jour de travail est comptabilisé comme un peu importe le nombre d'heures travaillées. Je me concentre donc sur le total d'heures travaillées dans le mois, plutôt que le total de jours. 
-
-On vérifie si le nombre d'heures travaillées par mois par individu excède ou non 240h (8h x 30 jours). 
-
-```{r}
-ind_work_days <- Employment_2014 |>
-  select(VDS_ID, PRE_MEM_ID, OLD_MEM_ID, SUR_MON_YR, WORK_TYPE, WORK_DAYS, AVG_WORK_HRS, OWN_DOME_D, OWN_DOME_H, OWN_LST_D, OWN_LST_H, OWN_FARM_D, OWN_FARM_H, INV_UNEMP_DAYS, SERI_ILL, OWN_OT_D, OWN_OT_H) |>
-```
-
-
-
-
-
-
-Autre méthode : 
-
-"Je divise donc WORK_DAYS et toutes les variables associées (AVG_WORK_HRS, WAGE_CASH, WAGE_KIND, CO_NF_WORK) entre travail agricole et travail non-agricole."
-
-A FINIR : 
-
-work_days <- Employment_2014 |>
-  mutate(WORK_DAYS = as.numeric(WORK_DAYS)) 
-
-work_days <- work_days |>
-  filter(!is.na(WORK_TYPE)) |>
-  pivot_wider(
-    names_from = WORK_TYPE, 
-    values_from = WORK_DAYS,
-    values_fill = list(WORK_DAYS = 0)
-    )
-
-work_days <- work_days |>
-  summarise(days_month = rowSums(c("SERI_ILL", "OWN_OT_D", "OWN_LST_D", "OWN_DOME_D", "OW_FARM_D", "WORK_DAYS"), na.rm = TRUE))
-
 
 
 
 ********************************************************************************
 
 ## Travail employé (agricole ou non) par genre
+
 ### Total d'heures
 
 On regarde quelle est la répartition du travail employé agricole et non-agricole par genre. L'idée est de voir si les hommes sont plus présents dans le travail non-agricole, pour expliquer la forte présence des femmes dans le travail agricole employé. 
@@ -612,7 +911,7 @@ ind_summary
 
 ### Travail selon la relation
 
-On regarde comment varie le travail agricole des femmes selon leur relation avec le chef de famille. Je refait le graphique sur le total d'heures travaillée par individu en 2014, en filtrant seulement pour le travail agricole et en différenciant les individus selon leur relation. 
+On regarde comment varie le travail employé agricole des femmes selon leur relation avec le chef de famille. Je refait le graphique sur le total d'heures travaillée par individu en 2014, en filtrant seulement pour le travail agricole et en différenciant les individus selon leur relation. 
 
 ```{r}
 ind_hours_rel <- labor_table |>
@@ -734,12 +1033,7 @@ ind_hours_caste |>
 ```
 
 
-
-## Travail familial (agricole ou non) par genre
-
-
-
-
+********************************************************************************
 
 
 

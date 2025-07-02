@@ -686,7 +686,6 @@ plot_3_crops_oper <- mean_hacre_oper |>
   filter(CROP %in% c("PADDY", "WHEAT", "MAIZE")) |>
   filter(!OPERATION %in% c("SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS", "PLANT PROTECTION MEASURES")) |>
   mutate(CROP = recode(CROP, `PADDY` = "RICE")) |>
-  mutate(OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL.")) |>
   ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = CROP)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.6) +
   labs(
@@ -1595,7 +1594,6 @@ mean_hacre_oper_HYV <- hr_per_oper |>
 ```{r}
 plot_labor_time_HYV <- mean_hacre_oper_HYV |>
   filter(CROP == "PADDY") |>
-  mutate(OPERATION = recode(OPERATION, `CHEMICAL FERTILIZER APPL.` = "FERTILIZER APPL.")) |>
   mutate(VAR_TYPE = recode(VAR_TYPE, `HYV` = "High-yielding variety")) |>
   filter(!OPERATION %in% c("SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS", "PLANT PROTECTION MEASURES")) |>
   filter(VAR_TYPE != "Others") |>

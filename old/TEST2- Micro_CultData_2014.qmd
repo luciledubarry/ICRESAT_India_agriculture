@@ -1,0 +1,167 @@
+---
+title: "test3_micro_CultData_2014"
+format: html
+editor: visual
+---
+
+---
+title: "Micro_CultData_2014_test1"
+author: "Lucile DUBARRY"
+format: html
+editor: visual
+---
+
+```{r}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r}
+#| message: false
+here::i_am("INCRESAT_Micro_database.Rproj")
+library(dplyr)
+library(tidyr)
+library(readxl)
+```
+
+## Importer les données
+
+```{r Importer les données, message=FALSE, warning=FALSE}
+EAST_CultInput_2014 <- read_excel("raw_data/EAST_Cultivation_Input_2014.xlsx")
+SAT_CultInput_2014 <- read_excel("raw_data/SAT_Cultivation_Input_2014.xlsx")
+EAST_CultOutput_2014 <- read_excel("raw_data/EAST_Cultivation_Output_2014.xlsx")
+SAT_CultOutput_2014 <- read_excel("raw_data/SAT_Cultivation_Output_2014.xlsx")
+EAST_PlotList_2014 <- read_excel("raw_data/EAST_Plot_List_2014.xlsx")
+SAT_PlotList_2014 <- read_excel("raw_data/SAT_Plot_List_2014.xlsx")
+```
+
+## Assembler les régions par base de données
+
+```{r Harmoniser les noms des variables}
+SAT_PlotList_2014 <- SAT_PlotList_2014 |>
+  rename(VDS_ID = PL_ID)
+
+EAST_CultOutput_2014 <- EAST_CultOutput_2014 |>
+  rename(PLOT_AREA = PLO_AREA)
+
+SAT_PlotList_2014 <- SAT_PlotList_2014 %>%
+  mutate(PLOT_AREA = round(PLOT_AREA, 2))
+
+EAST_PlotList_2014 <- EAST_PlotList_2014 %>%
+  mutate(PLOT_AREA = round(PLOT_AREA, 2))
+```
+
+```{r Harmoniser les types de chaque colonne}
+# Je repère si les colonnes ayant le même nom et vérifie si elles sont du même type  (numeric ou character). Dans le cas de colonnes avec le même nom mais d'un type différent, je les convertis en character, ce qui limite le nombre de NA. IL est nécessaire que les colonnes soient du même type pour utiliser la fonction bind_rows. 
+
+common_cols_cultinput <- intersect(names(EAST_CultInput_2014), names(SAT_CultInput_2014))
+for (col in common_cols_cultinput) {
+    EAST_CultInput_2014[[col]] <- as.character(EAST_CultInput_2014[[col]])
+    SAT_CultInput_2014[[col]] <- as.character(SAT_CultInput_2014[[col]])
+}
+
+common_cols_cultoutput <- intersect(names(EAST_CultOutput_2014), names(SAT_CultOutput_2014))
+for (col in common_cols_cultoutput) {
+    EAST_CultOutput_2014[[col]] <- as.character(EAST_CultOutput_2014[[col]])
+    SAT_CultOutput_2014[[col]] <- as.character(SAT_CultOutput_2014[[col]])
+}
+
+common_cols_plotlist <- intersect(names(EAST_PlotList_2014), names(SAT_PlotList_2014))
+for (col in common_cols_plotlist) {
+    EAST_PlotList_2014[[col]] <- as.character(EAST_PlotList_2014[[col]])
+    SAT_PlotList_2014[[col]] <- as.character(SAT_PlotList_2014[[col]])
+}
+```
+
+```{r}
+CultInput_2014 <- bind_rows(EAST_CultInput_2014, SAT_CultInput_2014)
+CultOuput_2014 <- bind_rows(EAST_CultOutput_2014, EAST_CultOutput_2014)
+PlotList_2014 <- bind_rows(EAST_PlotList_2014, SAT_PlotList_2014)
+
+CultInput_2014 <- CultInput_2014 |>
+  rename(PLOT_CODE = PLOT_CO) |>
+  select(-NAME_MAT, -UNIT_MAT, -QTY_MAT, -RATE_MAT, -VAL_MAT, -SOURCE_MAT, -TYPE_MAT, -REMARKS) |>
+  filter(!is.na(LAB_TYPE))
+
+CultOuput_2014 <- CultOuput_2014 |>
+  select(-OP_MAIN_PROD_UNIT, -OP_MAIN_PROD_QTY, -OP_MAIN_PROD_RATE, -OP_BY_PROD_UNIT, -OP_BY_PROD_QTY, -OP_BY_PROD_RATE, -OP_OT_PROD_UNIT, -OP_OT_PROD_QTY, -OP_OT_PROD_RATE, -REMARKS)
+```
+
+## Vérifier la correspondances des plots entre Plotlist, CultInput et CultOuput
+```{r Correspondance VDS_ID}
+# Vérifier si les VDS_ID das CultInput sont présents dans PlotList
+all(CultInput_2014$VDS_ID %in% PlotList_2014$VDS_ID)
+setdiff(CultInput_2014$VDS_ID, PlotList_2014$VDS_ID)
+length(setdiff(CultInput_2014$VDS_ID, PlotList_2014$VDS_ID))
+
+# Vérifier si les VDS_ID das CultInput sont présents dans PlotList
+all(CultInput_2014$VDS_ID %in% CultOuput_2014$VDS_ID)
+length(setdiff(CultInput_2014$VDS_ID, CultOuput_2014$VDS_ID))
+```
+
+```{r Choisir les critères d'identification des données}
+any(duplicated(PlotList_2014[, c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "SEASON", "PLOT_NAME")]))
+
+# Tableau des doublons PlotList
+dup_rows_PlotList_2014 <- PlotList_2014 |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, PLOT_NAME, PLOT_AREA) |>
+  filter(n() > 1) |>
+  ungroup()
+
+any(duplicated(CultInput_2014[, c("VDS_ID", "PLOT_CODE", "DT_OPER", "OPERATION", "LAB_TYPE", "PLOT_NAME", "PLOT_AREA")]))
+any(duplicated(CultOuput_2014[, c("VDS_ID", "PLOT_CODE", "SEASON", "VAR_NAME", "PLOT_NAME", "PLOT_AREA")]))
+```
+
+```{r Correspondance PlotList -> CultInput}
+# Vérifier les couples (VDS_ID, PLOT_CO / SUB_PLOT_CODE, SEASON)
+plotlist_keys <- PlotList_2014 |>
+  select(VDS_ID, SUB_PLOT_CODE, SEASON, PLOT_NAME, PLOT_AREA) |>
+  rename(PLOT_CODE = SUB_PLOT_CODE) |>
+  distinct()
+
+cultinput_keys <- CultInput_2014 |>
+  select(VDS_ID, PLOT_CODE, SEASON, PLOT_NAME, PLOT_AREA) |>
+  distinct()
+
+# Identifier les champs de CultInput non trouvés dans PlotList
+non_match <- anti_join(plotlist_keys, cultinput_keys, by = c("VDS_ID", "PLOT_CODE", "SEASON", "PLOT_NAME", "PLOT_AREA"))
+
+n_non_matched <- nrow(non_match)
+n_total <- nrow(plotlist_keys)
+prop_non_matched <- round(n_non_matched / n_total * 100, 2)
+
+cat(" - Plots totaux dans PlotList :", n_total, "\n")
+cat(" - Plots sans équivalent dans CultInput :", n_non_matched, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+```
+
+```{r Correspondance PlotList -> CultOuput}
+# Vérifier les couples (VDS_ID, PLOT_CODE)
+plotlist_keys <- PlotList_2014 |>
+  select(VDS_ID, SUB_PLOT_CODE, SEASON, PLOT_NAME, PLOT_AREA) |>
+  rename(PLOT_CODE = SUB_PLOT_CODE) |>
+  distinct()
+
+cultoutput_keys <- CultOuput_2014 |>
+  select(VDS_ID, PLOT_CODE, SEASON, PLOT_NAME, PLOT_AREA) |>
+  distinct()
+
+# Identifier les champs de CultInput non trouvés dans CultOuput
+non_match2 <- anti_join(plotlist_keys, cultoutput_keys, by = c("VDS_ID", "PLOT_CODE", "SEASON", "PLOT_NAME", "PLOT_AREA"))
+
+n_non_matched2 <- nrow(non_match2)
+n_total2 <- nrow(plotlist_keys)
+prop_non_matched2 <- round(n_non_matched2 / n_total * 100, 2)
+
+cat(" - Plots totaux dans Plotlist :", n_total2, "\n")
+cat(" - Plots sans équivalent dans CultOuput :", n_non_matched2, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
+```
+
+
+```{r}
+# Je supprime les plots dans PlotList qui n'ont pas leur équivalent dans CultiInput (qui est la source principale d'informations).
+
+
+```

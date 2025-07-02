@@ -1,0 +1,687 @@
+---
+title: "Régression (partie 1) : Analyse du travail total par acre selon la caste"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(tibble)
+library(tidyverse)
+library(gt)
+library(xtable)
+```
+
+```{r}
+Cultivation_expand <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand.rds"))
+```
+
+```{r}
+PlotList <- readRDS(here::here("Base de données générées", "PlotList_2014", "Plotlist_2014.rds"))
+
+PlotList$CROP_AREA <- as.numeric(as.character(PlotList$CROP_AREA))
+PlotList$PLOT_AREA <- as.numeric(as.character(PlotList$PLOT_AREA))
+```
+
+
+********************************************************************************
+
+## Préparer la base
+
+### Gérer les doublons dans Cultivation_expand
+
+```{r}
+# Vérifier qu'il n'y ait pas de champs en double (pour le riz en Kharif)
+dup_plots_paddy <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, PLOT_AREA, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
+  distinct() |>
+  group_by(VDS_ID, SUB_PLOT_CODE, AREA_CROP) |>
+  filter(n() > 1) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+Il y a des champs en double à cause de OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.  
+
+```{r}
+# CODE A REVOIR: Supprimer les doublons causés par OP
+test_cultivation_expand <- Cultivation_expand |>
+  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
+  summarise(
+    OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY), default = NA),
+    OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT), default = NA),
+    .groups = "drop"
+  ) |>
+  distinct()
+
+test_cultivation_expand |>
+  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
+  filter(n() > 1)
+```
+
+```{r}
+# Supprimer les doublons causés par OP
+Cultivation_expand <- Cultivation_expand |>
+  select(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT)) |>
+  distinct()
+```
+
+
+### Modifier les variables
+
+*Sélectionner les variables*
+
+```{r}
+# Filtrer pour la culture du riz en Kharif
+Cultivation_paddy <- Cultivation_expand |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  filter(AREA_CROP != 0) |>  # Enlever les champs dont la superficie est nulle
+
+# Sélectionner les variables d'intérêt
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, REGION, STATE, VILLAGE) |>
+  distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
+```
+
+```{r}
+# Vérifier les doublons restants après avoir sélectionné les variables
+Cultivation_paddy |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
+  filter(n_distinct(IRRIGATION) > 1 |
+         n_distinct(VAR_TYPE) > 1 |
+         n_distinct(CASTE_GROUP) > 1 |
+         n_distinct(STATE) > 1 |
+         n_distinct(VILLAGE) > 1) |>
+  mutate(row_in_group = row_number()) |>
+  ungroup()
+```
+
+*Modifier Machinery*
+
+Je modifie la variable Machinery telle que pour chaque champ, une opération est considérée mécanisée si au moins un outil a été utilisé pour cette opération, à n'importe quel moment de la saison. 
+
+Rappel: La variable Machinery indique 'mécanisé' si l'opération a nécessité un outil (TR, SP, DS, SM, PT, ET, CH, TH, SD, MK, DP) ou si la variable TYPE_MAT indique 'Machinery' (concerne également AUTO et CYCLE WEEDER).
+
+```{r}
+# Identifier les champs ayant utilisé des outils pendant la saison pour chaque opération
+Cultivation_paddy <- Cultivation_paddy |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, OPERATION) |>
+  mutate(MACHINERY = any(MACHINERY == "Mécanisé")) |>
+  ungroup()
+```
+
+Si on souhaite considérer les opérations sans heure de travail (Machinery = n/a) comme non mécanisée : ajouter MACHINERY = replace_na(MACHINERY, "Non mécanisé"), sachant que cela change le sens du coefficient pour le régression. 
+
+Ensuite, j'identifie les champs dont le labour est mécanisé. 
+
+```{r}
+# Identifier les champs mécanisant land preparation 
+mechanized_tilling <- Cultivation_paddy |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
+  reframe(mechanized_tilling = any(MACHINERY == TRUE))
+
+# Ajouter la variable à Cultivation_paddy
+Cultivation_paddy <- Cultivation_paddy |>
+  left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP"))
+```
+
+
+*Réécrire les variables en dummies*
+
+```{r}
+Cultivation_paddy <- Cultivation_paddy |>
+  mutate(
+    mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
+    IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
+    REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
+    )
+```
+
+Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"),
+
+Je définie les catégories de référence pour STATE et VILLAGE.
+
+```{r}
+# State
+Cultivation_paddy$STATE <- factor(Cultivation_paddy$STATE)
+Cultivation_paddy$STATE <- relevel(Cultivation_paddy$STATE, ref = "AP")
+
+# Village
+Cultivation_paddy$VILLAGE <- factor(Cultivation_paddy$VILLAGE)
+Cultivation_paddy$VILLAGE <- relevel(Cultivation_paddy$VILLAGE, ref = "AP14C")
+
+# Caste
+Cultivation_paddy$CASTE_GROUP <- factor(Cultivation_paddy$CASTE_GROUP)
+Cultivation_paddy$CASTE_GROUP <- relevel(Cultivation_paddy$CASTE_GROUP, ref = "BC")
+```
+
+La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité omise étant la catégorie de référence. 
+
+
+
+### Variables créées
+
+*Sommer les champs d'un même ménage*
+
+Je calcule la superficie totale de tous les champs d'un même ménage, pour toutes les cultures (dont le riz) en Kharif. Pour cela, je reviens sur la base Cultivation_expand. 
+
+```{r}
+# Avec Cultivation_expand
+household_plots <- Cultivation_expand |>
+  filter(SEASON == "KHARIF") |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA) |>
+  group_by(VDS_ID) |>
+  summarise(AREA_HH = sum(PLOT_AREA, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+# Avec PlotList
+plotlist_area_hh <- PlotList |>
+  filter(SEASON %in% c("Kharif", "KHARIF")) |>
+  distinct(VDS_ID, SUB_PLOT_CODE, PLOT_CODE, CROP_AREA) |>
+  group_by(VDS_ID) |>
+  summarise(AREA_HH = sum(CROP_AREA, na.rm = TRUE), .groups = "drop")
+
+Cultivation_paddy <- Cultivation_paddy |>
+  left_join(plotlist_area_hh, by = "VDS_ID")
+```
+
+J'ai utilisé la table PlotList (sans aucune modification) pour calculer la somme des terres par méange, seulement pour Kharif, en incluant les champs en jachère. 
+
+
+*Superficie au carré*
+
+```{r}
+Cultivation_paddy <- Cultivation_paddy |>
+  mutate(AREA_CROP_SQ = AREA_CROP^2,
+         AREA_HH_SQ = AREA_HH^2)
+```
+
+
+*Heures de travail par acre par champ*
+
+```{r}
+# Additionner les heures de travail par champ
+Cultivation_all <- Cultivation_paddy |>
+  group_by(across(-c("WORK_HR", "LAB_TYPE"))) |>
+  summarise(OPER_HRS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# Diviser les heures totales par acre
+  mutate(HACRE_OPER = OPER_HRS/AREA_CROP)
+```
+
+
+********************************************************************************
+
+## Régressions
+
+## Tout type de travail confondu
+
+L'objectif de ces premières régressions est de comprendre pourquoi on observe un différence de l'intensité du travail (Hr/acre) entre les castes, même après avoir contrôler pour plusieurs variables (mécanisation, superficie du champ). 
+
+Niveau d'analyse : On se concentre au niveau des opérations par champ. 
+p = plot ; H = Household ; o = opération. 
+
+Outcome : Travail total par acre, tout type de travail confondu. 
+
+
+### Toutes opérations
+
+```{r}
+reg_all <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_all)
+summary(reg_all)
+```
+
+Attention : Il y a beaucoup d'observations effacées à cause des n/a de Machinery. 
+
+Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
+Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
+
+Code pour Var_type : 
+- 1 = Local (catégorie de référence),
+- 2 = HYV,
+- 3 = Hybrid,
+- 4 = BT,
+- 5 = Others
+
+
+### Par opération
+
+Je refais la régression pour les opérations principales du riz en Kharif. 
+
+```{r}
+reg_land <- Cultivation_all |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_land)
+```
+
+Attention : Pour cette régression, c'est normal que mechanized_tilling soit NA, car machinery_tilling et MACHINERY sont identiques. R ne considère pas le deuxième coefficient, à cause du problème de colinéarité que cela causerait. 
+
+
+```{r}
+reg_harvest <- Cultivation_all |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_harvest)
+```
+
+
+```{r}
+reg_weeding <- Cultivation_all |>
+  filter(OPERATION == "HAND WEEDING") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling + STATE,
+     data = _)
+summary(reg_weeding)
+```
+
+Attention: Il faut enlever Machinery pour étudier Hand weeding, car cette opération n'est jamais mécanisé. Il n'y a qu'une seule modalité pour Machinery, donc R ne peut pas créer de dummies. 
+
+
+```{r}
+reg_trans <- Cultivation_all |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling + STATE,
+     data = _)
+summary(reg_trans)
+
+```
+
+
+### Avec le min de variables explicatives
+
+```{r}
+reg_min <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + STATE, data = Cultivation_all)
+summary(reg_min)
+```
+
+Variables nécessaires pour n'avoir aucune différence significative entre BC et FC: STATE + AREA_CROP ou AREA_HH
+
+
+********************************************************************************
+
+## Par type de travail
+
+On refait les régressions précédentes, avec comme outcome les heures de travail par acre pour chaque type de travail (femme/homme, familial/employé).
+
+
+### Créer la base par type de travail
+
+Je calcule les heures de travail par champ, en différenciant par le type de travail
+
+```{r}
+Cultivation_labor <- Cultivation_paddy |>
+  filter(!LAB_TYPE %in% c("RS", "HC", "FC")) |>
+
+# 1. Somme des heures de travail par champ, caste et lab_type
+  group_by(across(-WORK_HR)) |>
+  summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = WORK_HR,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF + EF,
+    WORK_M = HM + FM + EM,
+    WORK_O = OB + HB + EB + FB
+  ) |>
+  select(-'NA')
+```
+
+```{r}
+# Diviser les heures de travail par acre
+Cultivation_labor <- Cultivation_labor |>
+  group_by(across(everything())) |>
+  summarise(FF = FF/AREA_CROP,
+            HF = HF/AREA_CROP,
+            EF = EF/AREA_CROP,
+            HM = HM/AREA_CROP,
+            FM = FM/AREA_CROP,
+            EM = EM/AREA_CROP,
+            OB = OB/AREA_CROP,
+            HB = HB/AREA_CROP,
+            EB = EB/AREA_CROP,
+            FB = FB/AREA_CROP,
+            WORK_F = WORK_F/AREA_CROP,
+            WORK_M = WORK_M/AREA_CROP,
+            WORK_O = WORK_O/AREA_CROP,
+            .groups = "drop")
+```
+
+
+
+### FF: Travail féminin familial
+
+En se concentrant sur le ratio Hr/acre pour le travail féminin familial, on regarde s'il y a une différence significative entre FC et BC, avec les mêmes variables de contrôle. Notre hypothèse est que la demande de travail familial féminin soit moindre pour les FC. 
+
+```{r}
+reg_FF <- lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_FF)
+```
+Refaire cette régression sans MACHINERY, mechanized_tilling qui peuvent être des stratégies de substitution pour faire baisser FF
+
+
+#### Hand weeding
+
+```{r}
+reg_FF <- Cultivation_labor |>
+  filter(OPERATION == "HAND WEEDING") |>
+  lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+#### Harvesting
+
+```{r}
+reg_FF <- Cultivation_labor |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+#### Transplanting
+
+```{r}
+reg_FF <- Cultivation_labor |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  lm(FF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+
+### HF: Travail féminin employé
+
+```{r}
+reg_HF <- lm(HF ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_HF)
+```
+Rajouter un dummy OPERATION pour les régressions toutes opérations confondues 
+
+
+### FM: Travail masculin familial
+
+```{r}
+reg_FM <- lm(FM ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_FM)
+```
+
+### HM: Travail masculin employé
+
+```{r}
+reg_HM <- lm(HM ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling  + STATE, data = Cultivation_labor)
+summary(reg_HM)
+```
+
+
+********************************************************************************
+
+## Potentiels facteurs de confusion
+
+On regroupe dans un tableau les facteurs susceptibles de confondre les résultats de la régression. J'indique la moyenne et l'écar-type pour chaque variable, pour l'ensemble des champs et par caste. 
+
+On se concentre sur la culture du riz en Kharif. 
+
+Liste des variables : 
+- total land size ; (je me base sur PlotList) 
+- plot size ; (pour l'instant, je ne peux pas le calculer)
+- subplot size ; (j'utilise Cultivation_expand)
+- number of subdivision of plot per household ; 
+- use of tractors, threshers, sprayers ; 
+- irrigation ;
+- HYV use ; 
+- productivity : production of rice per acre ; (faut remettre les variables OP et gérer les doublons)
+- hours worked for each labor type. 
+
+Pour avoir la différence entre plot size et subplot size, je me base sur la table PlotList dans laquelle cette distinction est indiquée par ménage. 
+
+
+### Correspondance des champs entre Plotlist et Cultivation_paddy 
+
+Je vérifie les couples (VDS_ID, AREA_CROP, PLOT_CODE) dans Cultivation_paddy en les comparant à soit PLOT_CODE soit SUB_PLOT_CODE dans PlotList.
+
+```{r Correspondance Cultivation_paddy -> Plotlist}
+# Préparer les clés de Cultivation_paddy
+cultivation_keys <- Cultivation_paddy |>
+  mutate(AREA_CROP = round(AREA_CROP, 2)) |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
+  distinct()
+
+# Préparer les clés de PlotList en utilisant PLOT_CODE et SUB_PLOT_CODE
+plotlist_keys <- PlotList |>
+  mutate(AREA_CROP = round(CROP_AREA, 2),
+         AREA_CROP = if_else(is.na(AREA_CROP), PLOT_AREA, AREA_CROP)) |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP) |>
+  distinct()
+
+# Identifier les lignes dans Cultivation_paddy qui n'ont aucun match
+non_match <- anti_join(
+  cultivation_keys,
+  plotlist_keys,
+  by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP")
+)
+
+n_non_matched <- nrow(non_match)
+n_total <- nrow(cultivation_keys)
+prop_non_matched <- round(n_non_matched / n_total * 100, 2)
+
+cat(" - Total de champs dans Cultivation_paddy :", n_total, "\n")
+cat(" - Champs sans correspondance dans PlotList :", n_non_matched, "\n")
+cat(" - Proportion sans correspondance :", prop_non_matched, "%\n")
+```
+
+### Comparaison de la superficie par ménage entre les 2 tables
+
+Je compare la superficie totale par ménage (tous les champs du ménage), pour vérifier s'il y a des incohérences entre les 2 tables.
+
+```{r Correspondance des superficies par ménage}
+# Identifier les champs pour lesquels AREA_HH diffère entre les 2 tables
+non_area_hh <- anti_join(household_plots, plotlist_area_hh, by = c("VDS_ID", "AREA_HH"))
+
+n_non_area_hh <- nrow(non_area_hh)
+n_total <- nrow(household_plots)
+prop_non_area <- round(n_non_area_hh / n_total * 100, 2)
+
+cat(" - Ménages dans Cultivation_paddy :", n_total, "\n")
+cat(" - Ménages sans équivalent dans PlotList :", n_non_area_hh, "\n")
+cat(" - Proportion sans équivalent :", prop_non_area, "%\n")
+```
+
+### Tableau des facteurs
+
+```{r}
+# 1. Somme des heures de travail par champ, pour tout LAB_TYPE
+all_factors <- Cultivation_paddy |>
+  filter(AREA_CROP != 0) |>
+  group_by(across(-WORK_HR)) |>
+  summarise(TOTAL_HOURS = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
+
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = TOTAL_HOURS,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF,
+    WORK_M = HM + FM,
+    WORK_O = OB + FB + EB,
+    ALL_WORK = HF + FF + HM + FM + OB + FB + EB + EM + EF + HC + FC + RS
+  ) |>
+  select(-c(`NA`, RS, HC, FC, EF, EM, HB, OB, EB, FB, MACHINERY))
+```
+
+```{r}
+# Additionner les heures de travail par champ et par lab_type (toutes opérations confondues)
+all_factors <- all_factors |>
+  group_by(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE) |>
+  summarise(
+    FM = sum(FM),
+    HM = sum(HM),
+    WORK_M = sum(WORK_M),
+    HF = sum(HF),
+    FF = sum(FF),
+    WORK_F = sum(WORK_F),
+    WORK_O = sum(WORK_O),
+    ALL_WORK = sum(ALL_WORK),
+    .groups = "drop"
+  ) |>
+
+# Calculer le ratio Hr/acre pour chaque lab_type
+  mutate(
+    FM = FM/AREA_CROP,
+    HM = HM/AREA_CROP,
+    WORK_M = WORK_M/AREA_CROP,
+    HF = HF/AREA_CROP,
+    FF = FF/AREA_CROP,
+    WORK_F = WORK_F/AREA_CROP,
+    WORK_O = WORK_O/AREA_CROP,
+    ALL_WORK = ALL_WORK/AREA_CROP
+  ) |>
+
+# Modifier Var_type = 1 if HYV, 0 sinon
+  mutate(
+    VAR_TYPE = as.numeric(as.character(VAR_TYPE)),
+    VAR_TYPE = replace_na(VAR_TYPE, 0),
+    VAR_TYPE = if_else(VAR_TYPE == 2, 1, 0)
+  ) |>
+
+# Hramoniser les colonnes en numérique
+  mutate(
+    IRRIGATION = as.numeric(as.character(IRRIGATION))
+    )
+```
+
+```{r}
+# Pivoter la table en long
+all_factors_long <- all_factors |>
+  pivot_longer(cols = c(AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE, ALL_WORK, FM, HM, HF, FF), names_to = "variable", values_to = "value")
+```
+
+```{r}
+# Calculer les statistiques par caste
+table_factors_caste <- all_factors_long |>
+  filter(!is.na(CASTE_GROUP)) |>
+  group_by(variable, CASTE_GROUP) |>
+  summarise(
+    mean = mean(value, na.rm = TRUE),
+    sd = sd(value, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  ) |>
+  mutate(caste_col = paste0(CASTE_GROUP)) |>
+  select(-CASTE_GROUP) |>
+  pivot_wider(
+    names_from = caste_col,
+    values_from = c(mean, sd, n),
+    names_glue = "{caste_col}_{.value}"
+  )
+
+# Ajouter les statistiques pour l'ensemble des champs (toutes castes confondues)
+table_factors_total <- all_factors_long |>
+  group_by(variable) |>
+  summarise(
+    mean_total = mean(value, na.rm = TRUE),
+    sd_total = sd(value, na.rm = TRUE),
+    n_total = n(),
+    .groups = "drop"
+  )
+
+# Fusionner les deux tables
+table_factors <- left_join(table_factors_total, table_factors_caste, by = "variable")
+```
+
+
+TEST 2
+
+*Tableau dans Latex*
+
+```{r}
+vars <- c("AREA_CROP", "AREA_HH", "ALL_WORK", "FF", "HF", "FM", "HM", "IRRIGATION", "VAR_TYPE")
+
+# Fonction pour calculer mean, sd et n
+summary_stats <- function(df, var) {
+  df |>
+    summarise(
+      mean = mean(.data[[var]], na.rm = TRUE),
+      sd   = sd(.data[[var]], na.rm = TRUE),
+      n    = sum(!is.na(.data[[var]]))
+    ) |>
+    mutate(var = var)
+}
+```
+
+```{r}
+# Statistiques pour chaque groupe de caste
+table_stats <- bind_rows(
+  summary_stats(all_factors, "AREA_CROP") |> mutate(CASTE_GROUP = "total"),
+  all_factors |> group_by(CASTE_GROUP) |>
+    summarise(across(all_of(vars),
+                     list(mean = ~mean(.x, na.rm = TRUE),
+                          sd = ~sd(.x, na.rm = TRUE),
+                          n = ~sum(!is.na(.x))),
+                     .names = "{.col}_{.fn}")) |>
+    pivot_longer(-CASTE_GROUP) |>
+    separate(name, into = c("var", "stat"), sep = "_", extra = "merge") |>
+    pivot_wider(names_from = stat, values_from = value, values_fn = mean)
+)
+
+# Reformat pour affichage : lignes = variables, colonnes = groupe caste
+table_final <- table_stats %>%
+  pivot_longer(cols = c(mean, sd), names_to = "stat") %>%
+  pivot_wider(names_from = CASTE_GROUP, values_from = value) %>%
+  pivot_longer(cols = -c(var, stat), names_to = "CASTE_GROUP") %>%
+  unite("value", stat, value, sep = ": ") %>%
+  pivot_wider(names_from = CASTE_GROUP, values_from = value) %>%
+  pivot_wider(names_from = var, values_from = everything(), values_fn = list) %>%
+  unnest(cols = everything()) %>%
+  relocate(any_of(c("AREA_CROP", "AREA_HH", "ALL_WORK", "FF", "HF", "FM", "HM", "IRRIGATION", "VAR_TYPE"))) # ordre lignes
+
+# Ajouter ligne de nombre d'observations à la fin
+n_obs <- all_factors %>%
+  group_by(CASTE_GROUP) %>%
+  summarise(n = n()) %>%
+  pivot_wider(names_from = CASTE_GROUP, values_from = n)
+
+# Ajouter une ligne "N"
+table_final <- bind_rows(table_final, c(var = "N", n_obs))
+
+# Affichage LaTeX
+print(xtable(table_final, align = "lccccc"), include.rownames = FALSE, sanitize.text.function = identity)
+```
+
+
+
+
+
+```{r}
+data <- fread('Example.csv')
+
+print(xtable(data, type='latex'))
+```
+
+
+
+
+
