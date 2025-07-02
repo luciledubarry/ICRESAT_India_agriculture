@@ -176,30 +176,22 @@ La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité om
 
 *Sommer les champs d'un même ménage*
 
-Je calcule la superficie totale de tous les champs d'un même ménage, pour toutes les cultures (dont le riz) en Kharif. Pour cela, je reviens sur la base Cultivation_expand. 
+Je calcule la superficie totale de tous les champs d'un même ménage, pour toutes les cultures (dont le riz) en Kharif.  
+
+PLUS BESOIN ? Vérifier la cohérence de AREA_HH entre Plotlist et Cultivation
 
 ```{r}
-# Avec Cultivation_expand
-household_plots <- Cultivation_expand |>
-  filter(SEASON == "KHARIF") |>
-  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA) |>
-  group_by(VDS_ID) |>
-  summarise(AREA_HH = sum(PLOT_AREA, na.rm = TRUE), .groups = "drop")
-```
-
-```{r}
-# Avec PlotList
 plotlist_area_hh <- PlotList |>
   filter(SEASON %in% c("Kharif", "KHARIF")) |>
   distinct(VDS_ID, SUB_PLOT_CODE, PLOT_CODE, CROP_AREA) |>
   group_by(VDS_ID) |>
-  summarise(AREA_HH = sum(CROP_AREA, na.rm = TRUE), .groups = "drop")
+  summarise(AREA_HH_PL = sum(CROP_AREA, na.rm = TRUE), .groups = "drop")
 
 Cultivation_paddy <- Cultivation_paddy |>
   left_join(plotlist_area_hh, by = "VDS_ID")
 ```
 
-J'ai utilisé la table PlotList (sans aucune modification) pour calculer la somme des terres par méange, seulement pour Kharif, en incluant les champs en jachère. 
+J'ai utilisé la table PlotList (sans aucune modification) pour calculer la somme des terres par ménage, seulement pour Kharif, en incluant les champs en jachère. 
 
 
 *Superficie au carré*
@@ -613,75 +605,84 @@ table_factors <- left_join(table_factors_total, table_factors_caste, by = "varia
 ```
 
 
-TEST 2
+AFFICHAGE DU TABLEAU EN LATEX : 
 
-*Tableau dans Latex*
-
-```{r}
-vars <- c("AREA_CROP", "AREA_HH", "ALL_WORK", "FF", "HF", "FM", "HM", "IRRIGATION", "VAR_TYPE")
-
-# Fonction pour calculer mean, sd et n
-summary_stats <- function(df, var) {
-  df |>
-    summarise(
-      mean = mean(.data[[var]], na.rm = TRUE),
-      sd   = sd(.data[[var]], na.rm = TRUE),
-      n    = sum(!is.na(.data[[var]]))
-    ) |>
-    mutate(var = var)
-}
-```
-
-```{r}
-# Statistiques pour chaque groupe de caste
-table_stats <- bind_rows(
-  summary_stats(all_factors, "AREA_CROP") |> mutate(CASTE_GROUP = "total"),
-  all_factors |> group_by(CASTE_GROUP) |>
-    summarise(across(all_of(vars),
-                     list(mean = ~mean(.x, na.rm = TRUE),
-                          sd = ~sd(.x, na.rm = TRUE),
-                          n = ~sum(!is.na(.x))),
-                     .names = "{.col}_{.fn}")) |>
-    pivot_longer(-CASTE_GROUP) |>
-    separate(name, into = c("var", "stat"), sep = "_", extra = "merge") |>
-    pivot_wider(names_from = stat, values_from = value, values_fn = mean)
-)
-
-# Reformat pour affichage : lignes = variables, colonnes = groupe caste
-table_final <- table_stats %>%
-  pivot_longer(cols = c(mean, sd), names_to = "stat") %>%
-  pivot_wider(names_from = CASTE_GROUP, values_from = value) %>%
-  pivot_longer(cols = -c(var, stat), names_to = "CASTE_GROUP") %>%
-  unite("value", stat, value, sep = ": ") %>%
-  pivot_wider(names_from = CASTE_GROUP, values_from = value) %>%
-  pivot_wider(names_from = var, values_from = everything(), values_fn = list) %>%
-  unnest(cols = everything()) %>%
-  relocate(any_of(c("AREA_CROP", "AREA_HH", "ALL_WORK", "FF", "HF", "FM", "HM", "IRRIGATION", "VAR_TYPE"))) # ordre lignes
-
-# Ajouter ligne de nombre d'observations à la fin
-n_obs <- all_factors %>%
-  group_by(CASTE_GROUP) %>%
-  summarise(n = n()) %>%
-  pivot_wider(names_from = CASTE_GROUP, values_from = n)
-
-# Ajouter une ligne "N"
-table_final <- bind_rows(table_final, c(var = "N", n_obs))
-
-# Affichage LaTeX
 print(xtable(table_final, align = "lccccc"), include.rownames = FALSE, sanitize.text.function = identity)
-```
+
+data <- fread('Example.csv')
+print(xtable(data, type='latex'))
 
 
+********************************************************************************
 
+## Tableau de régressions
 
+### Au niveau du ménage
+
+Household level database only with villages whose main crop is rice.
+
+– Reg 1: Outcome: Hours per acres of female family work in Kharif
+– Reg 2: Outcome: Probability to cultivate rice in Kharif [Check if enough
+variation? Share of people that do not cultivate rice at all in these
+villages?]
+– Reg 3: Outcome: Share of land allocated to rice in Kharif
+
+Controls for Reg 1–3: Caste ; Total land ; Total Land sq ; Village dummies. 
+
+CODE A SIMPLIFIER : PARTIE EN DOUBLE PAR RAPPORT A AU-DESSUS
 
 ```{r}
-data <- fread('Example.csv')
+# Recalculer les superficies au carré
+Cultivation_hh <- Cultivation_expand |>
+  mutate(AREA_CROP_SQ = AREA_CROP^2,
+         AREA_HH_SQ = AREA_HH^2) |>
+  filter(!LAB_TYPE %in% c("RS", "HC", "FC"),
+         SEASON == "KHARIF") |>
+  
+# 1. Somme des heures de travail par champ, caste et lab_type
+  group_by(across(-WORK_HR)) |>
+  summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
 
-print(xtable(data, type='latex'))
+# 2. Pivoter et créer les valeurs 0 quand le travail est nul
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = WORK_HR,
+    values_fill = 0
+  ) |>
+
+# 3. Calculer le travail total selon le genre
+  mutate(
+    WORK_F = HF + FF + EF,
+    WORK_M = HM + FM + EM,
+    WORK_O = OB + HB + EB + FB
+  ) |>
+  select(-'NA') |>
+
+# Diviser les heures de travail par acre
+  group_by(across(everything())) |>
+  summarise(FF = FF/AREA_CROP,
+            HF = HF/AREA_CROP,
+            EF = EF/AREA_CROP,
+            HM = HM/AREA_CROP,
+            FM = FM/AREA_CROP,
+            EM = EM/AREA_CROP,
+            OB = OB/AREA_CROP,
+            HB = HB/AREA_CROP,
+            EB = EB/AREA_CROP,
+            FB = FB/AREA_CROP,
+            WORK_F = WORK_F/AREA_CROP,
+            WORK_M = WORK_M/AREA_CROP,
+            WORK_O = WORK_O/AREA_CROP,
+            .groups = "drop") |>
+  
+# Filtrer pour les villages dont la culture dominante est le riz
+  filter(VILLAGE_CROP == "PADDY")
 ```
 
+```{r}
+table1_reg1 <- lm(FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + VILLAGE, data = Cultivation_hh)
+summary(table1_reg1)
+```
 
-
-
+NE FONCTIONNE PAS, ACTUELLEMENT AU NIVEAU DE l'OPERATION PLUTOT QUE DU MENAGE
 
