@@ -298,12 +298,10 @@ PlotList_2014 <- PlotList_2014 |>
   arrange(IRRI_AREA) |>
   distinct(across(-IRRI_AREA), .keep_all = TRUE) |>
 
-# Lorsque la superficie du subplot est manquante (CROP_AREA = n/a), je considère alors la superficie du plot (PLOT_AREA)
-  mutate(CROP_AREA = if_else(is.na(CROP_AREA), PLOT_AREA, CROP_AREA)) |>
-
-# De la même manière, si SUB_PLOT_CODE n'est pas indiqué, je considère l'identifiant du plot (PLOT_CODE)
+# Lorsque SUB_PLOT_CODE n'est pas indiqué, je considère l'identifiant du plot (PLOT_CODE)
   mutate(SUB_PLOT_CODE = if_else(is.na(SUB_PLOT_CODE), PLOT_CODE, SUB_PLOT_CODE))
 ```
+
 
 ```{r}
 # Je modifie SUB_PLOT_CODE pour des champs spécifiques, pour lequels SUB_PLOT_CODE et PLOT_CODE sont incohérents. 
@@ -524,7 +522,7 @@ cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
 
 ## Base validation_ID
 
-```{r Correspondance couple VDS_ID / PLOT_CODE / SEASON entre les bases, message=FALSE, warning=FALSE}
+```{r Correspondance couple VDS_ID / SUB_PLOT_CODE / SEASON entre les bases, message=FALSE, warning=FALSE}
 cultinput_keys <- CultInput_2014 |>
   select(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON) |>
   distinct()
@@ -624,7 +622,7 @@ cat(" - Au moins 1 False :", one_false, "\n")
 
 ## Identifier les champs validés
 
-Je crée la variable OK pour identifier et sélectionner seulement les champs ayant au moins un match (validation du champ par PLOT_AREA et/ou PLOT_NAME).
+Je crée la variable OK pour identifier et sélectionner seulement les champs ayant au moins un match (validation du champ par CROP_AREA et/ou PLOT_NAME).
 
 ```{r}
 # Création de la variable OK
@@ -900,7 +898,6 @@ Il y a plus de champs qui ont indiqué l'irrigation dans CultInput, je vais gard
 ## Joindre en colonne les bases
 
 ```{r}
-# Supprimer la variable IRRI_AREA de CultInput (je vais garder celle de PlotList)
 Cultivation_2014 <- CultInput_2014 |>
   select(-SUR_YR, -PLOT_NAME)
 
@@ -958,6 +955,51 @@ Cultivation_2014 <- Cultivation_2014 |>
 ********************************************************************************
 
 # Nettoyer le base créée
+
+## Corriger les superficies
+
+*Gérer les n/a pour Plot_area*
+
+Lorsque la superficie du plot est manquante (Plot_area = n/a), je considère alors la superficie du subplot (Crop_area) si elle est indiquée. 
+
+```{r}
+na_plot_area <- Cultivation_2014 |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, CROP_AREA) |>
+  filter(is.na(PLOT_AREA)) |>
+  nrow()
+
+cat("Nombre de champs sans Plot_area : ", na_plot_area, "\n")
+
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(PLOT_AREA = if_else(is.na(PLOT_AREA), CROP_AREA, PLOT_AREA))
+```
+
+*Corriger les incohérences entre Plot_area et Crop_area*
+
+Pour certains ménages, la superficie du subplot dépasse celle du plot, ce qui n'est pas cohérent. Dans ces cas, je remplace la taille du subplot par celle du plot. 
+
+```{r}
+nb_modifications <- Cultivation_2014 |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, CROP_AREA) |>
+  filter(!is.na(CROP_AREA), !is.na(PLOT_AREA), CROP_AREA > PLOT_AREA) |>
+  nrow()
+
+cat("Nombre de champs modifiés : ", nb_modifications, "\n")
+```
+
+```{r}
+# Remplacer CROP_AREA par PLOT_AREA quand CROP_AREA > PLOT_AREA
+Cultivation_2014 <- Cultivation_2014 |>
+  mutate(
+    CROP_AREA = if_else(
+      CROP_AREA > PLOT_AREA,
+      PLOT_AREA,
+      CROP_AREA,
+      missing = CROP_AREA
+    )
+  )
+```
+
 
 ## Harmoniser Prct_area
 
