@@ -529,6 +529,51 @@ cultures_per_season |>
 ```
 
 
+### Culture dominante
+
+Je détermine quelle est la culture la plus répandue (en Kharif) par village.
+L'objectif est d'identifier les villages dont la culture dominante en Kharif est le riz.
+
+```{r}
+first_crop_village <- Cultivation_cult_distinctes |>
+  filter(CROP != "SEASONAL FALLOW") |>
+  distinct(VDS_ID, SUB_PLOT_CODE, VILLAGE, CROP, SEASON) |>
+  count(VILLAGE, SEASON, CROP, name = "n") |>
+  group_by(VILLAGE, SEASON) |>
+  arrange(desc(n)) |>
+  mutate(rank = row_number()) |>
+  ungroup() |>
+  filter(rank == 1) |>
+  rename(VILLAGE_CROP = CROP)
+```
+
+```{r}
+# Ajouter la culture dominante par village à la base principale
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  left_join(first_crop_village |> select(-c(n, rank)), by = c("VILLAGE", "SEASON"))
+```
+
+
+### Ménages cultivant du riz
+
+J'identifie les méanges ayant au moins un champ de riz par saison (peu importe la superficie). 
+
+```{r}
+households_with_paddy <- Cultivation_cult_distinctes |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  group_by(VDS_ID, SEASON) |>
+  mutate(with_paddy = any(CROP == "PADDY")) |>
+  ungroup() |>
+  distinct(VDS_ID, SEASON, with_paddy)
+```
+
+```{r}
+# Ajouter la variable à la base principale par ménage et saison
+Cultivation_cult_distinctes <- Cultivation_cult_distinctes |>
+  left_join(households_with_paddy, by = c("VDS_ID", "SEASON"))
+```
+
+
 ********************************************************************************
 
 ## Verifs
@@ -605,7 +650,7 @@ J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que j
 
 ```{r}
 plots_by_household <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CROP_ID, PLOT_AREA, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME, MULTI_CROPING, REGION, STATE, VILLAGE)
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CROP_ID, PLOT_AREA, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME, MULTI_CROPING, REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy)
 
 full_operation <- expand_grid(
   plots_by_household,
@@ -755,7 +800,7 @@ Cultivation_expand <- Cultivation_expand |>
 ```{r}
 Cultivation_expand <- Cultivation_expand |>
   select(
-    SUR_MON_YR, MONTH, SEASON, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, IRRI_CROP, CROP, IRRIGATION, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, everything()  # place les colonnes restantes à la fin
+    SUR_MON_YR, MONTH, SEASON, VDS_ID, CASTE, CASTE_GROUP, with_paddy, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, AREA_CROP, IRRI_CROP, CROP, IRRIGATION, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, GENDER, EMPLOYMENT, NAME_MAT, TYPE_MAT, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, MACHINERY, FERTILIZER, VAR_TYPE, VAR_NAME, CROP_ID, HUMAN_LABOR, MULTI_CROPING, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  # place les colonnes restantes à la fin
   )
 ```
 
