@@ -753,6 +753,7 @@ Employment_2014 |>
 
 ### Total du travail non employé 
 
+
 Je regarde le total d'heures de travail non employé par individu et par mois, 
 
 ```{r}
@@ -769,10 +770,6 @@ family_work |>
     title = "Heures de travail non employé par mois"
   )
 ```
-
-### 
-
-
 
 
 
@@ -1037,6 +1034,14 @@ ind_hours_caste |>
 
 
 ********************************************************************************
+
+
+
+
+
+
+
+
 
 ## Enregistrer Employment_2014 dans le document partagé
 
