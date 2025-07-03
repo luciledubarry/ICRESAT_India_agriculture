@@ -589,13 +589,13 @@ Je définie maintenant la part de la terre du ménage (somme de tous ses champs)
 ```{r}
 # Superficie totale cultivée par ménage et par saison
 hh_area <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP, SEASON) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, SEASON) |>
   group_by(VDS_ID, SEASON) |>
   summarise(AREA_HH = sum(AREA_CROP, na.rm = TRUE), .groups = "drop")
 
 # Superficie et part de la terre dédiée au riz, par saison
 paddy_area <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON) |>
   filter(CROP == "PADDY") |>
   group_by(VDS_ID, SEASON) |>
   summarise(paddy_area = sum(AREA_CROP, na.rm = TRUE), .groups = "drop") |>
