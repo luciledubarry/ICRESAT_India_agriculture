@@ -663,6 +663,43 @@ reg5_plot <- Cultivation_oper |>
 summary(reg5_plot)
 ```
 
+*Tableau de régression au niveau du subplot*
+
+```{r}
+# Liste des modèles
+models_subplot <- list(
+  "Probability to do hand weeding" = reg4_plot,
+  "labor in hand weeding (Hours/acre)" = reg5_plot
+)
+
+# Noms des variables
+coef_map_subplot <- c(
+  "CASTE_GROUPFC" = "Caste: FC",
+  "CASTE_GROUPSC" = "Caste: SC",
+  "CASTE_GROUPST" = "Caste: ST",
+  "AREA_HH" = "Household area",
+  "PLOT_AREA" = "Plot area",
+  "AREA_CROP" = "Subplot area"
+)
+
+options("modelsummary_format_numeric_latex" = "plain")
+
+# Création du tableau
+modelsummary(
+  models_subplot,
+  coef_map = coef_map_subplot,
+  gof_omit = "R2|Adj|AIC|BIC|F|Log|Std|RMSE",  # pour supprimer stats inutiles
+  stars = TRUE,
+  statistic = "({std.error})",             # erreur standard entre parenthèses
+  add_rows = data.frame(
+    Variable = "Village FE",
+    `Probability to do hand weeding` = "Yes",
+    `Labor in wand weeding (Hours/acre)` = "Yes"
+  ),
+  output = "markdown"  # ou "latex"
+)
+```
+
 
 ********************************************************************************
 
