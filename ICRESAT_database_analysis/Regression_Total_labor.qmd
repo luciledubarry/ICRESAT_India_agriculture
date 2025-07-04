@@ -87,32 +87,6 @@ Cultivation_expand <- Cultivation_expand |>
 
 *Sélection des variables d'intérêt*
 
-
-l
-
-
-*Doublons crées après sélection des variables*
-
-
-
-
-
-********************************************************************************
-
-### Sommer les heures de travail par opération
-
-J'additionne les heures de travail par opération et par type de travail pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts. 
-
-Cultivation_expand <- Cultivation_expand |>
-  filter(!LAB_TYPE %in% c("RS", "HC", "FC", "6")) |>
-  group_by(across(-c("WORK_HR", "MONTH", "DT_OPER", "SUR_MON_YR"))) |>
-  summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop")
-
-
-********************************************************************************
-
-### Modifier les variables
-
 ```{r}
 Cultivation_expand <- Cultivation_expand |>
   filter(SEASON == "KHARIF",
@@ -126,7 +100,13 @@ Cultivation_expand <- Cultivation_expand |>
 ```
 
 
+********************************************************************************
+
+### Conserver une ligne par opération et type de travail
+
 *Modifier Machinery*
+
+Pour ne conserver qu'une ligne par opération et type de travail pour chaque champ, j'harmonise la variable MACHINERY au niveau de l'opération. 
 
 Je modifie la variable Machinery telle que pour chaque champ, une opération est considérée mécanisée si au moins un outil a été utilisé pour cette opération, à n'importe quel moment de la saison. 
 
@@ -156,6 +136,22 @@ Cultivation_expand <- Cultivation_expand |>
   left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "CROP", "SEASON"))
 ```
 
+
+*Sommer les heures de travail par opération*
+
+J'additionne les heures de travail par opération et par type de travail pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts. 
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  filter(LAB_TYPE != "6") |>
+  group_by(across(-"WORK_HR")) |>
+  summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop")
+```
+
+
+********************************************************************************
+
+### Modifier les variables
 
 *Ajouter Hand weeding*
 
@@ -329,8 +325,7 @@ Cultivation_labor <- Cultivation_expand |>
     WORK_F = HF + FF + EF,
     WORK_M = HM + FM + EM,
     WORK_O = OB + HB + EB + FB
-  ) |>
-  select(-'NA')
+  )
 ```
 
 ```{r}
@@ -577,7 +572,8 @@ Controls for Reg 1–3: Caste ; Total land ; Total Land sq ; Village dummies.
 
 ```{r}
 # Reg 1: Outcome: Hours per acres of female family work in Kharif
-reg1_hh <- lm(FF_HACRE ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + VILLAGE, data = Cultivation_hh)
+reg1_hh <- lm(FF_HACRE ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + VILLAGE, 
+              data = Cultivation_hh)
 summary(reg1_hh)
 ```
 
@@ -597,14 +593,14 @@ summary(reg3_hh)
 
 ```{r}
 # Liste des modèles
-models <- list(
+models_hh <- list(
   "Female family labor (Hours/acre)" = reg1_hh,
   "Rice cultivation (Yes/No)" = reg2_hh,
   "Share land to rice" = reg3_hh
 )
 
 # Noms des variables
-coef_map <- c(
+coef_map_hh <- c(
   "CASTE_GROUPFC" = "Caste: FC",
   "CASTE_GROUPSC" = "Caste: SC",
   "CASTE_GROUPST" = "Caste: ST",
@@ -616,8 +612,8 @@ options("modelsummary_format_numeric_latex" = "plain")
 
 # Création du tableau
 modelsummary(
-  models,
-  coef_map = coef_map,
+  models_hh,
+  coef_map = coef_map_hh,
   gof_omit = "R2|Adj|AIC|BIC|F|Log|Std|RMSE",  # pour supprimer stats inutiles
   stars = TRUE,
   statistic = "({std.error})",             # erreur standard entre parenthèses
@@ -705,34 +701,35 @@ summary(reg7_oper)
 reg8_oper <- lm(hired_work_hacre ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ 
                 + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION 
                 + VILLAGE + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH 
-                + SOIL_DEGR, data = Cultivation_spe_oper)
+                + SOIL_DEGR + MACHINERY, data = Cultivation_spe_oper)
 summary(reg8_oper)
 ```
 
 *Tableau de régression au niveau d'opération*
 
 ```{r}
-models <- list(
+models_oper <- list(
   "Probability of mechanizing the operation" = reg7_oper,
   "Hired labor (Hours/acre)" = reg8_oper
 )
 
 # Noms des variables
-coef_map <- c(
+coef_map_oper <- c(
   "CASTE_GROUPFC" = "Caste: FC",
   "CASTE_GROUPSC" = "Caste: SC",
   "CASTE_GROUPST" = "Caste: ST",
   "AREA_HH" = "Household area",
   "PLOT_AREA" = "Plot area",
-  "AREA_CROP" = "Subplot area"
+  "AREA_CROP" = "Subplot area",
+  "MACHINERYTRUE" = "Mecanised"
 )
 
 options("modelsummary_format_numeric_latex" = "plain")
 
 # Création du tableau
 modelsummary(
-  models,
-  coef_map = coef_map,
+  models_oper,
+  coef_map = coef_map_oper,
   gof_omit = "R2|Adj|AIC|BIC|F|Log|Std|RMSE",  # pour supprimer stats inutiles
   stars = TRUE,
   statistic = "({std.error})",             # erreur standard entre parenthèses
@@ -843,7 +840,7 @@ all_factors <- Cultivation_paddy |>
     WORK_O = OB + FB + EB,
     ALL_WORK = HF + FF + HM + FM + OB + FB + EB + EM + EF + HC + FC + RS
   ) |>
-  select(-c(`NA`, RS, HC, FC, EF, EM, HB, OB, EB, FB, MACHINERY))
+  select(-c(RS, HC, FC, EF, EM, HB, OB, EB, FB, MACHINERY))
 ```
 
 ```{r}
@@ -881,7 +878,7 @@ all_factors <- all_factors |>
     VAR_TYPE = if_else(VAR_TYPE == 2, 1, 0)
   ) |>
 
-# Hramoniser les colonnes en numérique
+# Harmoniser les colonnes en numérique
   mutate(
     IRRIGATION = as.numeric(as.character(IRRIGATION))
     )
