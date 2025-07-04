@@ -38,6 +38,8 @@ EAST_CultOutput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Outp
 SAT_CultOutput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Output_2014.xlsx"))
 EAST_PlotList_2014 <- read_excel(here::here("raw_data", "EAST_Plot_List_2014.xlsx"))
 SAT_PlotList_2014 <- read_excel(here::here("raw_data", "SAT_Plot_List_2014.xlsx"))
+EAST_Landholding_2014 <- read_excel(here::here("raw_data", "EAST_Landholding_det.xlsx"))
+SAT_Landholding_2014 <- read_excel(here::here("raw_data", "SAT_Landholding_det.xlsx"))
 ```
 
 
@@ -66,6 +68,10 @@ EAST_CultInput_2014 <- EAST_CultInput_2014 |>
   rename(CROP_AREA = PLOT_AREA)
 SAT_CultInput_2014 <- SAT_CultInput_2014 |>
   rename(CROP_AREA = PLOT_AREA)
+
+names(EAST_Landholding_2014) <- toupper(names(EAST_Landholding_2014))
+EAST_Landholding_2014 <- EAST_Landholding_2014 |>
+  rename(VDS_ID = VDSID)
 ```
 
 Attention: PLOT_AREA désigne la superficie du plot et CROP_AREA celle du subplot (égale au plot s'il n'y a pas de division du champ). Idem, PLOT_CODE désigne l'identifiant du plot et SUB_PLOT_CODE l'identifiant du subplot. 
@@ -90,12 +96,19 @@ for (col in common_cols_plotlist) {
     EAST_PlotList_2014[[col]] <- as.character(EAST_PlotList_2014[[col]])
     SAT_PlotList_2014[[col]] <- as.character(SAT_PlotList_2014[[col]])
 }
+
+common_cols_landholding <- intersect(names(EAST_Landholding_2014), names(SAT_Landholding_2014))
+for (col in common_cols_landholding) {
+    EAST_Landholding_2014[[col]] <- as.character(EAST_Landholding_2014[[col]])
+    SAT_Landholding_2014[[col]] <- as.character(SAT_Landholding_2014[[col]])
+}
 ```
 
 ```{r}
 CultInput_2014 <- bind_rows(EAST_CultInput_2014, SAT_CultInput_2014)
 CultOutput_2014 <- bind_rows(EAST_CultOutput_2014, EAST_CultOutput_2014)
 PlotList_2014 <- bind_rows(EAST_PlotList_2014, SAT_PlotList_2014)
+Landholding_2014 <- bind_rows(EAST_Landholding_2014, SAT_Landholding_2014)
 ```
 
 
@@ -189,20 +202,25 @@ Je pense que la variable PLOT_CODE complétée dans les bases CultIput et CultOu
 
 ```{r}
 CultInput_2014 <- CultInput_2014 |>
-  select(-UNIT_MAT, -QTY_MAT, -RATE_MAT, -VAL_MAT, -SOURCE_MAT, -REMARKS) |>
+  select(-c(UNIT_MAT, QTY_MAT, RATE_MAT, VAL_MAT, SOURCE_MAT, REMARKS)) |>
   filter(!is.na(LAB_TYPE)) |>
   filter(!is.na(VDS_ID)) |>
   filter(!LAB_TYPE %in% c("0", "8", "B")) |>
+  mutate(PLOT_CODE = substr(PLOT_CO, 1, 1)) |>
   rename(SUB_PLOT_CODE = PLOT_CO)
 
 CultOutput_2014 <- CultOutput_2014 |>
   filter(!is.na(VDS_ID)) |>
-  select(-RENT_VAL, -OP_MAIN_PROD_RATE, -OP_BY_PROD_UNIT, -OP_BY_PROD_QTY, -OP_BY_PROD_RATE, -OP_OT_PROD_UNIT, -OP_OT_PROD_QTY, -OP_OT_PROD_RATE, -REMARKS) |>
+  select(-c(RENT_VAL, OP_MAIN_PROD_RATE, OP_BY_PROD_UNIT, OP_BY_PROD_QTY, OP_BY_PROD_RATE, OP_OT_PROD_UNIT, OP_OT_PROD_QTY, OP_OT_PROD_RATE, REMARKS)) |>
   rename(SUB_PLOT_CODE = PLOT_CODE)
 
 PlotList_2014 <- PlotList_2014 |>
   filter(!is.na(VDS_ID)) |>
-  select(-CROP_3, - CROP_4, -OW_STAT, -RENT_REC_PAID, -REMARKS, -HH_NO)
+  select(-c(CROP_3, CROP_4, OW_STAT, RENT_REC_PAID, REMARKS, HH_NO))
+
+Landholding_2014 <- Landholding_2014 |>
+  mutate(PLOT_CODE = substr(PLOT_CODE, 1, 1)) |>
+  select(VDS_ID, PLOT_CODE, SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR)
 ```
 
 
@@ -368,6 +386,26 @@ CultOutput_2014 <- CultOutput_2014 |>
 ```
 
 
+### Landholding
+
+```{r Enlever les doublons de Landholding}
+# Tableau des doublons Landholding
+dup_rows_Landholding <- Landholding_2014 |>
+  group_by(VDS_ID, PLOT_CODE) |>
+  filter(n() > 1) |>
+  ungroup()
+
+# Supprimer les lignes avec les mêmes variables VDS_ID / PLOT_CODE en double. Supprimer celles avec le plus de NA.
+Landholding_2014 <- Landholding_2014 |>
+  mutate(n_na = rowSums(across(everything(), is.na))) |>
+  group_by(VDS_ID, PLOT_CODE) |>
+  distinct() |>
+  slice_min(order_by = n_na, with_ties = FALSE) |>
+  ungroup() |>
+  select(-n_na)
+```
+
+
 ********************************************************************************
 
 ## Vérification des doublons restants
@@ -507,12 +545,32 @@ cultoutput_keys <- CultOutput_2014 |>
 non_match2 <- anti_join(cultinput_keys, cultoutput_keys, by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON"))
 
 n_non_matched2 <- nrow(non_match2)
-n_total2 <- nrow(cultinput_keys)
 prop_non_matched2 <- round(n_non_matched2 / n_total * 100, 2)
 
-cat(" - Plots totaux dans CultInput :", n_total2, "\n")
+cat(" - Plots totaux dans CultInput :", n_total, "\n")
 cat(" - Plots sans équivalent dans CultOutput :", n_non_matched2, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
+```
+
+```{r Correspondance CultInput -> Landholding}
+# Vérifier les couples (VDS_ID, PLOT_CODE)
+landholding_keys <- Landholding_2014 |>
+  select(VDS_ID, PLOT_CODE)
+
+cultinput_plots_keys <- CultInput_2014 |>
+  select(VDS_ID, PLOT_CODE) |>
+  distinct()
+
+# Identifier les lignes dans CultiInput qui n'ont pas de match dans Landholding
+non_match3 <- anti_join(cultinput_plots_keys, landholding_keys, by = c("VDS_ID", "PLOT_CODE"))
+
+n_non_matched3 <- nrow(non_match)
+n_total3 <- nrow(cultinput_plots_keys)
+prop_non_matched3 <- round(n_non_matched / n_total3 * 100, 2)
+
+cat(" - Total de plots dans CultInput :", n_total3, "\n")
+cat(" - Plots sans match avec Landholding :", n_non_matched3, "\n")
+cat(" - Proportion sans match :", prop_non_matched3, "%\n")
 ```
 
 
@@ -557,6 +615,7 @@ validation_ID <- cultinput_keys |>
   ) |>
   left_join(cultoutput_keys, by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON"))
 ```
+
 
 ## Modifier Base validation_ID
 
@@ -790,7 +849,7 @@ cultoutput_allcult <- CultOutput_2014 |>
     by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
   ) |>
   select(CROP_1, CROP_2, CROP_3, CROP_4) |> 
-  mutate(across(c(CROP_1, CROP_2, CROP_3, CROP_4), toupper))|> 
+  mutate(across(c(CROP_1, CROP_2, CROP_3, CROP_4), toupper)) |> 
   pivot_longer(everything(), names_to = "CROP_COL", values_to = "CULTURE_VARIANT") |> 
   filter(!is.na(CULTURE_VARIANT)) |>
   mutate(CULTURE_VARIANT = trimws(CULTURE_VARIANT)) |>
@@ -899,17 +958,20 @@ Il y a plus de champs qui ont indiqué l'irrigation dans CultInput, je vais gard
 
 ```{r}
 Cultivation_2014 <- CultInput_2014 |>
-  select(-SUR_YR, -PLOT_NAME)
+  select(-SUR_YR, -PLOT_NAME) |>
 
 # D'abord joindre avec CultOutput
-Cultivation_2014 <- Cultivation_2014 |>
   left_join(
     CultOutput_2014 |> select(VDS_ID, SUB_PLOT_CODE, SEASON, OP_MAIN_PROD_UNIT_1, OP_MAIN_PROD_UNIT_2, OP_MAIN_PROD_UNIT_3, OP_MAIN_PROD_QTY_1, OP_MAIN_PROD_QTY_2, OP_MAIN_PROD_QTY_3, CROP_1, CROP_2, CROP_3, CROP_4, CROP_1_ID, CROP_2_ID, CROP_3_ID, CROP_4_ID, PRCT_AREA_1, PRCT_AREA_2, PRCT_AREA_3, PRCT_AREA_4,VAR_NAME_1, VAR_NAME_2, VAR_NAME_3, VAR_NAME_4, VAR_TYPE_1, VAR_TYPE_2, VAR_TYPE_3, VAR_TYPE_4),
     by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
-  )
+  ) |>
   
-# Puis joindre avec PlotList
-Cultivation_2014 <- Cultivation_2014 |>
+# Puis joindre avec Landholding 
+  left_join(Landholding_2014, by = c("VDS_ID", "PLOT_CODE")) |>
+  select(-PLOT_CODE) |>  
+  # Enlever PLOT_CODE créé manuellement pour conserver celui indiqué dans PlotList
+  
+# Enfin joindre avec PlotList
   left_join(
     PlotList_2014 |> select(
       VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, SEASON, SUR_YR,
@@ -919,10 +981,9 @@ Cultivation_2014 <- Cultivation_2014 |>
       CROP_2_ID_PL = CROP_2_ID
     ),
     by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
-  )
+  ) |>
 
 # Remplacer les NA avec les infos de PlotList
-Cultivation_2014 <- Cultivation_2014 |>
   mutate(
     CROP_1 = coalesce(CROP_1, CROP_1_PL),
     CROP_2 = coalesce(CROP_2, CROP_2_PL),
@@ -940,14 +1001,10 @@ Cultivation_2014 <- Cultivation_2014 |>
   relocate(PLOT_AREA, .before = CROP_AREA) |>
   relocate(SUR_MON_YR, .after = SUR_YR) |>
   relocate(IRRI_AREA, .after = CROP_AREA) |>
-  relocate(CROP_1_ID, .after = CROP_1) |>
-  relocate(CROP_2_ID, .after = CROP_2) |>
-  relocate(CROP_3_ID, .after = CROP_3) |>
-  relocate(CROP_4_ID, .after = CROP_4) |>
-  relocate(VAR_TYPE_1, .after = VAR_NAME_1) |>
-  relocate(VAR_TYPE_2, .after = VAR_NAME_2) |>
-  relocate(VAR_TYPE_3, .after = VAR_NAME_3) |>
-  relocate(VAR_TYPE_4, .after = VAR_NAME_4) |>
+  relocate(c(CROP_1_ID, CROP_2_ID, CROP_3_ID, CROP_4_ID), 
+           .after = c(CROP_1, CROP_2, CROP_3, CROP_4)) |>
+  relocate(c(VAR_TYPE_1, VAR_TYPE_2, VAR_TYPE_3, VAR_TYPE_4), 
+           .after = c(VAR_NAME_1, VAR_NAME_2, VAR_NAME_3, VAR_NAME_4)) |>
   relocate(TYPE_MAT, .after = NAME_MAT)
 ```
 
