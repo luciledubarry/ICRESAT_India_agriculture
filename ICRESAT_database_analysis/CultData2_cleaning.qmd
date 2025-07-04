@@ -689,7 +689,13 @@ J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que j
 
 ```{r}
 plots_by_household <- Cultivation_cult_distinctes |>
-  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CROP_ID, AREA_HH, PLOT_AREA, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME, MULTI_CROPING, REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct)
+  distinct(
+    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CROP_ID, AREA_HH,
+    PLOT_AREA, AREA_CROP, IRRI_CROP, VAR_TYPE, VAR_NAME,
+    MULTI_CROPING, REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy,
+    paddy_prct, SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT,
+    SLOPE, SOIL_DEGR
+           )
 
 full_operation <- expand_grid(
   plots_by_household,
@@ -703,8 +709,8 @@ Avec le code suivant, les doublons sont bien conservés puisque toutes les ligne
 base_to_join <- Cultivation_cult_distinctes |>
   select(
     VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION,
-    MONTH, GENDER, EMPLOYMENT, HUMAN_LABOR, MACHINERY, DT_OPER, SUR_MON_YR,
-    FERTILIZER, HERBICIDE, LAB_TYPE, WORK_HR, 
+    MONTH, GENDER, EMPLOYMENT, HUMAN_LABOR, MACHINERY, DT_OPER,
+    SUR_MON_YR, FERTILIZER, HERBICIDE, LAB_TYPE, WORK_HR, 
     OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, NAME_MAT, TYPE_MAT
   )
 

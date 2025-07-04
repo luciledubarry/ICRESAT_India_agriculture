@@ -1522,17 +1522,17 @@ Cultivation_2014 <- Cultivation_2014 |>
 Cultivation_2014$WAGE_PER_HR <- round(Cultivation_2014$WAGE_PER_HR, 2) 
 ```
 
+
 ```{r}
 # Supprimer les variables non utilisées
 Cultivation_2014 <- Cultivation_2014 |>
-  select(-OPER_1, -OPER_2, -OPERATION_VARIANT)
-```
+  select(-OPER_1, -OPER_2, -OPERATION_VARIANT) |>
 
-```{r}
-Cultivation_2014 <- Cultivation_2014 |>
+# Modifier l'ordre des variables 
   relocate(OPERATION, .after = DT_OPER) |>
-  relocate(OPER_ID, .before = OPERATION) |>
-  relocate(WAGE_PER_HR, .after = WAGE)
+  relocate(c(OPER_ID, FERTILIZER), .after = OPERATION) |>
+  relocate(WAGE_PER_HR, .after = WAGE) |>
+  relocate(c(SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR), .after = VILLAGE)
 ```
 
 
