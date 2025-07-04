@@ -43,13 +43,16 @@ PlotList$PLOT_AREA <- as.numeric(as.character(PlotList$PLOT_AREA))
 
 Je construis pour les régressions des tables à plusieurs niveaux : au niveau du ménage (une ligne par ménage), du champ (subplot) et de l'opération.
 
-### Gérer les doublons dans Cultivation_expand
+
+### Gérer les doublons
+
+*Doublons présents avant modification*
 
 ```{r}
-# Vérifier qu'il n'y ait pas de champs en double (pour le riz en Kharif)
+# Vérifier les doublons présents dnas Cultivation_expand avout toute modification
 dup_plots_paddy <- Cultivation_expand |>
   filter(SEASON == "KHARIF") |>
-  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, AREA_HH, PLOT_AREA, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, VILLAGE_CROP, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, with_paddy, paddy_prct, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, AREA_HH, PLOT_AREA, AREA_CROP, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, VILLAGE_CROP, CASTE_GROUP, CASTE, IRRI_CROP, IRRIGATION, CROP_ID, MULTI_CROPING, with_paddy, paddy_prct, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
   distinct() |>
   group_by(VDS_ID, SUB_PLOT_CODE, AREA_CROP) |>
   filter(n() > 1) |>
@@ -57,10 +60,10 @@ dup_plots_paddy <- Cultivation_expand |>
   ungroup()
 ```
 
-Il y a des champs en double à cause de OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.  
+Il y a des champs en double dans la table Cultivation_expand à cause de OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.
 
-```{r}
-# CODE A REVOIR: Supprimer les doublons causés par OP
+
+CODE A REVOIR: Supprimer les doublons causés par OP
 test_cultivation_expand <- Cultivation_expand |>
   group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
   summarise(
@@ -73,7 +76,6 @@ test_cultivation_expand <- Cultivation_expand |>
 test_cultivation_expand |>
   group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
   filter(n() > 1)
-```
 
 ```{r}
 # Supprimer les doublons causés par OP
@@ -81,6 +83,30 @@ Cultivation_expand <- Cultivation_expand |>
   select(-c(OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT)) |>
   distinct()
 ```
+
+
+*Sélection des variables d'intérêt*
+
+
+l
+
+
+*Doublons crées après sélection des variables*
+
+
+
+
+
+********************************************************************************
+
+### Sommer les heures de travail par opération
+
+J'additionne les heures de travail par opération et par type de travail pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts. 
+
+Cultivation_expand <- Cultivation_expand |>
+  filter(!LAB_TYPE %in% c("RS", "HC", "FC", "6")) |>
+  group_by(across(-c("WORK_HR", "MONTH", "DT_OPER", "SUR_MON_YR"))) |>
+  summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop")
 
 
 ********************************************************************************
@@ -94,10 +120,9 @@ Cultivation_expand <- Cultivation_expand |>
 
 # Sélectionner les variables d'intérêt
   select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, AREA_HH,
-         PLOT_AREA, AREA_CROP,OPERATION, LAB_TYPE, WORK_HR, IRRIGATION,
+         PLOT_AREA, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION,
          MACHINERY, VAR_TYPE, with_paddy, paddy_prct, REGION, STATE, VILLAGE,
-         VILLAGE_CROP, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
-  distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
+         VILLAGE_CROP, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE)
 ```
 
 
@@ -286,10 +311,8 @@ Cultivation_oper |>
 Je calcule les heures de travail par champ, en différenciant par le type de travail. 
 
 ```{r}
-Cultivation_labor <- Cultivation_expand |>
-  filter(!LAB_TYPE %in% c("RS", "HC", "FC", "6")) |>
-
 # 1. Somme des heures de travail par champ, caste et lab_type
+Cultivation_labor <- Cultivation_expand |>
   group_by(across(-WORK_HR)) |>
   summarise(WORK_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") |>
 
@@ -387,7 +410,9 @@ Cultivation_oper <- Cultivation_oper |>
 #### Toutes opérations
 
 ```{r}
-reg_all_oper <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling + STATE, data = Cultivation_oper)
+reg_all_oper <- lm(HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + AREA_HH 
+                   + AREA_HH_SQ + IRRIGATION + MACHINERY + mechanized_tilling 
+                   + STATE, data = Cultivation_oper)
 summary(reg_all_oper)
 ```
 
