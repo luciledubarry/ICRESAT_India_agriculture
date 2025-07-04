@@ -93,7 +93,10 @@ Cultivation_expand <- Cultivation_expand |>
          AREA_CROP != 0) |>   # Enlever les champs dont la superficie est nulle
 
 # Sélectionner les variables d'intérêt
-  select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, AREA_HH, PLOT_AREA, AREA_CROP,OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, with_paddy, paddy_prct, REGION, STATE, VILLAGE, VILLAGE_CROP) |>
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, AREA_HH,
+         PLOT_AREA, AREA_CROP,OPERATION, LAB_TYPE, WORK_HR, IRRIGATION,
+         MACHINERY, VAR_TYPE, with_paddy, paddy_prct, REGION, STATE, VILLAGE,
+         VILLAGE_CROP, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
   distinct()   # Enlever les lignes identiques créées lors de la sélection des variables
 ```
 
@@ -143,6 +146,38 @@ hh_hand_weeding <- Cultivation_expand |>
 # Ajouter la variable à Cultivation_expand
 Cultivation_expand <- Cultivation_expand |>
   left_join(hh_hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "CROP", "SEASON"))
+```
+
+
+*Expliciter les variables sur soil characteristics*
+
+- Type de terre (Soil_type) : 
+1=Red, 2=Shallow black/Murrum, 3=Medium Black, 4=Deep Black, 5=Sandy, 6=Loam, 7=Sandy loam, 8=Clay, 9=Clay loam, 10=Problematic soils (Saline/alkaline,etc.), 11=Others (specificied in SOIL_TYPE_OT)
+
+- Dégradation du sol (Soil_degr) : 
+1=No problem, 2=Soil erosion, 3=Nutrient depletion, 4=Water logging, 5=Salinity/Acidity, 6=Others
+
+- Fertilité du champ (Soil_fert) :
+1=Very poor, 2=Poor, 3=Good, 4=Very good 
+
+- Inclination du champ (Slope) : 
+1=Leveled 0-1%, 2=Slight slope 1-3%, 3=Medium slope 3-10%, 4=High slope >10% 
+
+- Profondeur du champ (soil_depth) : Average soil depth in centimeters
+
+```{r}
+# Convertir en numériques les variables sur soil characteristics
+Cultivation_expand <- Cultivation_expand |>
+  mutate(SOIL_DEPTH = as.numeric(as.character(SOIL_DEPTH)),
+         SOIL_FERT = as.numeric(as.character(SOIL_FERT)),
+         SLOPE = as.numeric(as.character(SLOPE)))
+
+# Définir les catégories de référence pour les variables catégorielles
+Cultivation_expand$SOIL_TYPE <- factor(Cultivation_expand$SOIL_TYPE)
+Cultivation_expand$SOIL_TYPE <- relevel(Cultivation_expand$SOIL_TYPE, ref = "1")
+
+Cultivation_expand$SOIL_DEGR <- factor(Cultivation_expand$SOIL_DEGR)
+Cultivation_expand$SOIL_DEGR <- relevel(Cultivation_expand$SOIL_DEGR, ref = "1")
 ```
 
 
@@ -590,19 +625,21 @@ Controls for Reg 4–6: Caste; Total land ; Total Land sq ; Plot size ; Plot siz
 reg4_plot <- Cultivation_oper |>
   filter(OPERATION == "HAND WEEDING",
          VILLAGE_CROP == "PADDY") |>
-  lm(formula = hand_weeding ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + VILLAGE,
-     data = _)
+  lm(formula = hand_weeding ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + VILLAGE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
 summary(reg4_plot)
 ```
 
 ```{r}
 # Reg 5: Outcome: Hours per acre hand weeding
-reg4_plot <- Cultivation_oper |>
+reg5_plot <- Cultivation_oper |>
   filter(OPERATION == "HAND WEEDING",
          VILLAGE_CROP == "PADDY") |>
-  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + VILLAGE,
-     data = _)
-summary(reg4_plot)
+  lm(formula = HACRE_OPER ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA 
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + VILLAGE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+summary(reg5_plot)
 ```
 
 
@@ -631,13 +668,19 @@ Cultivation_spe_oper <- Cultivation_labor |>
 
 ```{r}
 # Reg 7: Outcome: Probability of mechanizing the operation
-reg7_oper <- lm(MACHINERY ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + VILLAGE, data = Cultivation_spe_oper)
+reg7_oper <- lm(MACHINERY ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA 
+                + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + VILLAGE 
+                + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH + SOIL_DEGR, 
+                data = Cultivation_spe_oper)
 summary(reg7_oper)
 ```
 
 ```{r}
 # Reg 8: Outcome: Nb of hours of hired labor per acre
-reg8_oper <- lm(hired_work_hacre ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + VILLAGE, data = Cultivation_spe_oper)
+reg8_oper <- lm(hired_work_hacre ~ CASTE_GROUP + AREA_CROP + AREA_CROP_SQ 
+                + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION 
+                + VILLAGE + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH 
+                + SOIL_DEGR, data = Cultivation_spe_oper)
 summary(reg8_oper)
 ```
 
@@ -669,9 +712,9 @@ modelsummary(
   stars = TRUE,
   statistic = "({std.error})",             # erreur standard entre parenthèses
   add_rows = data.frame(
-    Variable = c("Village FE", "Operation FE"),
-    `Probability of mechanizing the operation` = c("Yes", "Yes"),
-    `Hired labor (Hours/acre)` = c("Yes", "Yes")
+    Variable = c("Village FE", "Operation FE", "Soil characteristics FE"),
+    `Probability of mechanizing the operation` = c("Yes", "Yes", "Yes"),
+    `Hired labor (Hours/acre)` = c("Yes", "Yes", "Yes")
   ),
   output = "latex"  # ou "markdown"
 )
