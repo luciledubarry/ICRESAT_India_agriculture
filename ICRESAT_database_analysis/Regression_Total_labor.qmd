@@ -629,7 +629,6 @@ modelsummary(
 
 
 
-
 ********************************************************************************
 
 ### Au niveau du champ
@@ -669,7 +668,7 @@ summary(reg5_plot)
 # Liste des modèles
 models_subplot <- list(
   "Probability to do hand weeding" = reg4_plot,
-  "labor in hand weeding (Hours/acre)" = reg5_plot
+  "Labor in hand weeding (Hours/acre)" = reg5_plot
 )
 
 # Noms des variables
@@ -692,9 +691,9 @@ modelsummary(
   stars = TRUE,
   statistic = "({std.error})",             # erreur standard entre parenthèses
   add_rows = data.frame(
-    Variable = "Village FE",
-    `Probability to do hand weeding` = "Yes",
-    `Labor in wand weeding (Hours/acre)` = "Yes"
+    Variable = c("Village FE", "Soil characteristics FE"),
+    `Probability to do hand weeding` = c("Yes", "Yes"),
+    `Labor in hand weeding (Hours/acre)` = c("Yes", "Yes")
   ),
   output = "latex"  # ou "markdown"
 )
