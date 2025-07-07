@@ -200,10 +200,16 @@ saveRDS(
 
 Je pense que la variable PLOT_CODE complétée dans les bases CultIput et CultOutput représente l'identifiant du subplot (plutôt que du plot). C'est pourquoi, je renomme la variable SUB_PLOT_CODE pour ces 2 bases. 
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ATTENTION : Enlever les n/a des Lab_type, Work_hr, Wage, etc. car cela enlève les lignes indiquant pour une opération spécifique l'utilisation de machine (notamment SP, SD), d'engrais ou de graine. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 ```{r}
 CultInput_2014 <- CultInput_2014 |>
   select(-c(UNIT_MAT, QTY_MAT, RATE_MAT, VAL_MAT, SOURCE_MAT, REMARKS)) |>
-  filter(!is.na(LAB_TYPE)) |>
+  filter(!is.na(LAB_TYPE)) |>   # LIGNE A REVOIR
   filter(!is.na(VDS_ID)) |>
   filter(!LAB_TYPE %in% c("0", "8", "B")) |>
   mutate(PLOT_CODE = substr(PLOT_CO, 1, 1)) |>
