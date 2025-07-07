@@ -696,7 +696,7 @@ modelsummary(
     `Probability to do hand weeding` = "Yes",
     `Labor in wand weeding (Hours/acre)` = "Yes"
   ),
-  output = "markdown"  # ou "latex"
+  output = "latex"  # ou "markdown"
 )
 ```
 
@@ -794,7 +794,7 @@ Liste des variables :
 - plot size ; (pour l'instant, je ne peux pas le calculer)
 - subplot size ; (j'utilise Cultivation_expand)
 - number of subdivision of plot per household ; 
-- use of tractors, threshers, sprayers ; 
+- use of tractors, threshers, sprayers ; (proba (0/1) de ménages)
 - irrigation ;
 - HYV use ; 
 - productivity : production of rice per acre ; (faut remettre les variables OP et gérer les doublons)
@@ -924,8 +924,11 @@ all_factors <- all_factors |>
 ```{r}
 # Pivoter la table en long
 all_factors_long <- all_factors |>
-  pivot_longer(cols = c(AREA_CROP, AREA_HH, IRRIGATION, VAR_TYPE, ALL_WORK, FM, HM, HF, FF), names_to = "variable", values_to = "value")
+  pivot_longer(cols = c(AREA_CROP, PLOT_AREA, AREA_HH, IRRIGATION, VAR_TYPE, ALL_WORK, FM, HM, HF, FF), names_to = "variable", values_to = "value")
 ```
+
+
+*Créer le tableau statistique*
 
 ```{r}
 # Calculer les statistiques par caste
@@ -954,11 +957,123 @@ table_factors_total <- all_factors_long |>
     sd_total = sd(value, na.rm = TRUE),
     n_total = n(),
     .groups = "drop"
+  ) |>
+  rename(
+    total_mean = mean_total,
+    total_sd = sd_total,
+    total_n = n_total
   )
 
 # Fusionner les deux tables
 table_factors <- left_join(table_factors_total, table_factors_caste, by = "variable")
 ```
+
+```{r}
+# Modifier le format de la table pour présenter les castes par colonne et de combiner mean et sd dans une seule cellule
+
+# Créer une colonne caste
+table_formatted <- table_factors |>
+  pivot_longer(
+    cols = -variable,  
+    names_to = c("caste", "measure"),
+    names_sep = "_",
+    values_to = "value"
+  ) |>
+  
+# Garder seulement mean et sd et les mettre côte à côte
+  filter(measure %in% c("mean", "sd")) |>
+  pivot_wider(
+    names_from = measure,
+    values_from = value
+  ) |>
+
+# Regrouper les deux en une colonne "mean (sd)"
+  mutate(mean_sd = sprintf("%.2f (%.2f)", mean, sd)) |>
+  select(variable, caste, mean_sd) |>
+  pivot_wider(
+    names_from = caste,
+    values_from = mean_sd
+  ) |>
+
+# Changer l'ordre des colonnes
+  select(variable, total, FC, BC, SC, ST)
+
+# Ajouter le nombre d'observations 
+n_row <- table_factors |>
+  select(ends_with("_n")) |>
+  slice(1) |>  
+  # on conserve une ligne par colonne, puisque les valeurs sont identiques
+  rename_with(~ gsub("_n", "", .x)) |>  
+  # on enlève "_n" pour correspondre aux noms de caste
+  mutate(variable = "Observations") |>
+  select(variable, total, FC, BC, SC, ST) |> # réordonner les colonnes
+  mutate(across(c(total, FC, BC, SC, ST), as.character))
+
+table_formatted <- bind_rows(table_formatted, n_row) # joindre au tableau 
+```
+
+
+*Statistiques 1 : Heures de travail par acre*
+
+```{r}
+# Tableau 1 : Statistiques sur les heures de travail par acre
+table_formatted_1 <- table_formatted |>
+  rename(`All household` = total) |>
+  filter(variable %in% c("ALL_WORK", "FF", "FM", "HF", "HM", "Observations")) |>
+  mutate(variable = recode(variable,
+                      `ALL_WORK` = "Total labor",
+                      `FF` = "Female family labor",
+                      `HF` = "Female hired labor",
+                      `HM` = "Male hired labor",
+                      `FM` = "Male family labor")
+  )
+
+# Affichage en latex 
+sink("stats1_labor.tex")
+print(table_formatted_1, include.rownames = FALSE, sanitize.text.function = identity)
+sink()
+```
+
+
+*Statistiques 2 : Heures de travail par acre*
+
+```{r}
+# Tableau 2 : Superficie et characteristiques du champ
+table_formatted_2 <- table_formatted |>
+  rename(`All household` = total) |>
+  filter(variable %in% c("AREA_HH", "PLOT_AREA", "AREA_CROP", "IRRIGATION", "VAR_TYPE", "Observations")) |>
+  mutate(variable = recode(variable,
+                      `AREA_HH` = "Household area",
+                      `PLOT_AREA` = "Plot area",
+                      `AREA_CROP` = "Subplot area",
+                      `IRRIGATION` = "Irrigation",
+                      `VAR_TYPE` = "HYV")
+  )
+
+order_plot <- c("Household area", 
+                "Plot area", 
+                "Subplot area", 
+                "Irrigation", 
+                "HYV")
+
+table_formatted_2 <- table_formatted_2[match(order_plot, table_formatted_2$variable), ]
+
+# Affichage en latex 
+stats2 <- xtable(table_formatted_2, align = "lcccccc")
+
+sink("stats2_plot.tex")
+print(stats2, include.rownames = FALSE, sanitize.text.function = identity)
+sink()
+```
+
+
+
+
+
+
+
+
+
 
 
 AFFICHAGE DU TABLEAU EN LATEX : 
@@ -967,9 +1082,6 @@ print(xtable(table_final, align = "lccccc"), include.rownames = FALSE, sanitize.
 
 data <- fread('Example.csv')
 print(xtable(data, type='latex'))
-
-
-
 
 
 
