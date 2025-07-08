@@ -251,6 +251,8 @@ CultInput_2014$CROP_AREA <- round(CultInput_2014$CROP_AREA, 2)
 CultInput_2014 <- CultInput_2014 |>
   arrange(SUR_MON_YR) |>
   distinct(across(-SUR_MON_YR), .keep_all = TRUE)
+# A CHANGER ? vérifier le nombre de lignes concernées
+# Vérifier comment le distinct réagit au n/a
 ```
 
 On vérifie si les doublons de WORK_HR dans CultInput sont dûs à des salaires différents et pourraient donc représenter des travailleurs distincts. On identifie les doublons pour lesquels les différences entre temps de travail et salaire sont cohérentes. 
@@ -357,6 +359,8 @@ PlotList_2014 <- PlotList_2014 |> distinct()
 CultInput_2014 <- CultInput_2014 |> distinct()
 CultOutput_2014 <- CultOutput_2014 |> distinct()
 ```
+
+Vérifier si des lignes en double ont été créées à cause de variables enlevées. 
 
 
 ### CultOutput
