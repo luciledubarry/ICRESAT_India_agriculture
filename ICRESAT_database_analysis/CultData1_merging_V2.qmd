@@ -1,0 +1,402 @@
+---
+title: "Fichier 1 (V2) : Créer la base Cultivation 2014"
+format: html
+editor: source
+---
+
+```{r}
+#| message: false
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r}
+#| message: false
+here::i_am("ICRESAT_database_analysis/CultData1_merging.qmd")
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(readxl)
+library(stringr)
+library(stringdist)
+library(ggplot2)
+library(here)
+```
+
+
+********************************************************************************
+
+# Nettoyage des bases
+
+## Importer les données
+
+```{r Importer les données, message=FALSE, warning=FALSE}
+# CultInput
+EAST_CultInput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Input_2014.xlsx"))
+SAT_CultInput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Input_2014.xlsx"))
+
+#CultOutput
+EAST_CultOutput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Output_2014.xlsx"))
+SAT_CultOutput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Output_2014.xlsx"))
+
+# PlotList
+EAST_PlotList_2014 <- read_excel(here::here("raw_data", "EAST_Plot_List_2014.xlsx"))
+SAT_PlotList_2014 <- read_excel(here::here("raw_data", "SAT_Plot_List_2014.xlsx"))
+
+# Landholding
+EAST_Landholding_2014 <- read_excel(here::here("raw_data", "EAST_Landholding_det.xlsx"))
+SAT_Landholding_2014 <- read_excel(here::here("raw_data", "SAT_Landholding_det.xlsx"))
+```
+
+
+********************************************************************************
+
+## Rassembler par région
+
+J'ajoute dans la base CultInput une variable pour identifier de quelle région proviennent les données. 
+
+```{r Création la variable REGION}
+SAT_CultInput_2014 <- SAT_CultInput_2014 |>
+  mutate(REGION = "SAT")
+  
+EAST_CultInput_2014 <- EAST_CultInput_2014 |>
+  mutate(REGION = "EAST")
+```
+
+
+PLOT_AREA désigne la superficie du plot et CROP_AREA celle du subplot (égale à celle du plot s'il n'y a pas de division du champ). De la même manière, PLOT_CODE désigne l'identifiant du plot et SUB_PLOT_CODE l'identifiant du subplot. 
+
+```{r Harmoniser les noms des variables}
+SAT_PlotList_2014 <- SAT_PlotList_2014 |>
+  rename(VDS_ID = PL_ID)
+
+EAST_CultOutput_2014 <- EAST_CultOutput_2014 |>
+  rename(CROP_AREA = PLO_AREA)
+SAT_CultOutput_2014 <- SAT_CultOutput_2014 |>
+  rename(CROP_AREA = PLOT_AREA)
+
+EAST_CultInput_2014 <- EAST_CultInput_2014 |>
+  rename(CROP_AREA = PLOT_AREA)
+SAT_CultInput_2014 <- SAT_CultInput_2014 |>
+  rename(CROP_AREA = PLOT_AREA)
+
+names(EAST_Landholding_2014) <- toupper(names(EAST_Landholding_2014))
+EAST_Landholding_2014 <- EAST_Landholding_2014 |>
+  rename(VDS_ID = VDSID)
+```
+
+```{r Harmoniser les types de chaque colonne}
+# Je repère si les colonnes ayant le même nom et vérifie si elles sont du même type (numeric ou character). Si ce n'est pas le cas, je les convertis en character, ce qui limite le nombre de NA. Il est nécessaire que les colonnes soient du même type pour utiliser la fonction bind_rows. 
+
+common_cols_cultinput <- intersect(names(EAST_CultInput_2014), names(SAT_CultInput_2014))
+for (col in common_cols_cultinput) {
+    EAST_CultInput_2014[[col]] <- as.character(EAST_CultInput_2014[[col]])
+    SAT_CultInput_2014[[col]] <- as.character(SAT_CultInput_2014[[col]])
+}
+
+common_cols_cultoutput <- intersect(names(EAST_CultOutput_2014), names(SAT_CultOutput_2014))
+for (col in common_cols_cultoutput) {
+    EAST_CultOutput_2014[[col]] <- as.character(EAST_CultOutput_2014[[col]])
+    SAT_CultOutput_2014[[col]] <- as.character(SAT_CultOutput_2014[[col]])
+}
+
+common_cols_plotlist <- intersect(names(EAST_PlotList_2014), names(SAT_PlotList_2014))
+for (col in common_cols_plotlist) {
+    EAST_PlotList_2014[[col]] <- as.character(EAST_PlotList_2014[[col]])
+    SAT_PlotList_2014[[col]] <- as.character(SAT_PlotList_2014[[col]])
+}
+
+common_cols_landholding <- intersect(names(EAST_Landholding_2014), names(SAT_Landholding_2014))
+for (col in common_cols_landholding) {
+    EAST_Landholding_2014[[col]] <- as.character(EAST_Landholding_2014[[col]])
+    SAT_Landholding_2014[[col]] <- as.character(SAT_Landholding_2014[[col]])
+}
+```
+
+```{r Rassembler les tables par région}
+CultInput_2014 <- bind_rows(EAST_CultInput_2014, SAT_CultInput_2014)
+CultOutput_2014 <- bind_rows(EAST_CultOutput_2014, EAST_CultOutput_2014)
+PlotList_2014 <- bind_rows(EAST_PlotList_2014, SAT_PlotList_2014)
+Landholding_2014 <- bind_rows(EAST_Landholding_2014, SAT_Landholding_2014)
+```
+
+
+********************************************************************************
+
+## Verifs avant modifications
+
+*N/a pour Lab_type et Work_hr*
+
+Je regarde combien de n/a ont les variables LAB_TYPE et WORK_HR. 
+
+```{r}
+na_LAB_TYPE <- nrow(CultInput_2014 |> filter(is.na(LAB_TYPE)))
+na_WORK_HR <- nrow(CultInput_2014 |> filter(is.na(WORK_HR)))
+
+cat(" - N/a dans LAB_TYPE :", na_LAB_TYPE, "soit", round(100 * na_LAB_TYPE / nrow(CultInput_2014), 1), "% de la base CultInput \n")
+cat(" - N/a dans WORK_HR :", na_WORK_HR, "soit", round(100 * na_WORK_HR / nrow(CultInput_2014), 1), "% de la base CultInput \n")
+```
+
+Les lignes pour lesquelles LAB_TYPE et WORK_HR ne sont pas complétées ajoutent une information sur la mécanisation (avec la variable TYPE_MAT) sur une opération spécifique. Il est donc pertinent de conserver ces lignes pour étudier la mécanisation (fertilizer, weedicide, seed, machinery).
+
+
+*Crop damage*
+
+Je regarde combien de cultures ont été arrêtées en cours de saison (crop damage), à partir des remarques mises dans la base CultOutput. 
+
+```{r, warning=FALSE}
+crop_damage <- CultOutput_2014 |> 
+  summarise(CROP_DAMAGE = str_detect(REMARKS, "DAMAGE|DESTROI|DAMGED"))
+
+cat(" Nombre de crop damage :", nrow(crop_damage |> filter(CROP_DAMAGE == TRUE)), "\n")
+```
+
+Autre technique : Dans le questionnaire, si le champ est perdu, l'inspecteur doit indiquer un temps de travail nul pour la récolte et une production nulle (dans Cult_Output). Je regarde combien de champs ont un temps de travail pour Harvesting égal à 0 dans CultInput.
+
+```{r}
+crop_damage <- CultInput_2014 |>
+  mutate(HARVEST = str_detect(OPERATION, "Harves|HARVES")) |>
+  filter(HARVEST == TRUE) |>
+  filter(WORK_HR == 0 | is.na(WORK_HR))
+
+cat(" Nombre de potentiel crop damage :", nrow(crop_damage), "\n")
+```
+
+Ces 39 lignes ont WORK_HR = NA. 
+
+
+*Enregistrer PlotList_2014*
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "PlotList_2014")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer le fichier CSV
+write.csv(
+  PlotList_2014,
+  file = file.path(folder_path, "PlotList_2014.csv"),
+  row.names = FALSE
+)
+
+# Enregistrer le fichier RDS
+saveRDS(
+  PlotList_2014,
+  file = file.path(folder_path, "PlotList_2014.rds"),
+)
+```
+
+
+********************************************************************************
+
+## Conserver les variables d'intérêt
+
+Je pense que la variable PLOT_CODE complétée dans les bases CultInput et CultOutput représente l'identifiant du subplot (plutôt que du plot). C'est pourquoi, je renomme la variable SUB_PLOT_CODE pour ces 2 bases. 
+
+```{r}
+CultInput_2014 <- CultInput_2014 |>
+  select(-REMARKS) |>
+  filter(!LAB_TYPE %in% c("0", "8", "B")) |>
+  mutate(PLOT_CODE = substr(PLOT_CO, 1, 1)) |>
+  rename(SUB_PLOT_CODE = PLOT_CO)
+
+# Arrondir CROP_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
+CultInput_2014$CROP_AREA <- as.numeric(as.character(CultInput_2014$CROP_AREA))
+CultInput_2014$CROP_AREA <- round(CultInput_2014$CROP_AREA, 2)
+
+CultOutput_2014 <- CultOutput_2014 |>
+  select(-c(RENT_VAL, OP_MAIN_PROD_RATE, OP_BY_PROD_UNIT, OP_BY_PROD_QTY, OP_BY_PROD_RATE, OP_OT_PROD_UNIT, OP_OT_PROD_QTY, OP_OT_PROD_RATE, REMARKS)) |>
+  rename(SUB_PLOT_CODE = PLOT_CODE)
+
+PlotList_2014 <- PlotList_2014 |>
+  select(-c(CROP_3, CROP_4, OW_STAT, RENT_REC_PAID, REMARKS, HH_NO))
+
+Landholding_2014 <- Landholding_2014 |>
+  mutate(PLOT_CODE = substr(PLOT_CODE, 1, 1)) |>
+  select(VDS_ID, PLOT_CODE, SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR)
+```
+
+
+********************************************************************************
+
+## Harmoniser les variables et supprimer les doublons
+
+### CultInput
+
+*Lignes identiques dans CultInput_2014*
+
+```{r}
+dup_CultInput_2014 <- CultInput_2014 |>
+  group_by(across(everything())) |>
+  filter(n() > 1) |>
+  mutate(row_id = row_number()) |> 
+  ungroup()
+```
+
+ATTENTION : Que faire des lignes identiques ? Ets-ce qu'on considère que ce sont des lignes en double ou que cela représente des travailleurs distincts ?
+
+
+
+*Diviser CultInput en 2 parties*
+
+Pour éliminer les doublons pour le calcul des heures de travail, je différencie la base CultInput en deux parties en se basant sur le questionnaire : l'une sur le travail (human and bullock labor), la deuxième sur la mécanisation (Machinery inputs and machinery use).
+
+```{r}
+CultInput_MAT <- CultInput_2014 |>
+  select(-c(LAB_TYPE, WORK_HR, WAGE))
+
+CultInput_LAB <- CultInput_2014 |>
+  select(-c(TYPE_MAT, NAME_MAT, UNIT_MAT, QTY_MAT, RATE_MAT, VAL_MAT, SOURCE_MAT)) |>
+  filter(!is.na(WORK_HR), !is.na(LAB_TYPE))
+```
+
+
+*1. CultInput_LAB : Human and bullock labor*
+
+```{r}
+# Arrondir WORK_HR à la première décimale (il y a des doublons créés à cause de cela)
+CultInput_LAB$WORK_HR <- as.numeric(as.character(CultInput_LAB$WORK_HR))
+CultInput_LAB$WORK_HR <- round(CultInput_LAB$WORK_HR, 1)
+
+# Supprimer les doublons lorsque seule la date SUR_MON_YR diffère (en conservant la date la plus ancienne)
+CultInput_LAB <- CultInput_LAB |>
+  arrange(SUR_MON_YR) |>
+  distinct(across(-SUR_MON_YR), .keep_all = TRUE)
+```
+
+
+Je vérifie si les doublons de WORK_HR dans CultInput_LAB sont dûs à des salaires différents et pourraient donc représenter des travailleurs distincts. On identifie les doublons pour lesquels les différences entre temps de travail et salaire sont cohérentes. 
+
+```{r Doublons de WORK_HR dans CultInput_LAB}
+# Tableau des doublons par rapport à WORK_HR et WAGE
+dup_CultInput_LAB <- CultInput_LAB |>
+  group_by(across(-c(WAGE, WORK_HR))) |>
+  filter(n() > 1) |>
+  mutate(row_id = row_number()) |> 
+  filter(!is.na(WAGE)) |>
+  ungroup()
+
+# Créer la variable comparison pour vérifier la cohérence de WORK_HR et WAGE entre chaque doublon
+dup_CultInput_LAB <- dup_CultInput_LAB |>
+  mutate(
+    WAGE = as.numeric(WAGE),
+    WORK_HR = as.numeric(WORK_HR)
+  ) |>
+  pivot_wider(
+    names_from = row_id,
+    values_from = c(WAGE, WORK_HR),
+    names_glue = "{.value}_row{row_id}"
+  ) |>
+  mutate(
+    wage_diff = WAGE_row1 - WAGE_row2,
+    work_hr_diff = WORK_HR_row1 - WORK_HR_row2,
+    comparison = sign(wage_diff) == sign(work_hr_diff) & wage_diff != 0
+)
+
+cat("Nombre de doublons avec un salaire et un temps de travail cohérents :", nrow(dup_CultInput_LAB |> filter(comparison)), "\n")
+cat("Sur un total de", nrow(dup_CultInput_LAB), "doublons soit", round(100 * nrow(dup_CultInput_LAB |> filter(comparison)) / nrow(dup_CultInput_LAB), 1), "%\n")
+```
+
+```{r Doublons de WORK_HR dans CultInput_LAB}
+# Supprimer les doublons entre WAGE et WORK_HR quand les salaires et les heures de travail ne sont pas cohérents (en conservant le nombre le plus haut)
+dup_CultInput_LAB <- dup_CultInput_LAB |>
+  select(VDS_ID, PLOT_NAME, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, DT_OPER, OPERATION, LAB_TYPE, comparison)
+
+CultInput_LAB <- CultInput_LAB |>
+  left_join(dup_CultInput_LAB, by = c("VDS_ID", "PLOT_NAME", "SUB_PLOT_CODE", "CROP_AREA", "IRRI_AREA", "SEASON", "DT_OPER", "OPERATION", "LAB_TYPE"))
+
+n_avant <- nrow(CultInput_LAB)
+CultInput_LAB <- CultInput_LAB |>
+  filter(is.na(comparison) | comparison) |>
+  arrange(desc(WORK_HR)) |>
+  select(-comparison)
+n_avant - nrow(CultInput_LAB)
+```
+
+*2. CultInput_MAT : Material inputs and machinery use*
+
+```{r}
+# Est-ce que des ménages ont utilisé plusieurs outils pour une même opération (même date d'opération) ? 
+dup_CultInput_MAT <- CultInput_MAT |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, OPERATION, DT_OPER, SUR_MON_YR) |>
+  filter(n() > 1) |>
+  mutate(row_id = row_number()) |> 
+  ungroup()
+```
+
+
+Je supprime les lignes pour lesquelles aucune information sur la mécanisation n'est indiquée (soit toutes les variables MAT sont n/a). 
+
+```{r}
+CultInput_MAT <- CultInput_MAT |>
+  filter(!if_all(ends_with("MAT"), is.na))
+```
+
+
+### PlotList
+
+```{r Enlever les doublons de PlotList}
+# Arrondir les variables PLOT_AREA, CROP_AREA et IRRI_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
+PlotList_2014$IRRI_AREA <- as.numeric(as.character(PlotList_2014$IRRI_AREA))
+PlotList_2014$IRRI_AREA <- round(PlotList_2014$IRRI_AREA, 2)
+
+PlotList_2014$CROP_AREA <- as.numeric(as.character(PlotList_2014$CROP_AREA))
+PlotList_2014$CROP_AREA <- round(PlotList_2014$CROP_AREA, 2)
+
+PlotList_2014$PLOT_AREA <- as.numeric(as.character(PlotList_2014$PLOT_AREA))
+PlotList_2014$PLOT_AREA <- round(PlotList_2014$PLOT_AREA, 2)
+
+# Supprimer les doublons causés par des valeurs de IRRI_AREA différentes
+PlotList_2014 <- PlotList_2014 |>
+  arrange(IRRI_AREA) |>
+  distinct(across(-IRRI_AREA), .keep_all = TRUE) |>
+
+# Lorsque SUB_PLOT_CODE n'est pas indiqué, je considère l'identifiant du plot (PLOT_CODE)
+  mutate(SUB_PLOT_CODE = if_else(is.na(SUB_PLOT_CODE), PLOT_CODE, SUB_PLOT_CODE))
+```
+
+Pas de ligne identique dans PlotList
+
+
+### CultOutput
+
+```{r Modifier les variables}
+# Pivoter les variables CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT et OP_MAIN_PROD_QTY en colonnes
+CultOutput_2014 <- CultOutput_2014 |>
+  group_by(SUR_YEAR, VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
+  mutate(crop_id = row_number()) |>
+  filter(crop_id <= 4) |>  # Limiter à 4 cultures max
+  ungroup() |>
+  pivot_wider(
+    id_cols = c(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SUR_YEAR, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
+    names_from = crop_id,
+    values_from = c(CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY),
+    names_glue = "{.value}_{crop_id}"
+  )
+```
+
+```{r Enlever les doublons de CultOutput}
+# Tableau des doublons CultOutput
+dup_rows_CultOutput_2014 <- CultOutput_2014 |>
+  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  filter(n() > 1) |>
+  ungroup()
+
+# Supprimer les lignes avec les mêmes variables VDS_ID / PLOT_CODE / SEASON en double. Supprimer celles avec le plus de NA.
+CultOutput_2014 <- CultOutput_2014 |>
+  mutate(n_na = rowSums(across(everything(), is.na))) |>
+  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  slice_min(order_by = n_na, with_ties = FALSE) |>
+  ungroup() |>
+  select(-n_na)
+```
+
+
+
+
+
