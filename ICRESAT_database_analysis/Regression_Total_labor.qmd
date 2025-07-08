@@ -37,28 +37,6 @@ PlotList$PLOT_AREA <- as.numeric(as.character(PlotList$PLOT_AREA))
 ```
 
 
-*Vérifier la variation dans hand weeding* 
-
-Je vérifie s'il y a des ménages qui ne font pas de hand weeding pendant toute la saison. 
-
-```{r}
-na_hand_weeding <- Cultivation_expand |>
-  filter(OPERATION == "HAND WEEDING") |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON) |>
-  reframe(na_weeding = any(WORK_HR == 0)) |>
-  ungroup()
-
-# Ajouter la variable à Cultivation_expand
-Cultivation_test <- Cultivation_expand |>
-  left_join(na_hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "CROP", "SEASON")) |>
-  filter(VILLAGE_CROP == "PADDY", CROP == "PADDY", SEASON == "KHARIF")
-
-View(Cultivation_test |> filter(OPERATION == "HAND WEEDING", na_weeding == TRUE) |> distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, WORK_HR))
-```
-
-
-
-
 ********************************************************************************
 
 ## Préparer les tables
@@ -163,28 +141,13 @@ Cultivation_expand <- Cultivation_expand |>
 
 J'additionne les heures de travail par opération et par type de travail pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts. 
 
-
-ATTENTION : Cette méthode pour sommer les heures de travail par opération et lab_type enlève (pour une certaine raison) les champs pour lesquels Work_hr = 0, notammen tpour hand weeding. 
-
 ```{r}
-Cultivation_expand <- Cultivation_expand |>
+Cultivation_test <- Cultivation_expand |>
+  mutate(LAB_TYPE = ifelse(is.na(LAB_TYPE), "NA", LAB_TYPE)) |>
+  # Modifier LAB_TYPE permet de conserver dans le group_by suivant les lignes LAB_TYPE = n/a donc de conserver les opérations pour lesquelles WORK_HR = 0
   filter(LAB_TYPE != "6") |>
   group_by(across(-"WORK_HR")) |>
   summarise(WORK_HR = sum(WORK_HR), .groups = "drop")
-```
-
-```{r}
-hand_weeding <- Cultivation_expand |>
-  filter(OPERATION == "HAND WEEDING") |>
-  select(WORK_HR, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, OPERATION) |>
-  mutate(hand_weeding = if_else(WORK_HR == 0, 0, 1))
-
-# Ajouter la variable à Cultivation_expand
-Cultivation_expand_test <- Cultivation_expand |>
-  left_join(hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP", "SEASON", "WORK_HR", "OPERATION")) |>
-  filter(VILLAGE_CROP == "PADDY", CROP == "PADDY", SEASON == "KHARIF")
-
-View(Cultivation_expand_test |> filter(OPERATION == "HAND WEEDING", hand_weeding == 0) |> distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, WORK_HR))
 ```
 
 
@@ -198,19 +161,19 @@ Je veux identifier les champs qui font du hand weeding pendant la saison.
 
 ```{r}
 # Identifier les champs faisant du hand weeding
-na_hand_weeding <- Cultivation_expand |>
+hand_weeding <- Cultivation_expand |>
   filter(OPERATION == "HAND WEEDING") |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON) |>
-  reframe(na_hand_weeding = any(WORK_HR == 0)) |>
-  mutate(na_hand_weeding = replace_na(na_hand_weeding, TRUE))
+  select(WORK_HR, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  mutate(hand_weeding = if_else(WORK_HR == 0, 0, 1)) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, hand_weeding)
 
 # Ajouter la variable à Cultivation_expand
 Cultivation_expand <- Cultivation_expand |>
-  left_join(na_hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "CROP", "SEASON"))
+  left_join(hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP", "SEASON")) |>
+  filter(VILLAGE_CROP == "PADDY", CROP == "PADDY", SEASON == "KHARIF")
 
-nrow(Cultivation_expand |> filter(OPERATION == "HAND WEEDING", na_hand_weeding == TRUE) |> distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, WORK_HR))
+nrow(Cultivation_expand |> filter(OPERATION == "HAND WEEDING", hand_weeding == 0) |> distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP))
 ```
-
 
 *Expliciter les variables sur soil characteristics*
 
