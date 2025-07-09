@@ -93,10 +93,11 @@ Cultivation_expand <- Cultivation_expand |>
          AREA_CROP != 0) |>   # Enlever les champs dont la superficie est nulle
 
 # Sélectionner les variables d'intérêt
-  select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, AREA_HH,
-         PLOT_AREA, AREA_CROP, OPERATION, LAB_TYPE, WORK_HR, IRRIGATION,
-         MACHINERY, VAR_TYPE, with_paddy, paddy_prct, REGION, STATE, VILLAGE,
-         VILLAGE_CROP, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE)
+  select(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, 
+         SUR_MON_YR, MONTH, DT_OPER, AREA_HH, PLOT_AREA, AREA_CROP, 
+         OPERATION, LAB_TYPE, WORK_HR, IRRIGATION, MACHINERY, VAR_TYPE, 
+         with_paddy, paddy_prct, REGION, STATE, VILLAGE, VILLAGE_CROP, 
+         SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE)
 ```
 
 
@@ -142,11 +143,30 @@ Cultivation_expand <- Cultivation_expand |>
 J'additionne les heures de travail par opération et par type de travail pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts. 
 
 ```{r}
+test_dups <- Cultivation_expand |>
+  select(-c(NAME_MAT, TYPE_MAT)) |>
+  distinct()
+  
+any(duplicated(test_dups[, c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "SEASON", "CROP", "OPERATION", "LAB_TYPE", "WORK_HR", "DT_OPER", "MONTH", "SUR_MON_YR")]))
+
+# Vérifier les doublons avant le calcul de WORK_HR
+dup_Cultivation_expand <- test_dups |>
+  distinct() |>
+  mutate(DT_OPER = ifelse(is.na(DT_OPER), "Missing", DT_OPER)) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON, LAB_TYPE, OPERATION, WORK_HR, DT_OPER) |>
+  filter(n() > 1) |>
+  ungroup()
+```
+
+ATTENTION : Il y a des doublons dans Cultivation_expand à cause de NAME_MAT, TYPE_MAT et peut_etre VAR_TYPE 
+
+
+```{r}
 Cultivation_test <- Cultivation_expand |>
-  mutate(LAB_TYPE = ifelse(is.na(LAB_TYPE), "NA", LAB_TYPE)) |>
+  mutate(LAB_TYPE = ifelse(is.na(LAB_TYPE), "Missing", LAB_TYPE)) |>
   # Modifier LAB_TYPE permet de conserver dans le group_by suivant les lignes LAB_TYPE = n/a donc de conserver les opérations pour lesquelles WORK_HR = 0
   filter(LAB_TYPE != "6") |>
-  group_by(across(-"WORK_HR")) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, LAB_TYPE, OPERATION, .keep = "all") |>
   summarise(WORK_HR = sum(WORK_HR), .groups = "drop")
 ```
 
