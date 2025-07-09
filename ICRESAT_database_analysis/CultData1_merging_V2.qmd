@@ -27,9 +27,7 @@ library(here)
 
 ********************************************************************************
 
-# Nettoyage des bases
-
-## Importer les données
+# Importer les données
 
 ```{r Importer les données, message=FALSE, warning=FALSE}
 # CultInput
@@ -49,8 +47,6 @@ EAST_Landholding_2014 <- read_excel(here::here("raw_data", "EAST_Landholding_det
 SAT_Landholding_2014 <- read_excel(here::here("raw_data", "SAT_Landholding_det.xlsx"))
 ```
 
-
-********************************************************************************
 
 ## Rassembler par région
 
@@ -194,16 +190,19 @@ saveRDS(
 
 ********************************************************************************
 
-## Conserver les variables d'intérêt
+# Nettoyage des tables
+
+## Sélectionner les variables
 
 Je pense que la variable PLOT_CODE complétée dans les bases CultInput et CultOutput représente l'identifiant du subplot (plutôt que du plot). C'est pourquoi, je renomme la variable SUB_PLOT_CODE pour ces 2 bases. 
 
 ```{r}
 CultInput_2014 <- CultInput_2014 |>
-  mutate(SUR_YR == "2014") |>
   select(-REMARKS) |>
   filter(!LAB_TYPE %in% c("0", "8", "B")) |>
-  mutate(PLOT_CODE = substr(PLOT_CO, 1, 1)) |>
+  mutate(PLOT_CODE = substr(PLOT_CO, 1, 1),
+         SUR_YR = 2014,
+         across(everything(), toupper)) |>
   rename(SUB_PLOT_CODE = PLOT_CO)
 
 # Arrondir CROP_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
@@ -214,10 +213,12 @@ CultOutput_2014 <- CultOutput_2014 |>
   select(-c(RENT_VAL, OP_MAIN_PROD_RATE, OP_BY_PROD_UNIT, OP_BY_PROD_QTY, OP_BY_PROD_RATE, OP_OT_PROD_UNIT, OP_OT_PROD_QTY, OP_OT_PROD_RATE, REMARKS)) |>
   rename(SUB_PLOT_CODE = PLOT_CODE,
          SUR_YR = SUR_YEAR) |>
-  mutate(SUR_YR == "2014")
+  mutate(SUR_YR = 2014,
+         across(everything(), toupper))
 
 PlotList_2014 <- PlotList_2014 |>
-  mutate(SUR_YR == "2014") |>
+  mutate(SUR_YR = 2014,
+         across(everything(), toupper)) |>
   select(-c(CROP_3, CROP_4, OW_STAT, RENT_REC_PAID, REMARKS, HH_NO))
 
 Landholding_2014 <- Landholding_2014 |>
@@ -228,7 +229,378 @@ Landholding_2014 <- Landholding_2014 |>
 
 ********************************************************************************
 
-## Harmoniser les variables et supprimer les doublons
+## Harmoniser les variables
+
+### Noms des cultures
+
+```{r}
+# Table de correspondance des cultures
+correspondances_crop <- tribble(
+  ~CULTURE_VARIANT,      ~CULTURE_STANDARD,
+  "BAMBOO TREE",         "BAMBOO",
+  "BLACKGRAM",           "BLACK GRAM",
+  "GREEN GRAM",          "BLACK GRAM",
+  "MAIZE FODDER",        "MAIZE",
+  "GREENGRAM",           "GREEN GRAM",
+  "CHICK PEA",           "CHICKPEA",
+  "CHIKPEA",             "CHICKPEA",
+  "FELLOW",              "SEASONAL FALLOW",
+  "FALLOW",              "SEASONAL FALLOW",
+  "GROUND NUT",          "GROUNDNUT",
+  "HORSE GRAM",          "HORSEGRAM",
+  "TURMARIC",            "TURMURIC",
+  "MANGO TREE",          "MANGO",
+  "MANGOES",             "MANGO",
+  "MANGOES TREE",        "MANGO",
+  "JUNGLE",              "JUNGLE TREE",
+  "MUSTERD",             "MUSTARD",
+  "MUSTURD",             "MUSTARD",
+  "MASTURD",             "MUSTARD",
+  "PAADY",               "PADDY",
+  "PADDY  SEEDLING",     "PADDY",
+  "PADDY GODA",          "PADDY",
+  "PADDY NURSURY",       "PADDY",
+  "PADDY SEED",          "PADDY",
+  "PADDY SEEDLING",      "PADDY",
+  "PADDY(SEEDLING)",     "PADDY",
+  "PIGION PEA",          "PIGEONPEA",
+  "POTATAO",             "POTATO",
+  "SORGHUM FODDER",      "SORGHUM",
+  "LIN SEED",            "LINSEED",
+  "FODDER (EGYPTIAN CLOVER)","EGYPTIAN CLOVER",
+  "BERSEEM",             "EGYPTIAN CLOVER",
+  "OATS (JAI)",          "JAI",
+  "FODDER OATS (JAI)",   "JAI",
+  "GREEN FODDER JAI",    "JAI",
+  "GREEN FODDER (JANER)","GREEN FODDER",
+  "PADDY LOCAL",         "PADDY",
+  "PADY",                "PADDY",
+  "SMALL MILLET (MARUA)","MARUA",
+  "FRENCH BEANS",        "BEANS",
+  "FREANCH BEANS",       "BEANS",
+  "SMALL MILLET (SARGUJA)","SARGUJA",
+  "CHILLIES GREEN",      "CHILLIES",
+  "CHILLI GREEN",        "CHILLIES",
+  "GREEN CHILLY",        "CHILLIES",
+  "PEA",                 "PEAS",
+  "SESBANIA ACULEATA (DHAICHA)","DHAICHA",
+  "LADYSFINGER",         "LADYS FINGER",
+  "LEAFY VEGETABLE",     "LEAFY",
+  "CORIENDER",           "CORIANDER",
+  "RIDGEGOURD",          "RIDGE GOURD",
+  "WHEET",               "WHEAT"
+)
+```
+
+```{r}
+# PlotList :
+# Appliquer les cultures harmonisées à CROP_1
+PlotList_2014 <- PlotList_2014 |>
+  left_join(correspondances_crop, by = c("CROP_1" = "CULTURE_VARIANT")) |>
+  mutate(CROP_1 = if_else(!is.na(CULTURE_STANDARD), CULTURE_STANDARD, CROP_1)) |>
+  select(-CULTURE_STANDARD)
+
+# Appliquer les cultures harmonisées à CROP_2
+PlotList_2014 <- PlotList_2014 |>
+  left_join(correspondances_crop, by = c("CROP_2" = "CULTURE_VARIANT")) |>
+  mutate(CROP_2 = if_else(!is.na(CULTURE_STANDARD), CULTURE_STANDARD, CROP_2)) |>
+  select(-CULTURE_STANDARD)
+
+# CultOuput : Appliquer les cultures harmonisées à CROP
+CultOutput_2014 <- CultOutput_2014 |>
+  left_join(correspondances_crop, by = c("CROP" = "CULTURE_VARIANT")) |>
+  mutate(CROP = if_else(!is.na(CULTURE_STANDARD), CULTURE_STANDARD, CROP)) |>
+  select(-CULTURE_STANDARD)
+```
+
+
+### Opérations
+
+```{r}
+# Regrouper les opérations en principales opérations
+correspondances_oper <- tribble(
+  ~OPERATION_VARIANT,                             ~OPERATION_STANDARD,
+  
+  # LAND PREPARATION(PLOUGHING)
+  "BEEDING",                                      "LAND PREPARATION",
+  "BED PREPARATION",                              "LAND PREPARATION",
+  "BED PREPRATION",                               "LAND PREPARATION",
+  "LAND PREPARATION-BED PREPARATION",             "LAND PREPARATION",
+  "LAND PREPARATION-BED&FURROW PREPARATION",      "LAND PREPARATION",
+  "LAND PREPARATION-BED&FERROW PREPARATION",      "LAND PREPARATION",
+  "LAND PREPARATION-BED&FURROW PREPARAT",         "LAND PREPARATION",
+  "EARTHING UP",                                  "LAND PREPARATION",
+  "EARTHING UP WITH FERTILIZER",                  "LAND PREPARATION",
+  "LAND PREPARATION-EARTHING UP",                 "LAND PREPARATION",
+  "LAND PREPARATION-SOIL SPREADING",              "LAND PREPARATION",
+  "SOIL SPREADING",                               "LAND PREPARATION",
+  "PLOUGHING",                                    "LAND PREPARATION",
+  "PLOUHGING",                                    "LAND PREPARATION",
+  "PLOUGING",                                     "LAND PREPARATION",
+  "MUD PLOUGHING",                                "LAND PREPARATION",
+  "HOE PLOUGHING",                                "LAND PREPARATION",
+  "MB PLOUGHING",                                 "LAND PREPARATION",
+  "DOUBLE PLOUGHING",                             "LAND PREPARATION",
+  "PLOUGHING WITH FERTILIZER",                    "LAND PREPARATION",
+  "PLOUGHING AND SEED SOWING",                    "LAND PREPARATION",
+  "PLOUGHING AND SEED SOWING WITH FERTILIZER",    "LAND PREPARATION",
+  "PLOUGHING/HARROWING",                          "LAND PREPARATION",
+  "PLOUGHING BY HOE",                             "LAND PREPARATION",
+  "LAND PREPARATION-PUDDLING",                    "LAND PREPARATION",
+  "LAND PREPARATION -PUDDLING",                   "LAND PREPARATION",
+  "PUDDLING",                                     "LAND PREPARATION",
+  "LAND PREPARATION - PUDDLING",                  "LAND PREPARATION",
+  "PANJI",                                        "LAND PREPARATION",
+  "LAND PREPARATION-PLOUGHING",                   "LAND PREPARATION",
+  "LAND PREPARATION- PLOUGHING",                  "LAND PREPARATION",
+  "LAND PREPARATION - PLOUHGING",                 "LAND PREPARATION",
+  "LAND PREPARATION - PLOUGHING",                 "LAND PREPARATION",
+  "LAND PREPARATION/PLOUGHING",                   "LAND PREPARATION",
+  "LAND PREPARATION -PLOUGHING",                  "LAND PREPARATION",
+  "LAND PREPARATION-DOUBLE PLOUGHING",            "LAND PREPARATION",
+  "LAND PREPARATION-MB PLOUGHING",                "LAND PREPARATION",
+  "LAND PREPARATION-PATTA PASS",                  "LAND PREPARATION",
+  "LAND PREPARATION-PATTA PAS",                   "LAND PREPARATION",
+  "LAND PREPARATION-PATTA",                       "LAND PREPARATION",
+  "LAND PREPARATION-PATTAPASS",                   "LAND PREPARATION",
+  "LAND PREPARATION HARROWING",                   "LAND PREPARATION",
+  "LAND PREPARATION-HARROWING",                   "LAND PREPARATION",
+  "LAND PREPARATIONG-HARROWING",                  "LAND PREPARATION",
+  "LAND PREPARATION - HARROWING",                 "LAND PREPARATION",
+  "LAND PREPARATION-ROTOVATOR",                   "LAND PREPARATION",
+  "LAND PREPARATION-WITH ROTOVATOR",              "LAND PREPARATION",
+  "HARROWING",                                    "LAND PREPARATION",
+  "LAND PREPARATION-BROAD CASTING",               "LAND PREPARATION",
+  "LAND PREPARATION-PANJI",                       "LAND PREPARATION",
+  "LAND PREPARATION-PUNJI",                       "LAND PREPARATION",
+  "LAND PREPARATION-PHANTAN",                     "LAND PREPARATION",
+  "LAND PREPARATION-V-PASS",                      "LAND PREPARATION",
+  "MAKING RIDGES & FURROWS",                      "LAND PREPARATION",
+  "LAND PREPARATION-RIDGES AND FURROWS",          "LAND PREPARATION",
+  "LAND PREPARATION-RIDGES & FURROWS",            "LAND PREPARATION",
+  "LAND PREPARATION-MAKING RIDGES & FURROWS",     "LAND PREPARATION",
+  "LAND PREPARATION-ROTAVATOR",                   "LAND PREPARATION",
+  
+  # UPROOTING
+  "UPROOTING JASMINE",                            "UPROOTING",
+  "LAND PREPARATION-UPROOTING",                   "UPROOTING",
+  "LAND PREPARATION-UPROOTING BETEL VINE",        "UPROOTING",
+  
+  # INTERCULTURE
+  "INTERCULTURE/HOEING",                          "INTERCULTURE",
+  "INTERCULTURE WITH FERTILIZER",                 "INTERCULTURE",
+  "INTERCULTURE WITH EARTHING UP",                "INTERCULTURE",
+  "INTERCULTURE/HOEING-SORGHUM",                  "INTERCULTURE",
+  
+  # FIELD CLEANING
+  "LAND PREPARATION-FIELD CLEANING",              "FIELD CLEANING",
+  
+  # FENCE TRMMING
+  "FENCING",                                      "FENCE TRIMMING",
+  
+  # TRANSPLANTING
+  "PLANTING",                                     "TRANSPLANTING",
+  "TRANSPLANTING WITH FERTILIZER",                "TRANSPLANTING",
+  "TRANSPLANTING-ONION",                          "TRANSPLANTING",
+  "TRANSPLANTING-SUGARCANE",                      "TRANSPLANTING",
+  "TRANSPLANTING AND PLOUGHING",                  "TRANSPLANTING",
+  "PLANTATION",                                   "TRANSPLANTING",
+  
+  # PESTICIDE
+  "PESTICIDE SPAYING",                            "PESTICIDE",
+  "SPRAYING",                                     "PESTICIDE",
+  "PESTISIDESPRAY",                               "PESTICIDE",
+  
+  # SOWING
+  "SEED SOWING",                                  "SOWING",
+  "SOWING/SOWING WITH FERTILIZER",                "SOWING",
+  "SEED APPLICATION",                             "SOWING",
+  "RESOWING",                                     "SOWING",
+  "RESOWING WITH FERTILIZER",                     "SOWING",
+  "SEED TREATMENT",                               "SOWING",
+  "POTATO SOWING",                                "SOWING",
+  "SOWING/SOWING WITH FERTILIZER-MAIZE",          "SOWING",
+  "SOWING/SOWING WITH FERTILIZER-SORGHUM",        "SOWING",
+  "SOWING/SOWING WITH FERTILIZER-SOYBEAN",        "SOWING",
+  "LAND PREPARATION AND SEED SOWING",             "SOWING",
+  "LAND PREPARATION AND SOWING",                  "SOWING",
+  
+  # HERBICIDE
+  "WEEDICIDE",                                    "HERBICIDE",
+  "HARBISIDE APPLICATION",                        "HERBICIDE",
+  "WEEDICIDE APPLICATION-PIGEONPEA",              "HERBICIDE",
+  "WEEDICIDE SPRAYING",                           "HERBICIDE",
+  "WEEDYSIDE SPRAY",                              "HERBICIDE",
+  "DEFOLIATION",                                  "HERBICIDE",
+  "WEEDICIDE APPLICATION",                        "HERBICIDE",
+  "IPM & IDM TECHNOLOGIES",                       "HERBICIDE",
+  
+  # PLANT PROTECTION
+  "PLANT PROTECTION-SOYBEAN",                     "PLANT PROTECTION",
+  "PLANT PROTECTION-PIGEONEPA",                   "PLANT PROTECTION",
+  "PLANT PROTECTION-PIGEONPEA",                   "PLANT PROTECTION",
+  "BAGGING",                                      "PLANT PROTECTION",
+  
+  # WEEDING
+  "WEEDING",                                      "WEEDING",
+  "HAND WEEDING-PIGEONPEA",                       "HAND WEEDING",
+  "HAND WEEDING & THINNING",                      "HAND WEEDING",
+  
+  # THINNING
+  "BEDICIDE",                                     "THINNING",
+  
+  # FERTILIZER
+  "FERTILIZER APPLICATION",                       "FERTILIZER APPL.",
+  "FERTILIZER APPLICATION-PIGEONPEA",             "FERTILIZER APPL.",
+  "FERTIGATION",                                  "FERTILIZER APPL.",
+  "FYM/COMPOST APPLICATION",                      "FERTILIZER APPL.",
+  "MICRONUTRIENT",                                "FERTILIZER APPL.",
+  "MICRONUTRIENT APPLICATION",                    "FERTILIZER APPL.",
+  "NUTRIENT",                                     "FERTILIZER APPL.",
+  "TILIZER APPLICATION",                          "FERTILIZER APPL.",
+  "APPLYING FERTILIZER",                          "FERTILIZER APPL.",
+  
+  # HARVESTING
+  "HARVESTING-SOYBEAN",                           "HARVESTING",
+  "HARVESTING-PIGEONPEA",                         "HARVESTING",
+  "HARVESTING-COTTON",                            "HARVESTING",
+  "HARVESTING-SORGHUM",                           "HARVESTING",
+  "HARVESTING-ONION",                             "HARVESTING",
+  "HARVESTING-GROUNDNUT",                         "HARVESTING",
+  "HARVESTING-ARECANUT",                          "HARVESTING",
+  "HARVESTING-CHRYSANTHEMUM",                     "HARVESTING",
+  "HARVESTING-BETEL VINE",                        "HARVESTING",
+  "HARVESTING-BLACKGRAM",                         "HARVESTING",
+  "HARVESTING-BY-PRODUCT",                        "HARVESTING",
+  "HARVESTING BY-PRODUCT",                        "HARVESTING",
+  "HARVESTING BY-PRODUCT-SORGHUM",                "HARVESTING",
+  "HARVESTING-D LAB LAB",                         "HARVESTING",
+  "HARVESTING-COCONUT",                           "HARVESTING",
+  "HARVESTING-SUGARCANE",                         "HARVESTING",
+  "HARVESTING-CHICKPEA",                          "HARVESTING",
+  "HARVESTING-COWPEA",                            "HARVESTING",
+  "HARVESTING-SORGHUM FODDER",                    "HARVESTING",
+  "HARVESTING-HORSEGRAM",                         "HARVESTING",
+  "HARVESTING-HULGA",                             "HARVESTING",
+  "HARVESTING-MAIZE",                             "HARVESTING",
+  "HARVESTING-MAIZE FODDER",                      "HARVESTING",
+  "HARVESTING-MATKI",                             "HARVESTING",
+  "HARVESTING-FINGER MILLET",                     "HARVESTING",
+  "HERVESTING",                                   "HARVESTING",
+  
+  # THRESHING
+  "THRESHING-ARECANUT",                           "THRESHING",
+  "THRESHING-BLACKGRAM",                          "THRESHING",
+  "THRESHING-CHICKPEA",                           "THRESHING",
+  "THRESHING-COWPEA",                             "THRESHING",
+  "THRESHING-D LAB LAB",                          "THRESHING",
+  "THRESHING-FINGER MILLET",                      "THRESHING",
+  "THRESHING-GROUNDNUT",                          "THRESHING",
+  "THRESHING-HORSEGRAM",                          "THRESHING",
+  "THRESHING-HULGA",                              "THRESHING",
+  "THRESHING-MAIZE",                              "THRESHING",
+  "THRESHING-MATKI",                              "THRESHING",
+  "THRESHING-PIGEONPEA",                          "THRESHING",
+  "THRESHING-SORGHUM",                            "THRESHING",
+  "THRESHING-SOYBEAN",                            "THRESHING",
+  "THRESHING & TRANSPORT",                        "THRESHING",
+  "THRESHING AND TRANSPORT",                      "THRESHING",
+  
+  # HARVESTING/THRESHING
+  "THRESHING HARVESTING",                         "HARVESTING/THRESHING",
+  "THRASHING HARVESTING",                         "HARVESTING/THRESHING",
+  "HARVESTING AND THRESHING",                     "HARVESTING/THRESHING",
+  "HARVESTING & THRESHING",                       "HARVESTING/THRESHING",
+  "HARVESTING & THRESHING-SOYBEAN",               "HARVESTING/THRESHING",
+  
+  # TRANSPORT
+  "TRANSPORT-COTTON",                             "TRANSPORT",
+  "TRANSPORT-PIGEONPEA",                          "TRANSPORT",
+  "TRANSPORT-SORGHUM",                            "TRANSPORT",
+  "TRANSPORT-SOYBEAN",                            "TRANSPORT",
+  
+  # IRRIGATION
+  "IRRIGATION-PIGEONPEA",                         "IRRIGATION",
+  "IRRIGATION MANUAL",                            "IRRIGATION",
+  
+  # LEVELING
+  "LAND PREPARATION-LEVELLING",                   "LEVELING",
+  "LAND PREPARATION-HARROWING & LEVELLING",       "LEVELING",
+  "PLOUGING WITH LEVELING",                       "LEVELING",
+  "PLOUGHING WITH LEVELING",                      "LEVELING",
+  "PLOUHGING WITH LEVELING",                      "LEVELING",
+  
+  # DIGGING
+  "LAND PREPARATION-DIGGING",                     "DIGGING",
+  "GAP FILLING/THINNING",                         "DIGGING",
+  "SOIL DIGGING",                                 "DIGGING",
+  "MAKING LINES",                                 "DIGGING",
+  "DIGGING OF PIT",                               "DIGGING",
+  "LAND PREPARATION-SOIL DIGGING",                "DIGGING",
+  "LAND PREPARATION-ROUND DIGGING",               "DIGGING",
+  "TRENCHING",                                    "DIGGING",
+  
+  # DIPPING
+  "DRENCHING",                                    "DIPPING",
+  
+  # BUNDING
+  "BUND MAKING",                                  "BUNDING",
+  "BUND TRIMMING",                                "BUNDING",
+  "BUND REPAIR",                                  "BUNDING",
+  "FARM BUNDING",                                 "BUNDING",
+  "WATER CHANNEL",                                "BUNDING",
+  "LAND PREPARATION-WATER CHANNEL",               "BUNDING",
+  "LAND PREPARATION-MAKING BASIN",                "BUNDING",
+  "LAND PREPARATION-BUND REPAIR",                 "BUNDING",
+  "LAND PREPARATION-BUND MAKING",                 "BUNDING",
+  "LAND PREPARATION-BUND CLEANING",               "BUNDING",
+  "LAND PREPARATION-RING BASIN PREPARATION",      "BUNDING",
+  "LAND PREPARATION-FARM BUNDING",                "BUNDING",
+  
+  # SUPERVISION
+  "WATCHING",                                     "SUPERVISION",
+  
+  # PINCHING/CUTTING
+  "PRUNING",                                      "PINCHING/CUTTING",
+  "PINCHING",                                     "PINCHING/CUTTING",
+  "CUTTING",                                      "PINCHING/CUTTING",
+  "NIPPING",                                      "PINCHING/CUTTING",
+  "PRUNING/PINCHING",                             "PINCHING/CUTTING",
+  "AIR LAYERING",                                 "PINCHING/CUTTING",
+  
+  # MULCHING
+  "MANURING",                                     "MULCHING",
+  
+  # GRADING/TAGGING
+  "GRADING",                                      "GRADING/TAGGING",
+  "TAGGING",                                      "GRADING/TAGGING",
+  
+  # LOADING
+  "STACKING",                                     "LOADING",
+  "PACKING OF RAISINS",                           "LOADING",
+  
+  # TRANSFORMATION
+  "PROCESSING OF ARECANUT",                       "TRANSFORMATION",
+  "REMOVING RAISINS FROM RAISIN SHED",            "TRANSFORMATION",
+  "CLEANING OF RAISIN SHED",                      "TRANSFORMATION",
+  
+  # GIRDLING
+  "GRIDLING",                                     "GIRDLING"
+)
+```
+
+```{r}
+# CultInput : Appliquer les opérations harmonisées
+CultInput_2014 <- CultInput_2014 |>
+  left_join(correspondances_oper, by = c("OPERATION" = "OPERATION_VARIANT")) |>
+  mutate(OPERATION = if_else(!is.na(OPERATION_STANDARD), OPERATION_STANDARD, OPERATION)) |>
+  select(-OPERATION_STANDARD)
+```
+
+
+********************************************************************************
+
+## Gérer les doublons
 
 ### CultInput
 
@@ -265,6 +637,7 @@ CultInput_LAB <- CultInput_2014 |>
 # Arrondir WORK_HR à la première décimale (il y a des doublons créés à cause de cela)
 CultInput_LAB$WORK_HR <- as.numeric(as.character(CultInput_LAB$WORK_HR))
 CultInput_LAB$WORK_HR <- round(CultInput_LAB$WORK_HR, 1)
+CultInput_LAB$WAGE <- as.numeric(as.character(CultInput_LAB$WAGE))
 
 # Supprimer les doublons lorsque seule la date SUR_MON_YR diffère (en conservant la date la plus ancienne)
 CultInput_LAB <- CultInput_LAB |>
@@ -282,10 +655,9 @@ dup_CultInput_LAB <- CultInput_LAB |>
   filter(n() > 1) |>
   mutate(row_id = row_number()) |> 
   filter(!is.na(WAGE)) |>
-  ungroup()
+  ungroup() |>
 
 # Créer la variable comparison pour vérifier la cohérence de WORK_HR et WAGE entre chaque doublon
-dup_CultInput_LAB <- dup_CultInput_LAB |>
   mutate(
     WAGE = as.numeric(WAGE),
     WORK_HR = as.numeric(WORK_HR)
@@ -321,11 +693,39 @@ CultInput_LAB <- CultInput_LAB |>
 n_avant - nrow(CultInput_LAB)
 ```
 
+
+*Additionner les heures de travail par opération et type de travail*
+
+```{r}
+CultInput_LAB <- CultInput_LAB |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, SEASON, LAB_TYPE, SUR_MON_YR, DT_OPER, OPERATION, .keep = "all") |>
+  mutate(WORK_HR = sum(WORK_HR),
+         WAGE = sum(WAGE)) |>
+  ungroup() |>
+  distinct()
+```
+
+
+*Pivoter la table CultInput_LAB*
+
+L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant les heures de travail par type de travail. Pour ce faire, je pivote en large la table CultInput_LAB.
+
+```{r}
+CultInput_LAB <- CultInput_LAB |>
+  pivot_wider(
+    names_from = LAB_TYPE,
+    values_from = c(WORK_HR, WAGE),
+    values_fill = 0,
+    names_glue = "{.value}_{LAB_TYPE}"
+  ) 
+```
+
+
 #### Machinery
 
 ```{r}
 # Est-ce que des ménages ont utilisé plusieurs outils pour une même opération (même date d'opération) ? 
-dup_CultInput_MAT <- CultInput_MAT_test |>
+dup_CultInput_MAT <- CultInput_MAT |>
   group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, OPERATION, DT_OPER, SUR_MON_YR) |>
   filter(n() > 1) |>
   mutate(row_id = row_number()) |> 
@@ -342,12 +742,6 @@ CultInput_MAT <- CultInput_MAT |>
 
 
 *1. Catégoriser TYPE_MAT*
-
-```{r}
-# Modifier les colonnes en majuscules 
-CultInput_MAT <- CultInput_MAT |>
-  mutate(across(everything(), toupper))
-```
 
 Je modifie TYPE_MAT quand l'information est manquante, en fonction de NAME_MAT (je ne peux pas me baser sur l'opération, car pour un même type d'opération, il peut avoir plusieurs outils utilisés). 
 
@@ -436,7 +830,7 @@ correspondances_typemat <- tribble(
 ```
 
 ```{r}
-# Modifier TYPE_MAT quant il ets manquant par le tableau de correspondance
+# Modifier TYPE_MAT quant il est manquant par le tableau de correspondance
 type_mat_missing <- CultInput_MAT |>
   filter(is.na(TYPE_MAT)) |>
   select(-TYPE_MAT) |>
@@ -463,7 +857,7 @@ CultInput_MAT <- CultInput_MAT |>
 L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant toutes les outils utilisés à cette date. Pour ce faire, je pivote en large la table CultInput_MAT.
 
 ```{r}
-CultInput_MAT_test <- CultInput_MAT |>
+CultInput_MAT <- CultInput_MAT |>
   group_by(VDS_ID, SUB_PLOT_CODE, SEASON, DT_OPER, OPERATION, .keep = "all") |>
   mutate(row_id = row_number()) |>
   ungroup() |>
@@ -476,10 +870,37 @@ CultInput_MAT_test <- CultInput_MAT |>
 ```
 
 
+#### Fusionné
+
+```{r}
+any(duplicated(CultInput_MAT[, c("VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")]))
+
+any(duplicated(CultInput_LAB[, c("VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")]))
+```
+```{r}
+keys_join <- c("SUR_YR", "VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "REGION", "CROP_AREA", "IRRI_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")
+
+# Fusionner les deux tables
+CultInput_merged <- full_join(
+  CultInput_LAB,
+  CultInput_MAT,
+  by = keys_join
+)
+```
+
 
 ### PlotList
 
 ```{r Enlever les doublons de PlotList}
+# Supprimer les lignes identiques
+PlotList_2014 <- PlotList_2014 |> distinct() |>
+
+# Supprimer les doublons causés par des valeurs de IRRI_AREA différentes
+  arrange(IRRI_AREA) |>
+  distinct(across(-IRRI_AREA), .keep_all = TRUE)
+```
+
+```{r}
 # Arrondir les variables PLOT_AREA, CROP_AREA et IRRI_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
 PlotList_2014$IRRI_AREA <- as.numeric(as.character(PlotList_2014$IRRI_AREA))
 PlotList_2014$IRRI_AREA <- round(PlotList_2014$IRRI_AREA, 2)
@@ -489,18 +910,16 @@ PlotList_2014$CROP_AREA <- round(PlotList_2014$CROP_AREA, 2)
 
 PlotList_2014$PLOT_AREA <- as.numeric(as.character(PlotList_2014$PLOT_AREA))
 PlotList_2014$PLOT_AREA <- round(PlotList_2014$PLOT_AREA, 2)
-
-# Supprimer les lignes identiques
-PlotList_2014 <- PlotList_2014 |> distinct() |>
-
-# Supprimer les doublons causés par des valeurs de IRRI_AREA différentes
-  arrange(IRRI_AREA) |>
-  distinct(across(-IRRI_AREA), .keep_all = TRUE) |>
-
-# Lorsque SUB_PLOT_CODE n'est pas indiqué, je considère l'identifiant du plot (PLOT_CODE)
-  mutate(SUB_PLOT_CODE = if_else(is.na(SUB_PLOT_CODE), PLOT_CODE, SUB_PLOT_CODE))
 ```
 
+
+*Incohérences entre PLOT_CODE et SUB_PLOT_CODE*
+
+```{r}
+# Lorsque SUB_PLOT_CODE n'est pas indiqué, je considère l'identifiant du plot (PLOT_CODE)
+PlotList_2014 <- PlotList_2014 |>
+  mutate(SUB_PLOT_CODE = if_else(is.na(SUB_PLOT_CODE), PLOT_CODE, SUB_PLOT_CODE))
+```
 
 Je modifie l'identifiant SUB_PLOT_CODE pour les champs dont les premières lettres de SUB_PLOT_CODE et PLOT_CODE sont incohérentes. 
 
@@ -521,6 +940,7 @@ PlotList_2014 <- PlotList_2014 |>
   )
 ```
 
+
 ### CultOutput
 
 ```{r}
@@ -528,12 +948,12 @@ PlotList_2014 <- PlotList_2014 |>
 CultOutput_2014 <- CultOutput_2014 |> distinct() |>
 
 # Pivoter les variables CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT et OP_MAIN_PROD_QTY en colonnes
-  group_by(SUR_YEAR, VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
+  group_by(SUR_YR, VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
   mutate(crop_id = row_number()) |>
   filter(crop_id <= 4) |>  # Limiter à 4 cultures max
   ungroup() |>
   pivot_wider(
-    id_cols = c(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SUR_YEAR, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
+    id_cols = c(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SUR_YR, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
     names_from = crop_id,
     values_from = c(CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY),
     names_glue = "{.value}_{crop_id}"
@@ -577,9 +997,7 @@ Landholding_2014 <- Landholding_2014 |>
 ```
 
 
-********************************************************************************
-
-## Vérification des doublons restants
+## Vérifier les doublons restants
 
 ```{r Tableaux de vérification des doublons}
 any(duplicated(PlotList_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_1", "CROP_2", "SEASON")]))
@@ -590,10 +1008,140 @@ dup_rows_PlotList_2014 <- PlotList_2014 |>
   filter(n() > 1) |>
   ungroup()
 
-any(duplicated(CultInput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_AREA", "DT_OPER", "OPERATION", "LAB_TYPE", "SEASON", "NAME_MAT", "TYPE_MAT")]))
-
 any(duplicated(CultOutput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
+
+any(duplicated(CultInput_merged[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON", "OPERATION", "DT_OPER", "SUR_MON_YR")]))
 ```
+
+Les doublons dans CultInput (LAB et MAT) sont tous causés par des incohérences entre SUR_MON_YR et DT_OPER.
+
+
+********************************************************************************
+
+# Correspondance des champs entre les tables
+
+```{r Correspondance CultInput -> PlotList}
+# Vérifier les couples (VDS_ID, SUB_PLOT_CODE, SEASON)
+cultinput_keys <- CultInput_merged |>
+  select(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  distinct()
+
+plotlist_keys <- PlotList_2014 |>
+  select(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  distinct()
+
+# Identifier les champs de CultInput non trouvés dans PlotList
+non_match <- anti_join(cultinput_keys, plotlist_keys, by = c("VDS_ID", "SEASON", "SUB_PLOT_CODE"))
+
+n_non_matched <- nrow(non_match)
+n_total <- nrow(cultinput_keys)
+prop_non_matched <- round(n_non_matched / n_total * 100, 2)
+
+cat(" - Plots totaux dans CultInput :", n_total, "\n")
+cat(" - Plots sans équivalent dans PlotList :", n_non_matched, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
+```
+
+```{r Correspondance CultInput -> CultOutput}
+# Vérifier les couples (VDS_ID, PLOT_CODE, SEASON)
+cultoutput_keys <- CultOutput_2014 |>
+  select(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  distinct()
+
+# Identifier les champs de CultInput non trouvés dans CultOutput
+non_match2 <- anti_join(cultinput_keys, cultoutput_keys, by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON"))
+
+n_non_matched2 <- nrow(non_match2)
+prop_non_matched2 <- round(n_non_matched2 / n_total * 100, 2)
+
+cat(" - Plots totaux dans CultInput :", n_total, "\n")
+cat(" - Plots sans équivalent dans CultOutput :", n_non_matched2, "\n")
+cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
+```
+
+```{r Correspondance CultInput -> Landholding}
+# Vérifier les couples (VDS_ID, PLOT_CODE)
+landholding_keys <- Landholding_2014 |>
+  select(VDS_ID, PLOT_CODE)
+
+cultinput_plots_keys <- CultInput_merged |>
+  select(VDS_ID, PLOT_CODE) |>
+  distinct()
+
+# Identifier les lignes dans CultiInput qui n'ont pas de match dans Landholding
+non_match3 <- anti_join(cultinput_plots_keys, landholding_keys, by = c("VDS_ID", "PLOT_CODE"))
+
+n_non_matched3 <- nrow(non_match)
+n_total3 <- nrow(cultinput_plots_keys)
+prop_non_matched3 <- round(n_non_matched / n_total3 * 100, 2)
+
+cat(" - Total de plots dans CultInput :", n_total3, "\n")
+cat(" - Plots sans match avec Landholding :", n_non_matched3, "\n")
+cat(" - Proportion sans match :", prop_non_matched3, "%\n")
+```
+
+```{r Correspondance des régions}
+# Faire ressortir les codes de chaque région puis comparer les bases
+CultInput_merged <- CultInput_merged |> mutate(STATE = substr(VDS_ID, 2, 3))
+PlotList_2014  <- PlotList_2014  |> mutate(STATE = substr(VDS_ID, 2, 3))
+CultOutput_2014 <- CultOutput_2014 |> mutate(STATE = substr(VDS_ID, 2, 3))
+Landholding_2014 <- Landholding_2014 |> mutate(STATE = substr(VDS_ID, 2, 3))
+
+region_cultinput <- unique(CultInput_merged$STATE)
+region_plotlist <- unique(PlotList_2014$STATE)
+region_cultoutput <- unique(CultOutput_2014$STATE)
+region_landholding <- unique(Landholding_2014$STATE)
+
+list(
+  CultInput = sort(region_cultinput),
+  PlotList = sort(region_plotlist),
+  CultOutput = sort(region_cultoutput),
+  Landholding = sort(region_landholding)
+)
+```
+
+********************************************************************************
+
+# Création d'une clé de jonction
+
+## Base validation_ID
+
+```{r Correspondance couple VDS_ID / SUB_PLOT_CODE / SEASON entre les bases, message=FALSE, warning=FALSE}
+cultinput_keys <- CultInput_merged |>
+  select(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON) |>
+  distinct()
+
+plotlist_keys <- PlotList_2014 |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON, CROP_1, CROP_2) |>
+  distinct()
+
+cultoutput_keys <- CultOutput_2014 |>
+  select(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SEASON, CROP_1, CROP_2) |>
+  distinct() |>
+  rename(
+    PLOT_NAME_CO = PLOT_NAME,
+    CROP_AREA_CO = CROP_AREA,
+    CROP_1_CO = CROP_1,
+    CROP_2_CO = CROP_2
+  )
+
+validation_ID <- cultinput_keys |>
+  rename(
+    PLOT_NAME_CI = PLOT_NAME,
+    CROP_AREA_CI = CROP_AREA,
+  ) |>
+  left_join(
+    plotlist_keys |> rename(
+      PLOT_NAME_PL = PLOT_NAME,
+      CROP_AREA_PL = CROP_AREA,
+      CROP_1_PL = CROP_1,
+      CROP_2_PL = CROP_2,
+    ),
+    by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
+  ) |>
+  left_join(cultoutput_keys, by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON"))
+```
+
 
 
 
