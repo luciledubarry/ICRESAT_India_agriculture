@@ -200,6 +200,7 @@ Je pense que la variable PLOT_CODE complétée dans les bases CultInput et CultO
 
 ```{r}
 CultInput_2014 <- CultInput_2014 |>
+  mutate(SUR_YR == "2014") |>
   select(-REMARKS) |>
   filter(!LAB_TYPE %in% c("0", "8", "B")) |>
   mutate(PLOT_CODE = substr(PLOT_CO, 1, 1)) |>
@@ -211,9 +212,12 @@ CultInput_2014$CROP_AREA <- round(CultInput_2014$CROP_AREA, 2)
 
 CultOutput_2014 <- CultOutput_2014 |>
   select(-c(RENT_VAL, OP_MAIN_PROD_RATE, OP_BY_PROD_UNIT, OP_BY_PROD_QTY, OP_BY_PROD_RATE, OP_OT_PROD_UNIT, OP_OT_PROD_QTY, OP_OT_PROD_RATE, REMARKS)) |>
-  rename(SUB_PLOT_CODE = PLOT_CODE)
+  rename(SUB_PLOT_CODE = PLOT_CODE,
+         SUR_YR = SUR_YEAR) |>
+  mutate(SUR_YR == "2014")
 
 PlotList_2014 <- PlotList_2014 |>
+  mutate(SUR_YR == "2014") |>
   select(-c(CROP_3, CROP_4, OW_STAT, RENT_REC_PAID, REMARKS, HH_NO))
 
 Landholding_2014 <- Landholding_2014 |>
@@ -241,7 +245,6 @@ dup_CultInput_2014 <- CultInput_2014 |>
 ATTENTION : Que faire des lignes identiques ? Ets-ce qu'on considère que ce sont des lignes en double ou que cela représente des travailleurs distincts ?
 
 
-
 *Diviser CultInput en 2 parties*
 
 Pour éliminer les doublons pour le calcul des heures de travail, je différencie la base CultInput en deux parties en se basant sur le questionnaire : l'une sur le travail (human and bullock labor), la deuxième sur la mécanisation (Machinery inputs and machinery use).
@@ -256,7 +259,7 @@ CultInput_LAB <- CultInput_2014 |>
 ```
 
 
-*1. CultInput_LAB : Human and bullock labor*
+#### Labor
 
 ```{r}
 # Arrondir WORK_HR à la première décimale (il y a des doublons créés à cause de cela)
@@ -318,24 +321,160 @@ CultInput_LAB <- CultInput_LAB |>
 n_avant - nrow(CultInput_LAB)
 ```
 
-*2. CultInput_MAT : Material inputs and machinery use*
+#### Machinery
 
 ```{r}
 # Est-ce que des ménages ont utilisé plusieurs outils pour une même opération (même date d'opération) ? 
-dup_CultInput_MAT <- CultInput_MAT |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, OPERATION, DT_OPER, SUR_MON_YR) |>
+dup_CultInput_MAT <- CultInput_MAT_test |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, OPERATION, DT_OPER, SUR_MON_YR) |>
   filter(n() > 1) |>
   mutate(row_id = row_number()) |> 
   ungroup()
 ```
 
-
-Je supprime les lignes pour lesquelles aucune information sur la mécanisation n'est indiquée (soit toutes les variables MAT sont n/a). 
+Je supprime les lignes pour lesquelles aucune information sur la mécanisation n'est pas indiquée (soit quand NAME_MAT et TYPE_MAT sont n/a). 
 
 ```{r}
 CultInput_MAT <- CultInput_MAT |>
-  filter(!if_all(ends_with("MAT"), is.na))
+  filter(!(is.na(NAME_MAT) & is.na(TYPE_MAT)),
+         NAME_MAT != 0)
 ```
+
+
+*1. Catégoriser TYPE_MAT*
+
+```{r}
+# Modifier les colonnes en majuscules 
+CultInput_MAT <- CultInput_MAT |>
+  mutate(across(everything(), toupper))
+```
+
+Je modifie TYPE_MAT quand l'information est manquante, en fonction de NAME_MAT (je ne peux pas me baser sur l'opération, car pour un même type d'opération, il peut avoir plusieurs outils utilisés). 
+
+```{r}
+# Table de correspondance entre NAME_MAT et TYPE_MAT
+correspondances_typemat <- tribble(
+  ~NAME_MAT,             ~TYPE_MAT,
+  "UREA",                "FERTILIZER",
+  "URE",                 "FERTILIZER",
+  "URIA",                "FERTILIZER",
+  "MOP",                 "FERTILIZER",
+  "NPK",                 "FERTILIZER",
+  "N.P.K",               "FERTILIZER",
+  "SULPHATE",            "FERTILIZER",
+  "DAP",                 "FERTILIZER",
+  "POTASH",              "FERTILIZER",
+  "POTAS",               "FERTILIZER",
+  "PATAS",               "FERTILIZER",
+  "SSP",                 "FERTILIZER",
+  "GROMOR",              "FERTILIZER",
+  
+  "ROUNDUP",             "WEEDICIDE",
+  "IMAZETHAPYR",         "WEEDICIDE",
+  "HUNTER",              "WEEDICIDE",
+  "TOTAL",               "WEEDICIDE",
+  "BUTACLOUR",           "WEEDICIDE",
+  "2-4D",                "WEEDICIDE",
+  "SATHI",               "WEEDICIDE",
+  "SAATHI",              "WEEDICIDE",
+  "TOP STAR",            "WEEDICIDE",
+  
+  "TR",                  "MACHINERY",
+  "T.R",                 "MACHINERY",
+  "TRACTOR",             "MACHINERY",
+  "SP",                  "MACHINERY",
+  "DS",                  "MACHINERY",
+  "SM",                  "MACHINERY",
+  "PT",                  "MACHINERY",
+  "CH",                  "MACHINERY",
+  "C.H",                 "MACHINERY",
+  "COMBINED HARVESTOR",  "MACHINERY",
+  "SD",                  "MACHINERY",
+  "MK",                  "MACHINERY",
+  "DP",                  "MACHINERY",
+  "D.P",                 "MACHINERY",
+  "TH",                  "MACHINERY",
+  "THRESHER",            "MACHINERY",
+  "ET",                  "MACHINERY",
+  "E.T",                 "MACHINERY",
+  "AUTO",                "MACHINERY",
+  
+  "PADDY",               "SEED",
+  "ONION",               "SEED",
+  "ONIONS",              "SEED",
+  "CHILLIES",            "SEED",
+  "GREEN GRAM",          "SEED",
+  "GREENGRAM",           "SEED",
+  "WHEAT",               "SEED",
+  "WHEET",               "SEED",
+  "JAI",                 "SEED",
+  "LENTIL",              "SEED",
+  "FINGER MILLET",       "SEED",
+  "MANSURI",             "SEED",
+  "GANGOTRI",            "SEED",
+  "KOMAL",               "SEED",
+  "RUPALI",              "SEED",
+  "PARVATI",             "SEED",
+  "CHANDAN",             "SEED",
+  "DHAICHA",             "SEED",
+  "AMAN",                "SEED",
+  "PIGEONPEA",           "SEED",
+  "SOYBEAN",             "SEED",
+  "CHICKPEA",            "SEED",
+  "BLACKGRAM",           "SEED",
+  "SORGHUM",             "SEED",
+  "POTATO",              "SEED",
+  "GARLIC",              "SEED",
+  "PEAS",                "SEED",
+  "MUSTARD",             "SEED",
+  "MAIZE",               "SEED",
+  
+  "SWARNA",              "PESTICIDE/FUNGICIDE",
+  "FYM",                 "ORGANIC MATERIAL",
+  "ZINC",                "MICRONUTRIENT"
+)
+```
+
+```{r}
+# Modifier TYPE_MAT quant il ets manquant par le tableau de correspondance
+type_mat_missing <- CultInput_MAT |>
+  filter(is.na(TYPE_MAT)) |>
+  select(-TYPE_MAT) |>
+  left_join(correspondances_typemat, by = "NAME_MAT") |>
+
+# Règles supplémentaires : 
+# Si NAME_MAT contient "SEED", alors TYPE_MAT = "SEED"
+  mutate(TYPE_MAT = case_when(
+    str_detect(NAME_MAT, regex("SEED", ignore_case = TRUE)) ~ "SEED",
+    TRUE ~ TYPE_MAT
+  )) |>
+# Tous les TYPE_MAT encore NA deviennent "OTHERS"
+  mutate(TYPE_MAT = replace_na(TYPE_MAT, "OTHERS"))
+
+# Remplacer les lignes modifiées dans la table d'origine
+CultInput_MAT <- CultInput_MAT |>
+  filter(!is.na(TYPE_MAT)) |>    # Garder les lignes avec TYPE_MAT déjà rempli
+  bind_rows(type_mat_missing)    # Ajouter les lignes complétées depuis correspondances
+```
+
+
+*2. Pivoter la table CultInput_MAT*
+
+L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant toutes les outils utilisés à cette date. Pour ce faire, je pivote en large la table CultInput_MAT.
+
+```{r}
+CultInput_MAT_test <- CultInput_MAT |>
+  group_by(VDS_ID, SUB_PLOT_CODE, SEASON, DT_OPER, OPERATION, .keep = "all") |>
+  mutate(row_id = row_number()) |>
+  ungroup() |>
+  pivot_wider(
+    id_cols = c(SUR_YR, VDS_ID, PLOT_NAME, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, REGION, SUR_MON_YR, DT_OPER, OPERATION),
+    names_from = row_id,
+    values_from = c(TYPE_MAT, NAME_MAT, UNIT_MAT, QTY_MAT, VAL_MAT, RATE_MAT, SOURCE_MAT),
+    names_glue = "{.value}_{row_id}"
+  )
+```
+
 
 
 ### PlotList
@@ -351,8 +490,10 @@ PlotList_2014$CROP_AREA <- round(PlotList_2014$CROP_AREA, 2)
 PlotList_2014$PLOT_AREA <- as.numeric(as.character(PlotList_2014$PLOT_AREA))
 PlotList_2014$PLOT_AREA <- round(PlotList_2014$PLOT_AREA, 2)
 
+# Supprimer les lignes identiques
+PlotList_2014 <- PlotList_2014 |> distinct() |>
+
 # Supprimer les doublons causés par des valeurs de IRRI_AREA différentes
-PlotList_2014 <- PlotList_2014 |>
   arrange(IRRI_AREA) |>
   distinct(across(-IRRI_AREA), .keep_all = TRUE) |>
 
@@ -360,14 +501,33 @@ PlotList_2014 <- PlotList_2014 |>
   mutate(SUB_PLOT_CODE = if_else(is.na(SUB_PLOT_CODE), PLOT_CODE, SUB_PLOT_CODE))
 ```
 
-Pas de ligne identique dans PlotList
 
+Je modifie l'identifiant SUB_PLOT_CODE pour les champs dont les premières lettres de SUB_PLOT_CODE et PLOT_CODE sont incohérentes. 
+
+```{r}
+diff_plot_code <- PlotList_2014 |>
+  filter(substr(SUB_PLOT_CODE, 1, 1) != substr(PLOT_CODE, 1, 1))
+
+cat("Champs où les premières lettres de PLOT_CODE et SUB_PLOT_CODE ne correspondent pas :", nrow(diff_plot_code), "\n")
+
+# Modifier SUB_PLOT_CODE pour ces champs
+PlotList_2014 <- PlotList_2014 |>
+   mutate(
+    SUB_PLOT_CODE = if_else(
+      substr(SUB_PLOT_CODE, 1, 1) != substr(PLOT_CODE, 1, 1),
+      str_c(substr(PLOT_CODE, 1, 1), str_sub(SUB_PLOT_CODE, 2)),
+      SUB_PLOT_CODE
+    )
+  )
+```
 
 ### CultOutput
 
-```{r Modifier les variables}
+```{r}
+# Supprimer les lignes identiques
+CultOutput_2014 <- CultOutput_2014 |> distinct() |>
+
 # Pivoter les variables CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT et OP_MAIN_PROD_QTY en colonnes
-CultOutput_2014 <- CultOutput_2014 |>
   group_by(SUR_YEAR, VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
   mutate(crop_id = row_number()) |>
   filter(crop_id <= 4) |>  # Limiter à 4 cultures max
@@ -396,6 +556,44 @@ CultOutput_2014 <- CultOutput_2014 |>
   select(-n_na)
 ```
 
+
+### Landholding
+
+```{r Enlever les doublons de Landholding}
+# Tableau des doublons Landholding
+dup_rows_Landholding <- Landholding_2014 |>
+  group_by(VDS_ID, PLOT_CODE) |>
+  filter(n() > 1) |>
+  ungroup()
+
+# Supprimer les lignes avec les mêmes variables VDS_ID / PLOT_CODE en double. Supprimer celles avec le plus de NA.
+Landholding_2014 <- Landholding_2014 |>
+  mutate(n_na = rowSums(across(everything(), is.na))) |>
+  group_by(VDS_ID, PLOT_CODE) |>
+  distinct() |>
+  slice_min(order_by = n_na, with_ties = FALSE) |>
+  ungroup() |>
+  select(-n_na)
+```
+
+
+********************************************************************************
+
+## Vérification des doublons restants
+
+```{r Tableaux de vérification des doublons}
+any(duplicated(PlotList_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_1", "CROP_2", "SEASON")]))
+
+# Tableau des doublons PlotList
+dup_rows_PlotList_2014 <- PlotList_2014 |>
+  group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
+  filter(n() > 1) |>
+  ungroup()
+
+any(duplicated(CultInput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_AREA", "DT_OPER", "OPERATION", "LAB_TYPE", "SEASON", "NAME_MAT", "TYPE_MAT")]))
+
+any(duplicated(CultOutput_2014[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
+```
 
 
 
