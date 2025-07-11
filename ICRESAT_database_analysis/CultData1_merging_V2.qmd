@@ -952,18 +952,6 @@ PlotList <- PlotList |> distinct() |>
   distinct(across(-IRRI_AREA), .keep_all = TRUE)
 ```
 
-```{r}
-# Arrondir les variables PLOT_AREA, CROP_AREA et IRRI_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
-PlotList$IRRI_AREA <- as.numeric(as.character(PlotList$IRRI_AREA))
-PlotList$IRRI_AREA <- round(PlotList$IRRI_AREA, 2)
-
-PlotList$CROP_AREA <- as.numeric(as.character(PlotList$CROP_AREA))
-PlotList$CROP_AREA <- round(PlotList$CROP_AREA, 2)
-
-PlotList$PLOT_AREA <- as.numeric(as.character(PlotList$PLOT_AREA))
-PlotList$PLOT_AREA <- round(PlotList$PLOT_AREA, 2)
-```
-
 
 *Corriger les superficies manquantes*
 
@@ -1100,7 +1088,7 @@ any(duplicated(PlotList[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_1", "CROP_2", "SEAS
 
 any(duplicated(CultOutput[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
 
-any(duplicated(CultInput_merged[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON", "OPERATION", "DT_OPER", "SUR_MON_YR")]))
+any(duplicated(CultInput_merged[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON", "OPERATION", "DT_OPER")]))
 
 any(duplicated(Landholding[, c("VDS_ID", "PLOT_CODE")]))
 ```
@@ -1434,22 +1422,6 @@ cat(" - Ménages totaux dans Cultivation_wide :", n_hh, "\n")
 cat(" - Ménages sans équivalent dans Household_info :", n_non_matched4, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched4, "%\n")
 ```
-
-```{r Correspondance des régions}
-# Faire ressortir les codes de chaque village pour comparer les bases
-household_village <- Household_info |> 
-  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
-  group_by(VILLAGE) |>
-  distinct(VDS_ID) |>
-  summarise(n = n(), .groups = "drop")
-
-nb_village  <- Cultivation_wide  |> 
-  mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
-  group_by(VILLAGE) |>
-  distinct(VDS_ID) |>
-  summarise(n = n(), .groups = "drop")
-```
-
 
 *Ajouter la caste*
 
