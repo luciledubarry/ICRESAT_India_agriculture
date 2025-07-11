@@ -33,7 +33,7 @@ library(here)
 #| message: false
 #| warning: false
 # Choisir l'année
-annee <- 2013
+annee <- 2011
 
 charger_fichier <- function(zone, type, annee, suffix = ".xlsx") {
   nom_fichier <- paste0(zone, "_", type, "_", annee, suffix)
@@ -70,23 +70,43 @@ EAST_CultInput <- EAST_CultInput |>
 ```
 
 
-PLOT_AREA désigne la superficie du plot et CROP_AREA celle du subplot (égale à celle du plot s'il n'y a pas de division du champ). De la même manière, PLOT_CODE désigne l'identifiant du plot et SUB_PLOT_CODE l'identifiant du subplot. 
+PLOT_AREA désigne la superficie du plot et CROP_AREA celle du subplot (égale à celle du plot s'il n'y a pas de division du champ). De la même manière, PLOT_CODE désigne l'identifiant du plot et SUB_PLOT_CODE l'identifiant du subplot.
+
+```{r}
+# Fonction pour renommer les variables
+rename_if_exists <- function(df, old, new) {
+  if (old %in% names(df)) {
+    df <- rename(df, !!new := !!sym(old))
+  }
+  df
+}
+```
 
 ```{r Harmoniser les noms des variables}
-SAT_CultOutput <- SAT_CultOutput |>
-  rename(CROP_AREA = PLOT_AREA)
+SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "PLOT_AREA", "CROP_AREA")
+SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "CROP_NAME", "CROP")
+SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "OP_REMARKS", "REMARKS")
+SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "PLOT_CO", "PLOT_CODE")
+EAST_CultOutput <- rename_if_exists(EAST_CultOutput, "PLOT_AREA", "CROP_AREA")
+EAST_CultOutput <- rename_if_exists(EAST_CultOutput, "CROP_NAME", "CROP")
+EAST_CultOutput <- rename_if_exists(EAST_CultOutput, "OP_REMARKS", "REMARKS")
+EAST_CultOutput <- rename_if_exists(EAST_CultOutput, "PLOT_CO", "PLOT_CODE")
 
-EAST_CultInput <- EAST_CultInput |>
-  rename(CROP_AREA = PLOT_AREA)
-SAT_CultInput <- SAT_CultInput |>
-  rename(CROP_AREA = PLOT_AREA)
+SAT_CultInput <- rename_if_exists(SAT_CultInput, "PLOT_AREA", "CROP_AREA")
+SAT_CultInput <- rename_if_exists(SAT_CultInput, "PLOT_CO", "PLOT_CODE")
+SAT_CultInput <- rename_if_exists(SAT_CultInput, "IP_REMARKS", "REMARKS")
+EAST_CultInput <- rename_if_exists(EAST_CultInput, "PLOT_AREA", "CROP_AREA")
+EAST_CultInput <- rename_if_exists(EAST_CultInput, "PLOT_CO", "PLOT_CODE")
+EAST_CultInput <- rename_if_exists(EAST_CultInput, "IP_REMARKS", "REMARKS")
 
 names(EAST_Landholding) <- toupper(names(EAST_Landholding))
 
+EAST_Household_info <- rename_if_exists(EAST_Household_info, "CASTE_CATEGORY", "CASTE_GROUP")
 names(EAST_Household_info) <- toupper(names(EAST_Household_info))
 EAST_Household_info <- EAST_Household_info |>
   select(VDS_ID, CASTE, CASTE_GROUP)
 
+SAT_Household_info <- rename_if_exists(SAT_Household_info, "CASTE_CATEGORY", "CASTE_GROUP")
 names(SAT_Household_info) <- toupper(names(SAT_Household_info))
 SAT_Household_info <- SAT_Household_info |>
   select(VDS_ID, CASTE, CASTE_GROUP)
@@ -198,24 +218,20 @@ Je pense que la variable PLOT_CODE complétée dans les bases CultInput et CultO
 
 ```{r}
 CultInput <- CultInput |>
-  select(-REMARKS) |>
+  select(SUR_YR, REGION, VDS_ID, PLOT_NAME, PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, SUR_MON_YR, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, WAGE, NAME_MAT, TYPE_MAT, QTY_MAT, UNIT_MAT, VAL_MAT, RATE_MAT, SOURCE_MAT) |>
   filter(!LAB_TYPE %in% c("0", "8", "B")) |>
   rename(SUB_PLOT_CODE = PLOT_CODE) |>
   mutate(PLOT_CODE = substr(SUB_PLOT_CODE, 1, 1),
          across(everything(), toupper))
 
-# Arrondir CROP_AREA à la deuxième décimale (pour harmoniser avec les autres bases)
-CultInput$CROP_AREA <- as.numeric(as.character(CultInput$CROP_AREA))
-CultInput$CROP_AREA <- round(CultInput$CROP_AREA, 2)
-
 CultOutput <- CultOutput |>
-  select(-c(RENT_VAL, OP_MAIN_PROD_RATE, OP_BY_PROD_UNIT, OP_BY_PROD_QTY, OP_BY_PROD_RATE, OP_OT_PROD_UNIT, OP_OT_PROD_QTY, OP_OT_PROD_RATE, REMARKS)) |>
+  select(VDS_ID, PLOT_NAME, PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, CROP, VAR_TYPE, VAR_NAME, PRCT_AREA, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, OW_STAT, RENT_VAL, RENT_FOR) |>
   rename(SUB_PLOT_CODE = PLOT_CODE) |>
   mutate(across(everything(), toupper))
 
 PlotList <- PlotList |>
   mutate(across(everything(), toupper)) |>
-  select(-c(CROP_3, CROP_4, OW_STAT, RENT_REC_PAID, REMARKS, HH_NO))
+  select(VDS_ID, PLOT_NAME, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, CROP_AREA, IRRI_AREA, SEASON, CROP_1, CROP_2, CROP_3, CROP_4)
 
 Landholding <- Landholding |>
   mutate(PLOT_CODE = substr(PLOT_CODE, 1, 1)) |>
@@ -223,6 +239,18 @@ Landholding <- Landholding |>
 
 Household_info <- Household_info |>
   mutate(across(everything(), toupper))
+```
+
+```{r}
+# Convertir et arrondir les superficies à la deuxième décimale
+convertir_arrondir <- function(df, cols) {
+  df[cols] <- lapply(df[cols], function(x) round(as.numeric(as.character(x)), 2))
+  return(df)
+}
+
+CultInput  <- convertir_arrondir(CultInput,  c("CROP_AREA", "IRRI_AREA"))
+CultOutput <- convertir_arrondir(CultOutput, c("IRRI_AREA", "CROP_AREA"))
+PlotList   <- convertir_arrondir(PlotList,   c("IRRI_AREA", "CROP_AREA", "PLOT_AREA"))
 ```
 
 
@@ -237,10 +265,10 @@ Household_info <- Household_info |>
 correspondances_crop <- tribble(
   ~CULTURE_VARIANT,      ~CULTURE_STANDARD,
   "BAMBOO TREE",         "BAMBOO",
-  "BLACKGRAM",           "BLACK GRAM",
-  "GREEN GRAM",          "BLACK GRAM",
+  "BLACK GRAM",          "BLACKGRAM",
+  "GREEN GRAM",          "BLACKGRAM",
+  "GREENGRAM",           "BLACKGRAM",
   "MAIZE FODDER",        "MAIZE",
-  "GREENGRAM",           "GREEN GRAM",
   "CHICK PEA",           "CHICKPEA",
   "CHIKPEA",             "CHICKPEA",
   "FELLOW",              "SEASONAL FALLOW",
@@ -251,6 +279,7 @@ correspondances_crop <- tribble(
   "MANGO TREE",          "MANGO",
   "MANGOES",             "MANGO",
   "MANGOES TREE",        "MANGO",
+  "MANGO ORCHARD",       "MANGO",
   "JUNGLE",              "JUNGLE TREE",
   "MUSTERD",             "MUSTARD",
   "MUSTURD",             "MUSTARD",
@@ -262,6 +291,9 @@ correspondances_crop <- tribble(
   "PADDY SEED",          "PADDY",
   "PADDY SEEDLING",      "PADDY",
   "PADDY(SEEDLING)",     "PADDY",
+  "PADDY LOCAL",         "PADDY",
+  "PADY",                "PADDY",
+  "PIGEON PEA",          "PIGEONPEA",
   "PIGION PEA",          "PIGEONPEA",
   "POTATAO",             "POTATO",
   "SORGHUM FODDER",      "SORGHUM",
@@ -269,11 +301,10 @@ correspondances_crop <- tribble(
   "FODDER (EGYPTIAN CLOVER)","EGYPTIAN CLOVER",
   "BERSEEM",             "EGYPTIAN CLOVER",
   "OATS (JAI)",          "JAI",
+  "OTS",                 "JAI",
   "FODDER OATS (JAI)",   "JAI",
   "GREEN FODDER JAI",    "JAI",
   "GREEN FODDER (JANER)","GREEN FODDER",
-  "PADDY LOCAL",         "PADDY",
-  "PADY",                "PADDY",
   "SMALL MILLET (MARUA)","MARUA",
   "FRENCH BEANS",        "BEANS",
   "FREANCH BEANS",       "BEANS",
@@ -285,6 +316,7 @@ correspondances_crop <- tribble(
   "SESBANIA ACULEATA (DHAICHA)","DHAICHA",
   "LADYSFINGER",         "LADYS FINGER",
   "LEAFY VEGETABLE",     "LEAFY",
+  "VEGETABLE",           "LEAFY",
   "CORIENDER",           "CORIANDER",
   "RIDGEGOURD",          "RIDGE GOURD",
   "WHEET",               "WHEAT"
@@ -349,6 +381,7 @@ correspondances_oper <- tribble(
   "PUDDLING",                                     "LAND PREPARATION",
   "LAND PREPARATION - PUDDLING",                  "LAND PREPARATION",
   "PANJI",                                        "LAND PREPARATION",
+  "LAND PREPARATION AND PLOUGHING",               "LAND PREPARATION",
   "LAND PREPARATION-PLOUGHING",                   "LAND PREPARATION",
   "LAND PREPARATION- PLOUGHING",                  "LAND PREPARATION",
   "LAND PREPARATION - PLOUHGING",                 "LAND PREPARATION",
@@ -411,6 +444,7 @@ correspondances_oper <- tribble(
   
   # SOWING
   "SEED SOWING",                                  "SOWING",
+  "SEED SOWING WITH FERTILIZER",                  "SOWING",
   "SOWING/SOWING WITH FERTILIZER",                "SOWING",
   "SEED APPLICATION",                             "SOWING",
   "RESOWING",                                     "SOWING",
@@ -754,10 +788,15 @@ correspondances_typemat <- tribble(
   "NPK",                 "FERTILIZER",
   "N.P.K",               "FERTILIZER",
   "SULPHATE",            "FERTILIZER",
+  "AMMONIUM SULPHATE",   "FERTILIZER",
   "DAP",                 "FERTILIZER",
   "POTASH",              "FERTILIZER",
   "POTAS",               "FERTILIZER",
   "PATAS",               "FERTILIZER",
+  "UREA, AMMONIUM",      "FERTILIZER",
+  "UREA, POTASH",        "FERTILIZER",
+  "UREA GOMOR",          "FERTILIZER",
+  "GROWMORE",            "FERTILIZER",
   "SSP",                 "FERTILIZER",
   "GROMOR",              "FERTILIZER",
   
@@ -775,25 +814,39 @@ correspondances_typemat <- tribble(
   "T.R",                 "MACHINERY",
   "TRACTOR",             "MACHINERY",
   "SP",                  "MACHINERY",
+  "SPRAYER",             "MACHINERY",
+  "SPRAY",               "MACHINERY",
   "DS",                  "MACHINERY",
+  "DUSTER",              "MACHINERY",
   "SM",                  "MACHINERY",
+  "SUBMERSIBLE PUMP",    "MACHINERY",
   "PT",                  "MACHINERY",
+  "POWER TILLER",        "MACHINERY",
   "CH",                  "MACHINERY",
   "C.H",                 "MACHINERY",
+  "COMBINED HARVESTER",  "MACHINERY",
   "COMBINED HARVESTOR",  "MACHINERY",
+  "HARVESTER",           "MACHINERY",
   "SD",                  "MACHINERY",
+  "SEED DRILL",          "MACHINERY",
   "MK",                  "MACHINERY",
   "DP",                  "MACHINERY",
   "D.P",                 "MACHINERY",
+  "DIESEL PUMP",         "MACHINERY",
   "TH",                  "MACHINERY",
   "THRESHER",            "MACHINERY",
   "ET",                  "MACHINERY",
   "E.T",                 "MACHINERY",
+  "ELECTRIC MOTOR",      "MACHINERY",
   "AUTO",                "MACHINERY",
+  "TRUCK",               "MACHINERY",
   
+  "SEE",                 "SEED",
   "PADDY",               "SEED",
   "ONION",               "SEED",
   "ONIONS",              "SEED",
+  "BEAN",                "SEED",
+  "BEANS",               "SEED",
   "CHILLIES",            "SEED",
   "GREEN GRAM",          "SEED",
   "GREENGRAM",           "SEED",
@@ -991,12 +1044,12 @@ PlotList <- PlotList |>
 CultOutput <- CultOutput |> distinct() |>
 
 # Pivoter les variables CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT et OP_MAIN_PROD_QTY en colonnes
-  group_by(SUR_YR, VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
+  group_by(VDS_ID, PLOT_NAME, SUB_PLOT_CODE, SEASON, CROP_AREA, OW_STAT, RENT_FOR) |>
   mutate(crop_id = row_number()) |>
   filter(crop_id <= 4) |>  # Limiter à 4 cultures max
   ungroup() |>
   pivot_wider(
-    id_cols = c(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, SUR_YR, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
+    id_cols = c(VDS_ID, SUB_PLOT_CODE, PLOT_NAME, CROP_AREA, IRRI_AREA, SEASON, RENT_FOR, OW_STAT),
     names_from = crop_id,
     values_from = c(CROP, PRCT_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY),
     names_glue = "{.value}_{crop_id}"
@@ -1294,12 +1347,12 @@ PlotList <- PlotList |>
 ## Joindre en colonne les bases
 
 ```{r}
-Cultivation <- CultInput_merged |>
+Cultivation_wide <- CultInput_merged |>
   select(-PLOT_NAME) |>
 
 # D'abord joindre avec CultOutput
   left_join(
-    CultOutput |> select(-c(PLOT_NAME, IRRI_AREA, STATE, SUR_YR, CROP_AREA)),
+    CultOutput |> select(-c(PLOT_NAME, IRRI_AREA, STATE, CROP_AREA)),
     by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
   ) |>
   
@@ -1311,23 +1364,29 @@ Cultivation <- CultInput_merged |>
   left_join(
     PlotList |> select(
       VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, SEASON, 
+      IRRI_AREA_PL = IRRI_AREA,
       CROP_1_PL = CROP_1,
-      CROP_2_PL = CROP_2
+      CROP_2_PL = CROP_2,
+      CROP_3_PL = CROP_3,
+      CROP_4_PL = CROP_4
     ),
     by = c("VDS_ID", "SUB_PLOT_CODE", "SEASON")
   ) |>
 
 # Remplacer les NA avec les infos de PlotList
   mutate(
+    IRRI_AREA = coalesce(IRRI_AREA, IRRI_AREA_PL),
     CROP_1 = coalesce(CROP_1, CROP_1_PL),
-    CROP_2 = coalesce(CROP_2, CROP_2_PL)
+    CROP_2 = coalesce(CROP_2, CROP_2_PL),
+    CROP_3 = coalesce(CROP_3, CROP_3_PL),
+    CROP_4 = coalesce(CROP_4, CROP_4_PL)
   ) |>
-  select(-CROP_1_PL, -CROP_2_PL)
+  select(-c(IRRI_AREA_PL, CROP_1_PL, CROP_2_PL, CROP_3_PL, CROP_4_PL))
 ```
 
 ```{r}
-# Changer l'ordre des colonnes de Cultivation
-Cultivation <- Cultivation |>
+# Changer l'ordre des colonnes de Cultivation_wide
+Cultivation_wide <- Cultivation_wide |>
   relocate(SUR_YR, .before = VDS_ID) |>
   relocate(PLOT_CODE, .before = SUB_PLOT_CODE) |>
   relocate(PLOT_AREA, .before = CROP_AREA) |>
@@ -1340,14 +1399,16 @@ Cultivation <- Cultivation |>
 
 ## Ajouter la caste
 
-*Correspondance entre Cultivation et Household_info*
+*Correspondance entre Cultivation_wide et Household_info*
 
-Les identifiants des ménages ne correspondent pas entre les deux tables, parce que dans la table Household_info, VDS_ID est majoritairement indiqué pour l'année 2013 plutôt que 2014. 
+Les identifiants des ménages peuvent ne pas correspondre entre les deux tables, lorsque VDS_ID est indiqué pour la mauvaise année dans Household_info. 
 
 ```{r}
+dernier_chiffre <- substr(as.character(annee), 4, 4)
+
 Household_info <- Household_info |>
-  mutate(VDS_ID = ifelse(substr(VDS_ID, 5, 5) != "4",
-                         paste0(substr(VDS_ID, 1, 4), "4", substr(VDS_ID, 6, nchar(VDS_ID))),
+  mutate(VDS_ID = ifelse(substr(VDS_ID, 5, 5) != dernier_chiffre,
+                         paste0(substr(VDS_ID, 1, 4), dernier_chiffre, substr(VDS_ID, 6, nchar(VDS_ID))),
                          VDS_ID))
 ```
 
@@ -1358,18 +1419,18 @@ household_keys <- Household_info |>
   select(VDS_ID) |>
   distinct()
 
-cultivation_keys <- Cultivation |>
+cultivation_keys <- Cultivation_wide |>
   select(VDS_ID) |>
   distinct()
 
-# Identifier les ménages de Cultivation_expand non trouvés dans Household_info
+# Identifier les ménages de Cultivation_wide non trouvés dans Household_info
 non_match4 <- anti_join(cultivation_keys, household_keys, by = "VDS_ID")
 
 n_non_matched4 <- nrow(non_match4)
 n_hh <- nrow(cultivation_keys)
 prop_non_matched4 <- round(n_non_matched4 / n_hh * 100, 2)
 
-cat(" - Ménages totaux dans Cultivation :", n_hh, "\n")
+cat(" - Ménages totaux dans Cultivation_wide :", n_hh, "\n")
 cat(" - Ménages sans équivalent dans Household_info :", n_non_matched4, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched4, "%\n")
 ```
@@ -1382,20 +1443,18 @@ household_village <- Household_info |>
   distinct(VDS_ID) |>
   summarise(n = n(), .groups = "drop")
 
-nb_village  <- Cultivation  |> 
+nb_village  <- Cultivation_wide  |> 
   mutate(VILLAGE = substr(VDS_ID, 2, 3)) |>
   group_by(VILLAGE) |>
   distinct(VDS_ID) |>
   summarise(n = n(), .groups = "drop")
 ```
 
-Le village TS, qui comprend 64 ménages dans Cultivation_expand, n'est pas présent dans Household_info, ce qui explique une partie des ménages manquants. 
-
 
 *Ajouter la caste*
 
 ```{r}
-Cultivation <- Cultivation |>
+Cultivation_wide <- Cultivation_wide |>
   left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
   mutate(
     CASTE_GROUP = recode(CASTE_GROUP, `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER"))
@@ -1404,7 +1463,7 @@ Cultivation <- Cultivation |>
 Je regarde le nombre de n/a pour la caste dans Cultivation.  
 
 ```{r}
-Cultivation |>
+Cultivation_wide |>
   summarise(
     na_caste = sum(is.na(CASTE_GROUP)),
     total = n(),
@@ -1417,11 +1476,11 @@ Cultivation |>
 
 # Liens extérieurs
 
-## Enregistrer Cultivation
+## Enregistrer Cultivation_wide
 
 ```{r}
 # Définir le chemin du dossier
-folder_path <- here("Base de données générées", "Cultivation")
+folder_path <- here("Base de données générées", "Cultivation_wide")
 
 # Créer le dossier s'il n'existe pas
 if (!dir.exists(folder_path)) {
@@ -1430,15 +1489,15 @@ if (!dir.exists(folder_path)) {
 
 # Enregistrer le fichier CSV
 write.csv(
-  Cultivation,
-  file = file.path(folder_path, "Cultivation.csv"),
+  Cultivation_wide,
+  file = file.path(folder_path, "Cultivation_wide.csv"),
   row.names = FALSE
 )
 
 # Enregistrer le fichier RDS
 saveRDS(
-  Cultivation,
-  file = file.path(folder_path, "Cultivation.rds"),
+  Cultivation_wide,
+  file = file.path(folder_path, "Cultivation_wide.rds"),
 )
 ```
 
