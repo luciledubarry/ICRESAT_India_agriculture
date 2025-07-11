@@ -25,6 +25,79 @@ library(here)
 ```
 
 ```{r}
-Cultivation_2014 <- readRDS(here::here("Base de données générées", "Cultivation_2014", "Cultivation_2014.rds"))
+Cultivation_wide <- readRDS(here::here("Base de données générées", "Cultivation_wide", "Cultivation_wide.rds"))
 ```
+
+
+********************************************************************************
+
+## Pivoter Cultivation : mettre les CROP en ligne
+
+Les subplots sont pour certains sous_divisés suivant la variable PRCT. 
+Je recalcule les vraiables associées au subplot suivant ce pourcentage. 
+
+```{r}
+# Convertir les variables en numérique
+convertir_num <- function(df, cols) {
+  df[cols] <- lapply(df[cols], function(x) as.numeric(as.character(x)))
+  return(df)
+}
+
+Cultivation_wide <- convertir_num(Cultivation_wide, c("PRCT_AREA_1", "PRCT_AREA_2", "PRCT_AREA_3", "PRCT_AREA_4"))
+```
+
+```{r}
+# Variables auxquelles appliquer PRCT_AREA
+var_prefixes <- c(
+  "AREA_CROP", "IRRI_CROP",
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
+)
+
+ajuster_par_pct <- function(df, var_prefix, pct_vars = paste0("PRCT_AREA_", 1:4)) {
+  for (i in seq_along(pct_vars)) {
+    df[[paste0(var_prefix, "_", i)]] <- ifelse(
+      df[[pct_vars[i]]] == 0 | is.na(df[[pct_vars[i]]]),
+      NA_real_,
+      df[[var_prefix]] * df[[pct_vars[i]]] / 100
+    )
+  }
+  df[[var_prefix]] <- NULL
+  df
+}
+
+Cultivation_long <- Cultivation_wide
+
+for (v in var_prefixes) {
+  Cultivation_long_test <- ajuster_par_pct(Cultivation_long, v)
+}
+```
+
+```{r}
+# Variables à faire pivoter en long
+cols_to_pivot <- paste0("^(", paste(
+  c("CROP", "PRCT_AREA", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "VAR_NAME", "VAR_TYPE", var_prefixes),
+  collapse = "|"
+), ")_[1-4]$")
+
+Cultivation_long <- Cultivation_long |>
+  pivot_longer(
+    cols = matches(cols_to_pivot),
+    names_to = c(".value", "NB"),
+    names_pattern = "(.*)_(\\d)"
+  ) |>
+
+# Supprimer les lignes qui n'ont pas de crop, soit PRCT_AREA == 0
+  filter(!is.na(PRCT_AREA)) |>
+  select(-NB, -PRCT_AREA) |>
+  relocate(AREA_CROP, .after = PLOT_AREA) |>
+  relocate(IRRI_CROP, .after = AREA_CROP) |>
+  relocate(VAR_TYPE, .before = VAR_NAME)
+```
+
+
+
+
+
+
 

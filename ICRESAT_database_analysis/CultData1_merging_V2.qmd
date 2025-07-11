@@ -725,7 +725,6 @@ CultInput_LAB <- CultInput_LAB |>
 n_avant - nrow(CultInput_LAB)
 ```
 
-
 *Additionner les heures de travail par opération et type de travail*
 
 ```{r}
@@ -734,6 +733,7 @@ CultInput_LAB <- CultInput_LAB |>
   mutate(WORK_HR = sum(WORK_HR),
          WAGE = sum(WAGE)) |>
   ungroup() |>
+  mutate(HACRE = WORK_HR/CROP_AREA) |>   # Calculer les heures de travail par acre
   distinct()
 ```
 
@@ -746,7 +746,7 @@ L'objectif est d'avoir pour chaque opération (même date d'opération), une seu
 CultInput_LAB <- CultInput_LAB |>
   pivot_wider(
     names_from = LAB_TYPE,
-    values_from = c(WORK_HR, WAGE),
+    values_from = c(WORK_HR, WAGE, HACRE),
     values_fill = 0,
     names_glue = "{.value}_{LAB_TYPE}"
   ) 
