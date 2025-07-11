@@ -344,6 +344,24 @@ CultOutput <- CultOutput |>
 ```
 
 
+### TEST - Opérations
+
+```{r}
+# Liste des opérations principales
+key_operations <- c("LAND PREPARATION", "UPROOTING", "MARKETING", "TRANSPORT", "DIGGING", "BUND", "THRESHING", "PESTICIDE", "WINNOWING", "IRRIGATION", "FERTILIZER", "HARVEST", "SOWING", "FIELD CLEANING", "HAND WEEDING", "WEEDING", "HERBICIDE", "DIPPING", "BEEDING", "PLOUGHING", "PUDDLING", "HARROWING", "HOEING", "CANAL PREPARATION", "SPRAY", "PLANT PROTECTION", "NUTRIENT", "FYM", "WATER CHANNEL", "COMPOST", "MANURING", "WEEDICIDE", "LEVELING", "BEDICIDE", "EARTHING UP", "PANJI", "STACKING", "LOADING", "CURING", "SOIL UP", "SEED", "FIELD PREPARATION", "PINCHING", "WATCHING", "SUPERVISION", "IPM AND IDM", "FERTIGATION", "PLUCKING", "FERTILIZING", "PLANTING", "MAKING BY PRODUCT", "BED PREPARATION", "GRADING", "CUTTING", "INSECTICIDE", "LABELING", "WATERING", "MAKING LINES", "HORMONE", "SULPHUR", "NURSERY RAISING", "BINDING", "FUNGICIDE", "VITAMIN", "THINNING", "FILLING", "FURROWS", "LINING", "LINES", "GRASS CLEANING", "GRASS CLEANING", "ASH")
+
+pattern_oper <- paste(key_operations, collapse = "|")
+
+CultInput <- CultInput |>
+  mutate(OPERATION = if_else(
+    str_detect(str_to_upper(OPERATION), pattern_oper),
+    str_extract(str_to_upper(OPERATION), pattern_oper),
+    OPERATION
+  ))
+```
+
+
+
 ### Opérations
 
 ```{r}
@@ -411,6 +429,7 @@ correspondances_oper <- tribble(
   "LAND PREPARATION-RIDGES & FURROWS",            "LAND PREPARATION",
   "LAND PREPARATION-MAKING RIDGES & FURROWS",     "LAND PREPARATION",
   "LAND PREPARATION-ROTAVATOR",                   "LAND PREPARATION",
+  "LAND PREPARATION-CANAL PREPARATION",           "LAND PREPARATION",
   
   # UPROOTING
   "UPROOTING JASMINE",                            "UPROOTING",
@@ -454,8 +473,11 @@ correspondances_oper <- tribble(
   "SOWING/SOWING WITH FERTILIZER-MAIZE",          "SOWING",
   "SOWING/SOWING WITH FERTILIZER-SORGHUM",        "SOWING",
   "SOWING/SOWING WITH FERTILIZER-SOYBEAN",        "SOWING",
+  "SOWING/SOWING WITH FERTILIZER-CHICKPEA",       "SOWING",
+  "SOWING/SOWING WITH FERTILIZER-DIBBLING",       "SOWING",
   "LAND PREPARATION AND SEED SOWING",             "SOWING",
   "LAND PREPARATION AND SOWING",                  "SOWING",
+  "WHEAT SOWING",                                 "SOWING",
   
   # HERBICIDE
   "WEEDICIDE",                                    "HERBICIDE",
@@ -477,6 +499,7 @@ correspondances_oper <- tribble(
   "WEEDING",                                      "WEEDING",
   "HAND WEEDING-PIGEONPEA",                       "HAND WEEDING",
   "HAND WEEDING & THINNING",                      "HAND WEEDING",
+  "HAND WEEDING AND IRRIGATION",                  "HAND WEEDING",
   
   # THINNING
   "BEDICIDE",                                     "THINNING",
@@ -493,6 +516,8 @@ correspondances_oper <- tribble(
   "APPLYING FERTILIZER",                          "FERTILIZER APPL.",
   
   # HARVESTING
+  "TOTAL HARVESTING",                             "HARVESTING",
+  "HARVESTING-CASTOR",                            "HARVESTING", 
   "HARVESTING-SOYBEAN",                           "HARVESTING",
   "HARVESTING-PIGEONPEA",                         "HARVESTING",
   "HARVESTING-COTTON",                            "HARVESTING",
@@ -518,7 +543,9 @@ correspondances_oper <- tribble(
   "HARVESTING-MAIZE FODDER",                      "HARVESTING",
   "HARVESTING-MATKI",                             "HARVESTING",
   "HARVESTING-FINGER MILLET",                     "HARVESTING",
-  "HERVESTING",                                   "HARVESTING",
+  "HARVESTING-RAGI",                              "HARVESTING",
+  "HARVESTING-GREENGRAM",                         "HARVESTING",
+  "HARVESTING-LADYSFINGER",                       "HARVESTING",
   
   # THRESHING
   "THRESHING-ARECANUT",                           "THRESHING",
@@ -554,6 +581,7 @@ correspondances_oper <- tribble(
   # IRRIGATION
   "IRRIGATION-PIGEONPEA",                         "IRRIGATION",
   "IRRIGATION MANUAL",                            "IRRIGATION",
+  "MANUAL IRRIGATION",                            "IRRIGATION",
   
   # LEVELING
   "LAND PREPARATION-LEVELLING",                   "LEVELING",
@@ -583,6 +611,7 @@ correspondances_oper <- tribble(
   "WATER CHANNEL",                                "BUNDING",
   "LAND PREPARATION-WATER CHANNEL",               "BUNDING",
   "LAND PREPARATION-MAKING BASIN",                "BUNDING",
+  "LAND PREPARATION-BUNDING",                     "BUNDING",
   "LAND PREPARATION-BUND REPAIR",                 "BUNDING",
   "LAND PREPARATION-BUND MAKING",                 "BUNDING",
   "LAND PREPARATION-BUND CLEANING",               "BUNDING",

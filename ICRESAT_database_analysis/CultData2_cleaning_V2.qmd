@@ -31,10 +31,9 @@ Cultivation_wide <- readRDS(here::here("Base de données générées", "Cultivat
 
 ********************************************************************************
 
-## Pivoter Cultivation : mettre les CROP en ligne
+# Pivoter en long Cultivation
 
-Les subplots sont pour certains sous_divisés suivant la variable PRCT. 
-Je recalcule les vraiables associées au subplot suivant ce pourcentage. 
+Les subplots, avec différentes cultures, sont pour certains sous_divisés suivant la variable PRCT. Je recalcule les vraiables associées au subplot suivant ce pourcentage. 
 
 ```{r}
 # Convertir les variables en numérique
@@ -49,9 +48,10 @@ Cultivation_wide <- convertir_num(Cultivation_wide, c("PRCT_AREA_1", "PRCT_AREA_
 ```{r}
 # Variables auxquelles appliquer PRCT_AREA
 var_prefixes <- c(
-  "AREA_CROP", "IRRI_CROP",
+  "CROP_AREA", "IRRI_AREA",
   paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
-  paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
+  paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
 )
 
 ajuster_par_pct <- function(df, var_prefix, pct_vars = paste0("PRCT_AREA_", 1:4)) {
@@ -69,7 +69,7 @@ ajuster_par_pct <- function(df, var_prefix, pct_vars = paste0("PRCT_AREA_", 1:4)
 Cultivation_long <- Cultivation_wide
 
 for (v in var_prefixes) {
-  Cultivation_long_test <- ajuster_par_pct(Cultivation_long, v)
+  Cultivation_long <- ajuster_par_pct(Cultivation_long, v)
 }
 ```
 
@@ -90,13 +90,264 @@ Cultivation_long <- Cultivation_long |>
 # Supprimer les lignes qui n'ont pas de crop, soit PRCT_AREA == 0
   filter(!is.na(PRCT_AREA)) |>
   select(-NB, -PRCT_AREA) |>
-  relocate(AREA_CROP, .after = PLOT_AREA) |>
-  relocate(IRRI_CROP, .after = AREA_CROP) |>
+  relocate(CROP_AREA, .after = PLOT_AREA) |>
+  relocate(IRRI_AREA, .after = CROP_AREA) |>
   relocate(VAR_TYPE, .before = VAR_NAME)
 ```
 
 
+********************************************************************************
 
+# Modifier la base
+
+## Recatégoriser les opérations
+
+```{r}
+# Nouvelles catégories OPERATION
+cat_operations <- tribble(
+  ~OPERATION,            ~CAT_OPERATION,
+  "HAND WEEDING",        "HAND WEEDING",
+  "HARVESTING",          "HARVESTING & THRESHING",
+  "THRESHING",           "HARVESTING & THRESHING",
+  "HARVESTING/THRESHING","HARVESTING & THRESHING",
+  "WINNOWING",           "HARVESTING & THRESHING",
+  "INTERCULTURE",        "INTERCULTURE",
+  "THINNING",            "INTERCULTURE",
+  "PINCHING/CUTTING",    "INTERCULTURE",
+  "MULCHING",            "INTERCULTURE",
+  "FENCE TRIMMING",      "INTERCULTURE",
+  "GIRDLING",            "INTERCULTURE",
+  "IRRIGATION",          "IRRIGATION",
+  "LAND PREPARATION",    "LAND PREPARATION",
+  "BUNDING",             "LAND PREPARATION",
+  "DIGGING",             "LAND PREPARATION",
+  "LEVELING",            "LAND PREPARATION",
+  "FIELD CLEANING",      "LAND PREPARATION",
+  "MARKETING",           "MARKETING",
+  "ABELING",             "MARKETING",
+  "BY PRODUCT MAKING",   "MARKETING",
+  "TRANSFORMATION",      "MARKETING",
+  "GRADING/TAGGING",     "MARKETING",
+  "SOWING",              "SEED SOWING",
+  "DIPPING",             "SEED SOWING",
+  "TRANSPLANTING",       "TRANSPLANTING",
+  "UPROOTING",           "TRANSPLANTING",
+  "PLANT PROTECTION",    "PLANT PROTECTION MEASURES",
+  "PESTICIDE",           "PLANT PROTECTION MEASURES",
+  "FUMIGATION",          "PLANT PROTECTION MEASURES",
+  "HERBICIDE",           "PLANT PROTECTION MEASURES",
+  "FERTILIZER",          "FERTILIZER APPL.",
+  "SUPERVISION",         "SUPERVISION",
+  "TRANSPORT",           "TRANSPORT",
+  "LOADING",             "TRANSPORT",
+  "NURSERY RAISING",     "NURSERY RAISING",
+  "POD COLLECTION",      "OTHERS",
+  "CURING",              "OTHERS",
+  "TRANSFORMATION",      "OTHERS",
+  "BY PRODUCT MAKING",   "OTHERS"
+)
+
+Cultivation_long <- Cultivation_long |>
+  left_join(cat_operations, by = "OPERATION") |>
+  mutate(OPERATION = if_else(!is.na(CAT_OPERATION), CAT_OPERATION, OPERATION)) |>
+  select(-CAT_OPERATION)
+```
+
+
+## Ajouter des variables
+
+*Month*
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  mutate(MONTH = substr(SUR_MON_YR, 1, 2)) |>
+  mutate(
+    MONTH = recode(MONTH,
+                      `01` = "janv",
+                      `02` = "feb",
+                      `03` = "march",
+                      `04` = "april",
+                      `05` = "may",
+                      `06` = "june",
+                      `07` = "july",
+                      `08` = "aug",
+                      `09` = "sept",
+                      `10` = "oct",
+                      `11` = "nov",
+                      `12` = "dec")
+  )
+```
+
+
+*Gender*
+
+J'intégre le travail fait par les bullocks dans le travail des hommes, puisque cela inclut le conducteur. 
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  mutate(
+    GENDER = case_when(
+      (WORK_HR_HF != 0 | WORK_HR_FF != 0 | WORK_HR_EF != 0) ~ "Female",
+      (WORK_HR_HM != 0 | WORK_HR_FM != 0 | WORK_HR_EM != 0 | WORK_HR_OB != 0 
+       | WORK_HR_HB != 0 | WORK_HR_EB != 0) ~ "Male",
+      (WORK_HR_HC != 0 | WORK_HR_FC != 0) ~ "Child",
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+
+*Employment*
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  mutate(
+    EMPLOYMENT = case_when(
+      (WORK_HR_HF != 0 | WORK_HR_HC != 0 | WORK_HR_HM != 0) ~ "Hired",
+      (WORK_HR_FM != 0 | WORK_HR_FF != 0 | WORK_HR_FC != 0) ~ "Family",
+      (WORK_HR_EM != 0 | WORK_HR_EF != 0) ~ "Exchange",
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+
+*Village*
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  mutate(VILLAGE = substr(VDS_ID, 2, 6))
+```
+
+
+*Culture dominante par village*
+
+Je détermine quelle est la culture la plus répandue (en Kharif) par village.
+L'objectif est d'identifier les villages dont la culture dominante en Kharif est le riz.
+
+```{r}
+first_crop_village <- Cultivation_long |>
+  filter(CROP != "SEASONAL FALLOW") |>
+  distinct(VDS_ID, SUB_PLOT_CODE, VILLAGE, CROP, SEASON) |>
+  count(VILLAGE, SEASON, CROP, name = "n") |>
+  group_by(VILLAGE, SEASON) |>
+  arrange(desc(n)) |>
+  mutate(rank = row_number()) |>
+  ungroup() |>
+  filter(rank == 1) |>
+  rename(VILLAGE_CROP = CROP)
+
+# Ajouter la culture dominante par village à la base principale
+Cultivation_long <- Cultivation_long |>
+  left_join(first_crop_village |> select(-c(n, rank)), by = c("VILLAGE", "SEASON"))
+```
+
+
+*Ménages cultivant du riz*
+
+J'identifie les ménages ayant au moins un champ de riz par saison (peu importe la superficie). 
+
+```{r}
+households_with_paddy <- Cultivation_long |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  group_by(VDS_ID, SEASON) |>
+  mutate(with_paddy = any(CROP == "PADDY")) |>
+  ungroup() |>
+  distinct(VDS_ID, SEASON, with_paddy)
+
+# Ajouter la variable à la base principale par ménage et saison
+Cultivation_long <- Cultivation_long |>
+  left_join(households_with_paddy, by = c("VDS_ID", "SEASON"))
+```
+
+
+*Pourcentage de la terre dédié au riz*
+
+Je définie maintenant la part de la terre du ménage (somme de tous ses champs) dédiée à la culture du riz par saison. 
+
+```{r}
+# Superficie et part de la terre dédiée au riz, par saison
+paddy_area <- Cultivation_long |>
+  distinct(VDS_ID, PLOT_AREA, CROP_AREA, CROP, SEASON) |>
+  filter(CROP == "PADDY") |>
+  group_by(VDS_ID, PLOT_AREA, SEASON) |>
+  summarise(paddy_area = sum(CROP_AREA, na.rm = TRUE), .groups = "drop") |>
+  mutate(paddy_prct = round(100 * paddy_area/PLOT_AREA, 0))
+
+# Joindre prct_paddy à la base principale
+Cultivation_long <- Cultivation_long |>
+  left_join(paddy_area, by = c("VDS_ID", "PLOT_AREA", "SEASON"))
+```
+
+
+*Irrigation*
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  mutate(PER_IRRI = round(100 * IRRI_AREA / CROP_AREA, 2),
+         PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI),
+         IRRIGATION = case_when(
+           PER_IRRI>49 ~ "Irrigué",
+           PER_IRRI<50 ~ "Non irrigué"
+           )
+         ) |>
+  select(-PER_IRRI)
+```
+
+
+## Ordre des variables
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  select(
+    SUR_YR, SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
+    # place les colonnes restantes à la fin
+  )
+```
+
+
+********************************************************************************
+
+## Modifier Cultivation : créer les lignes pour les opérations non complétées
+
+On estime que si une opération n'est pas complétée pour un mois et un champ donnés, alors son temps de travail est égal à 0. Le but est de créer une base qui indique WORK_HR = 0 pour toutes les opérations pas complétées pour un mois (MONTH) et un champ donnée (VDS_ID, PLOT_CODE, SEASON)
+
+La base full_operation regroupe tous les couples existants VDS_ID / SUB_PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
+
+J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que je souhaite indiquer dans tous les lignes d'un même champ. 
+
+```{r}
+plots_by_household <- Cultivation_long |>
+  distinct(
+    SUR_YR, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP,
+    PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, VAR_TYPE, VAR_NAME, 
+    REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct, 
+    SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR,
+    RENT_FOR, OW_STAT,OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT
+           )
+
+full_operation <- expand_grid(
+  plots_by_household,
+  OPERATION = unique(Cultivation_long$OPERATION)
+)
+```
+
+Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliquées dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
+
+```{r, message=FALSE, warning=FALSE}
+base_to_join <- Cultivation_long |>
+  select(
+    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION,
+    MONTH, GENDER, EMPLOYMENT, HUMAN_LABOR, MACHINERY, DT_OPER,
+    SUR_MON_YR, FERTILIZER, HERBICIDE, LAB_TYPE, WORK_HR, 
+    OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY, NAME_MAT, TYPE_MAT
+  )
+
+# Jointure sans conflit de colonnes
+Cultivation_expand <- full_operation |>
+  left_join(base_to_join, by = c("VDS_ID", "SUB_PLOT_CODE", "PLOT_CODE", "SEASON", "CROP", "OPERATION")) |>
+  mutate(WORK_HR = replace_na(WORK_HR, 0))
+```
 
 
 
