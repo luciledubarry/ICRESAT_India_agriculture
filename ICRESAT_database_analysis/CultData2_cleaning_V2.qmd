@@ -1,0 +1,30 @@
+---
+title: "Fichier 2 (V2) : Création de variables"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r}
+#| message: false
+here::i_am("ICRESAT_database_analysis/CultData2_cleaning.qmd")
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(stringr)    
+library(gt)
+library(here)
+```
+
+```{r}
+Cultivation_2014 <- readRDS(here::here("Base de données générées", "Cultivation_2014", "Cultivation_2014.rds"))
+```
+
