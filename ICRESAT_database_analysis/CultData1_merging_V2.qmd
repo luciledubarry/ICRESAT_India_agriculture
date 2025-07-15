@@ -344,11 +344,97 @@ CultOutput <- CultOutput |>
 ```
 
 
-### TEST - Opérations
+### Opérations
+
+*1. Simplifier le nom des opérations*
 
 ```{r}
 # Liste des opérations principales
-key_operations <- c("LAND PREPARATION", "UPROOTING", "MARKETING", "TRANSPORT", "DIGGING", "BUND", "THRESHING", "PESTICIDE", "WINNOWING", "IRRIGATION", "FERTILIZER", "HARVEST", "SOWING", "FIELD CLEANING", "HAND WEEDING", "WEEDING", "HERBICIDE", "DIPPING", "BEEDING", "PLOUGHING", "PUDDLING", "HARROWING", "HOEING", "CANAL PREPARATION", "SPRAY", "PLANT PROTECTION", "NUTRIENT", "FYM", "WATER CHANNEL", "COMPOST", "MANURING", "WEEDICIDE", "LEVELING", "BEDICIDE", "EARTHING UP", "PANJI", "STACKING", "LOADING", "CURING", "SOIL UP", "SEED", "FIELD PREPARATION", "PINCHING", "WATCHING", "SUPERVISION", "IPM AND IDM", "FERTIGATION", "PLUCKING", "FERTILIZING", "PLANTING", "MAKING BY PRODUCT", "BED PREPARATION", "GRADING", "CUTTING", "INSECTICIDE", "LABELING", "WATERING", "MAKING LINES", "HORMONE", "SULPHUR", "NURSERY RAISING", "BINDING", "FUNGICIDE", "VITAMIN", "THINNING", "FILLING", "FURROWS", "LINING", "LINES", "GRASS CLEANING", "GRASS CLEANING", "ASH")
+key_operations <- c(
+  
+  # LAND PREPARATION
+  "LAND PREPARATION", "FIELD PREPARATION", "PLOUGHING", "PUDDLING", "EARTHING UP", "BED PREPARATION", "BEEDING", "FURROW", "SOIL UP", "PANJI", "PUNJI", "BROAD CASTING", "ROTAVATOR", "PHANTAN", "V-PASS", "CANAL PREPARATION", "LEVELING", "LEVELLING",
+  
+  # UPROOTING
+  "UPROOTING", 
+  
+  # FIELD CLEANING
+  "FIELD CLEANING", "GRASS CLEANING", "SIDE CLEANING", "CLEANING AND WEEDING", "CLEANING WEED", 
+  
+  # FENCE TRMMING
+  "FENCE", "FENCING", 
+  
+  # INTERCULTURE
+  "INTERCULTURE", "HOEING", "PLUCKING", "THINNING", "BEDICIDE", "BINDING",
+  
+  # TRANSPLANTING
+  "TRANSPLANTING", "PLANTING", "PLANTATION",
+  
+  # PESTICIDE
+  "PESTICIDE", "SPRAY", "FUNGICIDE", "INSECTICIDE", "HORMONE", "SULPHUR", "VITAMIN",
+  
+  # SOWING
+  "SOWING", "SEED",
+  
+  # HERBICIDE
+  "HERBICIDE", "WEEDICIDE", "HARBISIDE", "DEFOLIATION", "IPM AND IDM",
+  
+  # PLANT PROTECTION
+  "PLANT PROTECTION", "BAGGING", "ASH", "FUMIGATION",
+  
+  # HAND WEEDIND
+  "HAND WEEDING",
+  
+  # FERTILIZER
+  "FERTILIZER", "FERTILIZING", "FERTIGATION", "FYM", "COMPOST", "NUTRIENT",
+  
+  # HARVESTING/THRESHING
+  "HARVEST", "THRESHING", "THRASHING", "WINNOWING",
+  
+  # TRANSPORT
+  "TRANSPORT", "LOADING", "STACKING", "PACKING", "CARRY",
+  
+  # IRRIGATION
+  "IRRIGATION", "PIPELINE",
+  
+  # DIGGING
+  "DIGGING", "LINING", "LINES", "FILLING", "TRENCHING", "PITTING", "LINE MAKING",
+  
+  # DIPPING
+  "DIPPING", "DRENCHING",
+  
+  # BUNDING
+  "BUND", "WATER CHANNEL", "WATERING", "BASIN",
+  
+  # SUPERVISION
+  "SUPERVISION", "WATCHING",
+  
+  # PINCHING/CUTTING
+  "PINCHING", "PRUNING", "CUTTING", "AIR LAYERING", "NIPPING",
+  
+  # MULCHING
+  "MULCHING", "MANURING", 
+  
+  # GRADING/TAGGING
+  "GRADING", "TAGGING", 
+  
+  # MARKETING
+  "MARKETING", "MAKING BY PRODUCT", "LABELING",
+  
+  # GIRDLING
+  "GIRDLING", "GRIDLING",
+  
+  # WINNOWING
+   "HARROWING", 
+  
+  # NURSERY RAISING
+  "NURSERY RAISING",
+  
+  # TRANSFORMATION
+  "TRANSFORMATION", "PROCESSING", "REMOVING",
+  
+  # OTHERS
+  "CURING", "COLLECTION")
 
 pattern_oper <- paste(key_operations, collapse = "|")
 
@@ -360,293 +446,160 @@ CultInput <- CultInput |>
   ))
 ```
 
-
-
-### Opérations
+*2. Regrouper les opérations*
 
 ```{r}
 # Regrouper les opérations en principales opérations
 correspondances_oper <- tribble(
   ~OPERATION_VARIANT,                             ~OPERATION_STANDARD,
   
-  # LAND PREPARATION(PLOUGHING)
+  # LAND PREPARATION
+  "LAND PREPARATION",                             "LAND PREPARATION",
+  "FIELD PREPARATION",                            "LAND PREPARATION",
   "BEEDING",                                      "LAND PREPARATION",
   "BED PREPARATION",                              "LAND PREPARATION",
   "BED PREPRATION",                               "LAND PREPARATION",
-  "LAND PREPARATION-BED PREPARATION",             "LAND PREPARATION",
-  "LAND PREPARATION-BED&FURROW PREPARATION",      "LAND PREPARATION",
-  "LAND PREPARATION-BED&FERROW PREPARATION",      "LAND PREPARATION",
-  "LAND PREPARATION-BED&FURROW PREPARAT",         "LAND PREPARATION",
+  "PREPARATION OF BED",                           "LAND PREPARATION",
+  "FURROW",                                       "LAND PREPARATION",
   "EARTHING UP",                                  "LAND PREPARATION",
-  "EARTHING UP WITH FERTILIZER",                  "LAND PREPARATION",
-  "LAND PREPARATION-EARTHING UP",                 "LAND PREPARATION",
-  "LAND PREPARATION-SOIL SPREADING",              "LAND PREPARATION",
+  "SOIL UP",                                      "LAND PREPARATION",
   "SOIL SPREADING",                               "LAND PREPARATION",
   "PLOUGHING",                                    "LAND PREPARATION",
-  "PLOUHGING",                                    "LAND PREPARATION",
-  "PLOUGING",                                     "LAND PREPARATION",
-  "MUD PLOUGHING",                                "LAND PREPARATION",
-  "HOE PLOUGHING",                                "LAND PREPARATION",
-  "MB PLOUGHING",                                 "LAND PREPARATION",
-  "DOUBLE PLOUGHING",                             "LAND PREPARATION",
-  "PLOUGHING WITH FERTILIZER",                    "LAND PREPARATION",
-  "PLOUGHING AND SEED SOWING",                    "LAND PREPARATION",
-  "PLOUGHING AND SEED SOWING WITH FERTILIZER",    "LAND PREPARATION",
-  "PLOUGHING/HARROWING",                          "LAND PREPARATION",
-  "PLOUGHING BY HOE",                             "LAND PREPARATION",
-  "LAND PREPARATION-PUDDLING",                    "LAND PREPARATION",
-  "LAND PREPARATION -PUDDLING",                   "LAND PREPARATION",
   "PUDDLING",                                     "LAND PREPARATION",
-  "LAND PREPARATION - PUDDLING",                  "LAND PREPARATION",
+  "PLUGHING",                                     "LAND PREPARATION",
   "PANJI",                                        "LAND PREPARATION",
-  "LAND PREPARATION AND PLOUGHING",               "LAND PREPARATION",
-  "LAND PREPARATION-PLOUGHING",                   "LAND PREPARATION",
-  "LAND PREPARATION- PLOUGHING",                  "LAND PREPARATION",
-  "LAND PREPARATION - PLOUHGING",                 "LAND PREPARATION",
-  "LAND PREPARATION - PLOUGHING",                 "LAND PREPARATION",
-  "LAND PREPARATION/PLOUGHING",                   "LAND PREPARATION",
-  "LAND PREPARATION -PLOUGHING",                  "LAND PREPARATION",
-  "LAND PREPARATION-DOUBLE PLOUGHING",            "LAND PREPARATION",
-  "LAND PREPARATION-MB PLOUGHING",                "LAND PREPARATION",
-  "LAND PREPARATION-PATTA PASS",                  "LAND PREPARATION",
-  "LAND PREPARATION-PATTA PAS",                   "LAND PREPARATION",
-  "LAND PREPARATION-PATTA",                       "LAND PREPARATION",
-  "LAND PREPARATION-PATTAPASS",                   "LAND PREPARATION",
-  "LAND PREPARATION HARROWING",                   "LAND PREPARATION",
-  "LAND PREPARATION-HARROWING",                   "LAND PREPARATION",
-  "LAND PREPARATIONG-HARROWING",                  "LAND PREPARATION",
-  "LAND PREPARATION - HARROWING",                 "LAND PREPARATION",
-  "LAND PREPARATION-ROTOVATOR",                   "LAND PREPARATION",
-  "LAND PREPARATION-WITH ROTOVATOR",              "LAND PREPARATION",
+  "PUNJI",                                        "LAND PREPARATION",
   "HARROWING",                                    "LAND PREPARATION",
-  "LAND PREPARATION-BROAD CASTING",               "LAND PREPARATION",
-  "LAND PREPARATION-PANJI",                       "LAND PREPARATION",
-  "LAND PREPARATION-PUNJI",                       "LAND PREPARATION",
-  "LAND PREPARATION-PHANTAN",                     "LAND PREPARATION",
-  "LAND PREPARATION-V-PASS",                      "LAND PREPARATION",
+  "BROAD CASTING",                                "LAND PREPARATION",
+  "PHANTAN",                                      "LAND PREPARATION",
+  "V-PASS",                                       "LAND PREPARATION",
   "MAKING RIDGES & FURROWS",                      "LAND PREPARATION",
-  "LAND PREPARATION-RIDGES AND FURROWS",          "LAND PREPARATION",
-  "LAND PREPARATION-RIDGES & FURROWS",            "LAND PREPARATION",
-  "LAND PREPARATION-MAKING RIDGES & FURROWS",     "LAND PREPARATION",
-  "LAND PREPARATION-ROTAVATOR",                   "LAND PREPARATION",
-  "LAND PREPARATION-CANAL PREPARATION",           "LAND PREPARATION",
-  
-  # UPROOTING
-  "UPROOTING JASMINE",                            "UPROOTING",
-  "LAND PREPARATION-UPROOTING",                   "UPROOTING",
-  "LAND PREPARATION-UPROOTING BETEL VINE",        "UPROOTING",
+  "ROTAVATOR",                                    "LAND PREPARATION",
+  "CANAL PREPARATION",                            "LAND PREPARATION",
+  "LEVELING",                                     "LAND PREPARATION",
+  "LEVELLING",                                    "LAND PREPARATION",
+  "BUND",                                         "LAND PREPARATION",
+  "WATER CHANNEL",                                "LAND PREPARATION",
+  "WATERING",                                     "LAND PREPARATION",
+  "BASIN",                                        "LAND PREPARATION",
+  "DIGGING",                                      "LAND PREPARATION",
+  "FILLING",                                      "LAND PREPARATION",
+  "LINES",                                        "LAND PREPARATION",
+  "LINING",                                       "LAND PREPARATION",
+  "LINE MAKING",                                  "LAND PREPARATION",
+  "PITTING",                                      "LAND PREPARATION",
+  "TRENCHING",                                    "LAND PREPARATION",
   
   # INTERCULTURE
-  "INTERCULTURE/HOEING",                          "INTERCULTURE",
-  "INTERCULTURE WITH FERTILIZER",                 "INTERCULTURE",
-  "INTERCULTURE WITH EARTHING UP",                "INTERCULTURE",
-  "INTERCULTURE/HOEING-SORGHUM",                  "INTERCULTURE",
-  
-  # FIELD CLEANING
-  "LAND PREPARATION-FIELD CLEANING",              "FIELD CLEANING",
-  
-  # FENCE TRMMING
-  "FENCING",                                      "FENCE TRIMMING",
+  "INTERCULTURE",                                 "INTERCULTURE",
+  "HOEING",                                       "INTERCULTURE",
+  "PLUCKING",                                     "INTERCULTURE",
+  "THINNING",                                     "INTERCULTURE",
+  "BEDICIDE",                                     "INTERCULTURE",
+  "UPROOTING",                                    "INTERCULTURE",
+  "BINDING",                                      "INTERCULTURE",
+  "GRASS CLEANING",                               "INTERCULTURE",
+  "FIELD CLEANING",                               "INTERCULTURE",
+  "SIDE CLEANING",                                "INTERCULTURE",
+  "CLEANING WEED",                                "INTERCULTURE",
+  "CLEANING AND WEEDING",                         "INTERCULTURE",
+  "WEEDING AND CLEANING",                         "INTERCULTURE",
+  "CLEANING",                                     "INTERCULTURE",
+  "FENCING",                                      "INTERCULTURE",
+  "FENCE",                                        "INTERCULTURE",
+  "GRIDLING",                                     "INTERCULTURE",
+  "GIRDLING",                                     "INTERCULTURE",
+  "MANURING",                                     "INTERCULTURE",
+  "MULCHING",                                     "INTERCULTURE",
+  "PRUNING",                                      "INTERCULTURE",
+  "PINCHING",                                     "INTERCULTURE",
+  "CUTTING",                                      "INTERCULTURE",
+  "NIPPING",                                      "INTERCULTURE",
+  "AIR LAYERING",                                 "INTERCULTURE",
   
   # TRANSPLANTING
+  "TRANSPLANTING",                                "TRANSPLANTING",
   "PLANTING",                                     "TRANSPLANTING",
-  "TRANSPLANTING WITH FERTILIZER",                "TRANSPLANTING",
-  "TRANSPLANTING-ONION",                          "TRANSPLANTING",
-  "TRANSPLANTING-SUGARCANE",                      "TRANSPLANTING",
-  "TRANSPLANTING AND PLOUGHING",                  "TRANSPLANTING",
   "PLANTATION",                                   "TRANSPLANTING",
   
-  # PESTICIDE
-  "PESTICIDE SPAYING",                            "PESTICIDE",
-  "SPRAYING",                                     "PESTICIDE",
-  "PESTISIDESPRAY",                               "PESTICIDE",
-  
   # SOWING
-  "SEED SOWING",                                  "SOWING",
-  "SEED SOWING WITH FERTILIZER",                  "SOWING",
-  "SOWING/SOWING WITH FERTILIZER",                "SOWING",
-  "SEED APPLICATION",                             "SOWING",
-  "RESOWING",                                     "SOWING",
-  "RESOWING WITH FERTILIZER",                     "SOWING",
-  "SEED TREATMENT",                               "SOWING",
-  "POTATO SOWING",                                "SOWING",
-  "SOWING/SOWING WITH FERTILIZER-MAIZE",          "SOWING",
-  "SOWING/SOWING WITH FERTILIZER-SORGHUM",        "SOWING",
-  "SOWING/SOWING WITH FERTILIZER-SOYBEAN",        "SOWING",
-  "SOWING/SOWING WITH FERTILIZER-CHICKPEA",       "SOWING",
-  "SOWING/SOWING WITH FERTILIZER-DIBBLING",       "SOWING",
-  "LAND PREPARATION AND SEED SOWING",             "SOWING",
-  "LAND PREPARATION AND SOWING",                  "SOWING",
-  "WHEAT SOWING",                                 "SOWING",
-  
-  # HERBICIDE
-  "WEEDICIDE",                                    "HERBICIDE",
-  "HARBISIDE APPLICATION",                        "HERBICIDE",
-  "WEEDICIDE APPLICATION-PIGEONPEA",              "HERBICIDE",
-  "WEEDICIDE SPRAYING",                           "HERBICIDE",
-  "WEEDYSIDE SPRAY",                              "HERBICIDE",
-  "DEFOLIATION",                                  "HERBICIDE",
-  "WEEDICIDE APPLICATION",                        "HERBICIDE",
-  "IPM & IDM TECHNOLOGIES",                       "HERBICIDE",
+  "SOWING",                                       "SOWING",
+  "SEED",                                         "SOWING",
+  "DRENCHING",                                    "SOWING",
+  "DIPPING",                                      "SOWING",
   
   # PLANT PROTECTION
-  "PLANT PROTECTION-SOYBEAN",                     "PLANT PROTECTION",
-  "PLANT PROTECTION-PIGEONEPA",                   "PLANT PROTECTION",
-  "PLANT PROTECTION-PIGEONPEA",                   "PLANT PROTECTION",
+  "PLANT PROTECTION",                             "PLANT PROTECTION",
   "BAGGING",                                      "PLANT PROTECTION",
-  
-  # WEEDING
-  "WEEDING",                                      "WEEDING",
-  "HAND WEEDING-PIGEONPEA",                       "HAND WEEDING",
-  "HAND WEEDING & THINNING",                      "HAND WEEDING",
-  "HAND WEEDING AND IRRIGATION",                  "HAND WEEDING",
-  
-  # THINNING
-  "BEDICIDE",                                     "THINNING",
+  "ASH",                                          "PLANT PROTECTION",
+  "FUMIGATION",                                   "PLANT PROTECTION",
+  "SPRAY",                                        "PLANT PROTECTION",
+  "FUNGICIDE",                                    "PLANT PROTECTION",
+  "INSECTICIDE",                                  "PLANT PROTECTION",
+  "HORMONE",                                      "PLANT PROTECTION",
+  "HARMONE APPLICATION",                          "PLANT PROTECTION",
+  "SULPHUR",                                      "PLANT PROTECTION",
+  "VITAMIN",                                      "PLANT PROTECTION",
+  "HERBICIDE",                                    "PLANT PROTECTION",
+  "WEEDICIDE",                                    "PLANT PROTECTION",
+  "HARBISIDE",                                    "PLANT PROTECTION",
+  "HARBICIDE",                                    "PLANT PROTECTION",
+  "DEFOLIATION",                                  "PLANT PROTECTION",
+  "IPM AND IDM",                                  "PLANT PROTECTION",
   
   # FERTILIZER
-  "FERTILIZER APPLICATION",                       "FERTILIZER APPL.",
-  "FERTILIZER APPLICATION-PIGEONPEA",             "FERTILIZER APPL.",
+  "FERTILIZER",                                   "FERTILIZER APPL.",
   "FERTIGATION",                                  "FERTILIZER APPL.",
-  "FYM/COMPOST APPLICATION",                      "FERTILIZER APPL.",
-  "MICRONUTRIENT",                                "FERTILIZER APPL.",
-  "MICRONUTRIENT APPLICATION",                    "FERTILIZER APPL.",
+  "FERTILIZING",                                  "FERTILIZER APPL.",
+  "FYM",                                          "FERTILIZER APPL.",
+  "COMPOST",                                      "FERTILIZER APPL.",
   "NUTRIENT",                                     "FERTILIZER APPL.",
   "TILIZER APPLICATION",                          "FERTILIZER APPL.",
-  "APPLYING FERTILIZER",                          "FERTILIZER APPL.",
-  
-  # HARVESTING
-  "TOTAL HARVESTING",                             "HARVESTING",
-  "HARVESTING-CASTOR",                            "HARVESTING", 
-  "HARVESTING-SOYBEAN",                           "HARVESTING",
-  "HARVESTING-PIGEONPEA",                         "HARVESTING",
-  "HARVESTING-COTTON",                            "HARVESTING",
-  "HARVESTING-SORGHUM",                           "HARVESTING",
-  "HARVESTING-ONION",                             "HARVESTING",
-  "HARVESTING-GROUNDNUT",                         "HARVESTING",
-  "HARVESTING-ARECANUT",                          "HARVESTING",
-  "HARVESTING-CHRYSANTHEMUM",                     "HARVESTING",
-  "HARVESTING-BETEL VINE",                        "HARVESTING",
-  "HARVESTING-BLACKGRAM",                         "HARVESTING",
-  "HARVESTING-BY-PRODUCT",                        "HARVESTING",
-  "HARVESTING BY-PRODUCT",                        "HARVESTING",
-  "HARVESTING BY-PRODUCT-SORGHUM",                "HARVESTING",
-  "HARVESTING-D LAB LAB",                         "HARVESTING",
-  "HARVESTING-COCONUT",                           "HARVESTING",
-  "HARVESTING-SUGARCANE",                         "HARVESTING",
-  "HARVESTING-CHICKPEA",                          "HARVESTING",
-  "HARVESTING-COWPEA",                            "HARVESTING",
-  "HARVESTING-SORGHUM FODDER",                    "HARVESTING",
-  "HARVESTING-HORSEGRAM",                         "HARVESTING",
-  "HARVESTING-HULGA",                             "HARVESTING",
-  "HARVESTING-MAIZE",                             "HARVESTING",
-  "HARVESTING-MAIZE FODDER",                      "HARVESTING",
-  "HARVESTING-MATKI",                             "HARVESTING",
-  "HARVESTING-FINGER MILLET",                     "HARVESTING",
-  "HARVESTING-RAGI",                              "HARVESTING",
-  "HARVESTING-GREENGRAM",                         "HARVESTING",
-  "HARVESTING-LADYSFINGER",                       "HARVESTING",
-  
-  # THRESHING
-  "THRESHING-ARECANUT",                           "THRESHING",
-  "THRESHING-BLACKGRAM",                          "THRESHING",
-  "THRESHING-CHICKPEA",                           "THRESHING",
-  "THRESHING-COWPEA",                             "THRESHING",
-  "THRESHING-D LAB LAB",                          "THRESHING",
-  "THRESHING-FINGER MILLET",                      "THRESHING",
-  "THRESHING-GROUNDNUT",                          "THRESHING",
-  "THRESHING-HORSEGRAM",                          "THRESHING",
-  "THRESHING-HULGA",                              "THRESHING",
-  "THRESHING-MAIZE",                              "THRESHING",
-  "THRESHING-MATKI",                              "THRESHING",
-  "THRESHING-PIGEONPEA",                          "THRESHING",
-  "THRESHING-SORGHUM",                            "THRESHING",
-  "THRESHING-SOYBEAN",                            "THRESHING",
-  "THRESHING & TRANSPORT",                        "THRESHING",
-  "THRESHING AND TRANSPORT",                      "THRESHING",
   
   # HARVESTING/THRESHING
-  "THRESHING HARVESTING",                         "HARVESTING/THRESHING",
-  "THRASHING HARVESTING",                         "HARVESTING/THRESHING",
-  "HARVESTING AND THRESHING",                     "HARVESTING/THRESHING",
-  "HARVESTING & THRESHING",                       "HARVESTING/THRESHING",
-  "HARVESTING & THRESHING-SOYBEAN",               "HARVESTING/THRESHING",
+  "HARVEST",                                      "HARVESTING & THRESHING",
+  "THRASHING",                                    "HARVESTING & THRESHING",
+  "THRESHING",                                    "HARVESTING & THRESHING",
+  "WINNOWING",                                    "HARVESTING & THRESHING",
   
-  # TRANSPORT
-  "TRANSPORT-COTTON",                             "TRANSPORT",
-  "TRANSPORT-PIGEONPEA",                          "TRANSPORT",
-  "TRANSPORT-SORGHUM",                            "TRANSPORT",
-  "TRANSPORT-SOYBEAN",                            "TRANSPORT",
-  
-  # IRRIGATION
-  "IRRIGATION-PIGEONPEA",                         "IRRIGATION",
-  "IRRIGATION MANUAL",                            "IRRIGATION",
-  "MANUAL IRRIGATION",                            "IRRIGATION",
-  
-  # LEVELING
-  "LAND PREPARATION-LEVELLING",                   "LEVELING",
-  "LAND PREPARATION-HARROWING & LEVELLING",       "LEVELING",
-  "PLOUGING WITH LEVELING",                       "LEVELING",
-  "PLOUGHING WITH LEVELING",                      "LEVELING",
-  "PLOUHGING WITH LEVELING",                      "LEVELING",
-  
-  # DIGGING
-  "LAND PREPARATION-DIGGING",                     "DIGGING",
-  "GAP FILLING/THINNING",                         "DIGGING",
-  "SOIL DIGGING",                                 "DIGGING",
-  "MAKING LINES",                                 "DIGGING",
-  "DIGGING OF PIT",                               "DIGGING",
-  "LAND PREPARATION-SOIL DIGGING",                "DIGGING",
-  "LAND PREPARATION-ROUND DIGGING",               "DIGGING",
-  "TRENCHING",                                    "DIGGING",
-  
-  # DIPPING
-  "DRENCHING",                                    "DIPPING",
-  
-  # BUNDING
-  "BUND MAKING",                                  "BUNDING",
-  "BUND TRIMMING",                                "BUNDING",
-  "BUND REPAIR",                                  "BUNDING",
-  "FARM BUNDING",                                 "BUNDING",
-  "WATER CHANNEL",                                "BUNDING",
-  "LAND PREPARATION-WATER CHANNEL",               "BUNDING",
-  "LAND PREPARATION-MAKING BASIN",                "BUNDING",
-  "LAND PREPARATION-BUNDING",                     "BUNDING",
-  "LAND PREPARATION-BUND REPAIR",                 "BUNDING",
-  "LAND PREPARATION-BUND MAKING",                 "BUNDING",
-  "LAND PREPARATION-BUND CLEANING",               "BUNDING",
-  "LAND PREPARATION-RING BASIN PREPARATION",      "BUNDING",
-  "LAND PREPARATION-FARM BUNDING",                "BUNDING",
+  # MARKETING
+  "MARKETING",                                    "MARKETING",
+  "MAKING BY PRODUCT",                            "MARKETING",
+  "LABELING",                                     "MARKETING",
+  "LABLING",                                      "MARKETING",
+  "ABELING",                                      "MARKETING",
+  "TAGGING",                                      "MARKETING",
   
   # SUPERVISION
+  "SUPERVISION",                                  "SUPERVISION",
   "WATCHING",                                     "SUPERVISION",
   
-  # PINCHING/CUTTING
-  "PRUNING",                                      "PINCHING/CUTTING",
-  "PINCHING",                                     "PINCHING/CUTTING",
-  "CUTTING",                                      "PINCHING/CUTTING",
-  "NIPPING",                                      "PINCHING/CUTTING",
-  "PRUNING/PINCHING",                             "PINCHING/CUTTING",
-  "AIR LAYERING",                                 "PINCHING/CUTTING",
+  # IRRIGATION
+  "IRRIGATION",                                   "IRRIGATION",
+  "PIPELINE",                                     "IRRIGATION",
   
-  # MULCHING
-  "MANURING",                                     "MULCHING",
+  # HAND WEEDING
+  "HAND WEEDING",                                 "HAND WEEDING",
+  "WEEDING",                                      "WEEDING",
   
-  # GRADING/TAGGING
-  "GRADING",                                      "GRADING/TAGGING",
-  "TAGGING",                                      "GRADING/TAGGING",
+  # NURSERY RAISING
+  "NURSERY RAISING",                              "NURSERY RAISING",
   
-  # LOADING
-  "STACKING",                                     "LOADING",
-  "PACKING OF RAISINS",                           "LOADING",
-  
-  # TRANSFORMATION
-  "PROCESSING OF ARECANUT",                       "TRANSFORMATION",
-  "REMOVING RAISINS FROM RAISIN SHED",            "TRANSFORMATION",
-  "CLEANING OF RAISIN SHED",                      "TRANSFORMATION",
-  
-  # GIRDLING
-  "GRIDLING",                                     "GIRDLING"
+  # TRANSPORT
+  "TRANSPORT",                                    "TRANSPORT",
+  "LOADING",                                      "TRANSPORT",
+  "CARRY",                                        "TRANSPORT",
+  "STACKING",                                     "TRANSPORT",
+  "PACKING",                                      "TRANSPORT",
+
+  # OTHERS
+  "OTHERS",                                       "OTHERS",
+  "CURING",                                       "OTHERS",
+  "COLLECTION",                                   "OTHERS",
+  "TRANSFORMATION",                               "OTHERS",
+  "PROCESSING",                                   "OTHERS",
+  "REMOVING",                                     "OTHERS",
+  "GRADING",                                      "OTHERS"
 )
 ```
 
@@ -654,7 +607,12 @@ correspondances_oper <- tribble(
 # CultInput : Appliquer les opérations harmonisées
 CultInput <- CultInput |>
   left_join(correspondances_oper, by = c("OPERATION" = "OPERATION_VARIANT")) |>
-  mutate(OPERATION = if_else(!is.na(OPERATION_STANDARD), OPERATION_STANDARD, OPERATION)) |>
+    mutate(
+    OPERATION = case_when(
+      !is.na(OPERATION_STANDARD) ~ OPERATION_STANDARD,
+      TRUE ~ "OTHERS"
+    )
+  ) |>
   select(-OPERATION_STANDARD)
 ```
 

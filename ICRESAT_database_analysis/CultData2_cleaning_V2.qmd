@@ -100,60 +100,6 @@ Cultivation_long <- Cultivation_long |>
 
 # Modifier la base
 
-## Recatégoriser les opérations
-
-```{r}
-# Nouvelles catégories OPERATION
-cat_operations <- tribble(
-  ~OPERATION,            ~CAT_OPERATION,
-  "HAND WEEDING",        "HAND WEEDING",
-  "HARVESTING",          "HARVESTING & THRESHING",
-  "THRESHING",           "HARVESTING & THRESHING",
-  "HARVESTING/THRESHING","HARVESTING & THRESHING",
-  "WINNOWING",           "HARVESTING & THRESHING",
-  "INTERCULTURE",        "INTERCULTURE",
-  "THINNING",            "INTERCULTURE",
-  "PINCHING/CUTTING",    "INTERCULTURE",
-  "MULCHING",            "INTERCULTURE",
-  "FENCE TRIMMING",      "INTERCULTURE",
-  "GIRDLING",            "INTERCULTURE",
-  "IRRIGATION",          "IRRIGATION",
-  "LAND PREPARATION",    "LAND PREPARATION",
-  "BUNDING",             "LAND PREPARATION",
-  "DIGGING",             "LAND PREPARATION",
-  "LEVELING",            "LAND PREPARATION",
-  "FIELD CLEANING",      "LAND PREPARATION",
-  "MARKETING",           "MARKETING",
-  "ABELING",             "MARKETING",
-  "BY PRODUCT MAKING",   "MARKETING",
-  "TRANSFORMATION",      "MARKETING",
-  "GRADING/TAGGING",     "MARKETING",
-  "SOWING",              "SEED SOWING",
-  "DIPPING",             "SEED SOWING",
-  "TRANSPLANTING",       "TRANSPLANTING",
-  "UPROOTING",           "TRANSPLANTING",
-  "PLANT PROTECTION",    "PLANT PROTECTION MEASURES",
-  "PESTICIDE",           "PLANT PROTECTION MEASURES",
-  "FUMIGATION",          "PLANT PROTECTION MEASURES",
-  "HERBICIDE",           "PLANT PROTECTION MEASURES",
-  "FERTILIZER",          "FERTILIZER APPL.",
-  "SUPERVISION",         "SUPERVISION",
-  "TRANSPORT",           "TRANSPORT",
-  "LOADING",             "TRANSPORT",
-  "NURSERY RAISING",     "NURSERY RAISING",
-  "POD COLLECTION",      "OTHERS",
-  "CURING",              "OTHERS",
-  "TRANSFORMATION",      "OTHERS",
-  "BY PRODUCT MAKING",   "OTHERS"
-)
-
-Cultivation_long <- Cultivation_long |>
-  left_join(cat_operations, by = "OPERATION") |>
-  mutate(OPERATION = if_else(!is.na(CAT_OPERATION), CAT_OPERATION, OPERATION)) |>
-  select(-CAT_OPERATION)
-```
-
-
 ## Ajouter des variables
 
 *Month*
