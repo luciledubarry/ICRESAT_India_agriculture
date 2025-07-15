@@ -280,7 +280,7 @@ full_operation <- expand_grid(
 
 Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliquées dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 cols_expand <- c(
   paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
   paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
@@ -299,21 +299,24 @@ base_to_join <- Cultivation_long |>
     VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION, 
     DT_OPER, SUR_MON_YR, MONTH, GENDER, EMPLOYMENT, cols_expand
   )
-```
 
-```{r}
 # Jointure sans conflit de colonnes
 Cultivation_expand <- full_operation |>
   left_join(base_to_join, by = c("VDS_ID", "SUB_PLOT_CODE", "PLOT_CODE", "SEASON", "CROP", "OPERATION"))
+```
 
+```{r}
 cols_labor <- c(
   paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
   paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
 )
 
-
-|>
-  mutate(WORK_HR = replace_na(WORK_HR, 0))
+Cultivation_expand <- Cultivation_expand |>
+  mutate(across(
+    all_of(cols_labor),
+    ~ if_else(is.na(DT_OPER), 0, .),
+    .names = "{.col}"
+  ))
 ```
 
 
