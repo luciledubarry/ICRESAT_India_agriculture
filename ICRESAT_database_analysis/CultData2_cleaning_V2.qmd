@@ -216,15 +216,18 @@ Je définie maintenant la part de la terre du ménage (somme de tous ses champs)
 ```{r}
 # Superficie et part de la terre dédiée au riz, par saison
 paddy_area <- Cultivation_long |>
-  distinct(VDS_ID, PLOT_AREA, CROP_AREA, CROP, SEASON) |>
+  distinct(VDS_ID, PLOT_AREA, CROP_AREA, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  group_by(VDS_ID, SEASON) |>
+  mutate(AREA_HH = sum(CROP_AREA, na.rm = TRUE)) |>
+  ungroup() |>
   filter(CROP == "PADDY") |>
-  group_by(VDS_ID, PLOT_AREA, SEASON) |>
+  group_by(VDS_ID, AREA_HH, SEASON) |>
   summarise(paddy_area = sum(CROP_AREA, na.rm = TRUE), .groups = "drop") |>
-  mutate(paddy_prct = round(100 * paddy_area/PLOT_AREA, 0))
+  mutate(paddy_prct = round(100 * paddy_area/AREA_HH, 0))
 
 # Joindre prct_paddy à la base principale
 Cultivation_long <- Cultivation_long |>
-  left_join(paddy_area, by = c("VDS_ID", "PLOT_AREA", "SEASON"))
+  left_join(paddy_area, by = c("VDS_ID", "SEASON"))
 ```
 
 
@@ -410,22 +413,9 @@ group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_AREA"
                 "OPERATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE",
                 "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME",
                 "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "SOIL_TYPE", "SOIL_DEPTH",
-                "SOIL_FERT", "SOIL_DEGR", "SLOPE", "hand weeding")
+                "SOIL_FERT", "SOIL_DEGR", "SLOPE", "hand_weeding")
 
 Cultivation_labor <- sum_cols_labor(Cultivation_labor, group_vars, cols_labor)
-```
-
-
-Je crée la variable mechanized, qui indique pour chaque opération si une machine a été utilisé (TR, SP, DS, SM, PT, ET, CH, TH, SD, MK, DP, AUTO ou CYCLE WEEDER). 
-
-```{r}
-mat_cols <- Cultivation_labor |> select(contains("TYPE_MAT"))
-
-Cultivation_labor <- Cultivation_labor |>
-  mutate(mechanized2 = rowSums(mat_cols == "MACHINERY", na.rm = TRUE) > 0) |>
-
-# Conserver seulement les variables sur le travail
-  select(-contains(c("MAT", "WAGE")))
 ```
 
 
