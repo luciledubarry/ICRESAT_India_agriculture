@@ -361,7 +361,7 @@ key_operations <- c(
   # FIELD CLEANING
   "FIELD CLEANING", "GRASS CLEANING", "SIDE CLEANING", "CLEANING AND WEEDING", "CLEANING WEED", 
   
-  # FENCE TRMMING
+  # FENCE TRIMMING
   "FENCE", "FENCING", 
   
   # INTERCULTURE
@@ -371,13 +371,13 @@ key_operations <- c(
   "TRANSPLANTING", "PLANTING", "PLANTATION",
   
   # PESTICIDE
-  "PESTICIDE", "SPRAY", "FUNGICIDE", "INSECTICIDE", "HORMONE", "SULPHUR", "VITAMIN",
+  "PESTICIDE", "SPRAY", "FUNGICIDE", "INSECTICIDE", "DEFOLIATION", "IPM AND IDM",
   
   # SOWING
   "SOWING", "SEED",
   
   # HERBICIDE
-  "HERBICIDE", "WEEDICIDE", "HARBISIDE", "DEFOLIATION", "IPM AND IDM",
+  "HERBICIDE", "WEEDICIDE", "HARBISIDE",
   
   # PLANT PROTECTION
   "PLANT PROTECTION", "BAGGING", "ASH", "FUMIGATION",
@@ -386,16 +386,16 @@ key_operations <- c(
   "HAND WEEDING",
   
   # FERTILIZER
-  "FERTILIZER", "FERTILIZING", "FERTIGATION", "FYM", "COMPOST", "NUTRIENT",
+  "FERTILIZER", "FERTILIZING", "FERTIGATION", "FYM", "COMPOST", "NUTRIENT", "HORMONE", "SULPHUR", "VITAMIN",
   
   # HARVESTING/THRESHING
-  "HARVEST", "THRESHING", "THRASHING", "WINNOWING",
+  "HARVEST", "THRESHING", "THRASHING",
   
   # TRANSPORT
   "TRANSPORT", "LOADING", "STACKING", "PACKING", "CARRY",
   
   # IRRIGATION
-  "IRRIGATION", "PIPELINE",
+  "IRRIGATION", "PIPELINE", "WATERING",
   
   # DIGGING
   "DIGGING", "LINING", "LINES", "FILLING", "TRENCHING", "PITTING", "LINE MAKING",
@@ -404,7 +404,7 @@ key_operations <- c(
   "DIPPING", "DRENCHING",
   
   # BUNDING
-  "BUND", "WATER CHANNEL", "WATERING", "BASIN",
+  "BUND", "WATER CHANNEL",  "BASIN",
   
   # SUPERVISION
   "SUPERVISION", "WATCHING",
@@ -412,7 +412,7 @@ key_operations <- c(
   # PINCHING/CUTTING
   "PINCHING", "PRUNING", "CUTTING", "AIR LAYERING", "NIPPING",
   
-  # MULCHING
+  # MANURING
   "MULCHING", "MANURING", 
   
   # GRADING/TAGGING
@@ -425,7 +425,7 @@ key_operations <- c(
   "GIRDLING", "GRIDLING",
   
   # WINNOWING
-   "HARROWING", 
+   "WINNOWING", 
   
   # NURSERY RAISING
   "NURSERY RAISING",
@@ -476,19 +476,25 @@ correspondances_oper <- tribble(
   "MAKING RIDGES & FURROWS",                      "LAND PREPARATION",
   "ROTAVATOR",                                    "LAND PREPARATION",
   "CANAL PREPARATION",                            "LAND PREPARATION",
-  "LEVELING",                                     "LAND PREPARATION",
-  "LEVELLING",                                    "LAND PREPARATION",
-  "BUND",                                         "LAND PREPARATION",
-  "WATER CHANNEL",                                "LAND PREPARATION",
-  "WATERING",                                     "LAND PREPARATION",
-  "BASIN",                                        "LAND PREPARATION",
-  "DIGGING",                                      "LAND PREPARATION",
-  "FILLING",                                      "LAND PREPARATION",
-  "LINES",                                        "LAND PREPARATION",
-  "LINING",                                       "LAND PREPARATION",
-  "LINE MAKING",                                  "LAND PREPARATION",
-  "PITTING",                                      "LAND PREPARATION",
-  "TRENCHING",                                    "LAND PREPARATION",
+  
+  # LEVELING
+  "LEVELING",                                     "LEVELING",
+  "LEVELLING",                                    "LEVELING",
+  
+  # BUNDING
+  "BUND",                                         "BUNDING",
+  "WATER CHANNEL",                                "BUNDING",
+  "WATERING",                                     "BUNDING",
+  "BASIN",                                        "BUNDING",
+  
+  # DIGGING
+  "DIGGING",                                      "DIGGING",
+  "FILLING",                                      "DIGGING",
+  "LINES",                                        "DIGGING",
+  "LINING",                                       "DIGGING",
+  "LINE MAKING",                                  "DIGGING",
+  "PITTING",                                      "DIGGING",
+  "TRENCHING",                                    "DIGGING",
   
   # INTERCULTURE
   "INTERCULTURE",                                 "INTERCULTURE",
@@ -496,26 +502,34 @@ correspondances_oper <- tribble(
   "PLUCKING",                                     "INTERCULTURE",
   "THINNING",                                     "INTERCULTURE",
   "BEDICIDE",                                     "INTERCULTURE",
-  "UPROOTING",                                    "INTERCULTURE",
   "BINDING",                                      "INTERCULTURE",
-  "GRASS CLEANING",                               "INTERCULTURE",
-  "FIELD CLEANING",                               "INTERCULTURE",
-  "SIDE CLEANING",                                "INTERCULTURE",
-  "CLEANING WEED",                                "INTERCULTURE",
-  "CLEANING AND WEEDING",                         "INTERCULTURE",
-  "WEEDING AND CLEANING",                         "INTERCULTURE",
-  "CLEANING",                                     "INTERCULTURE",
   "FENCING",                                      "INTERCULTURE",
   "FENCE",                                        "INTERCULTURE",
   "GRIDLING",                                     "INTERCULTURE",
   "GIRDLING",                                     "INTERCULTURE",
-  "MANURING",                                     "INTERCULTURE",
-  "MULCHING",                                     "INTERCULTURE",
-  "PRUNING",                                      "INTERCULTURE",
-  "PINCHING",                                     "INTERCULTURE",
-  "CUTTING",                                      "INTERCULTURE",
-  "NIPPING",                                      "INTERCULTURE",
-  "AIR LAYERING",                                 "INTERCULTURE",
+  
+  # MANURING
+  "MANURING",                                     "MANURING",
+  "MULCHING",                                     "MANURING",
+  
+  # PINCHING/CUTTING
+  "PRUNING",                                      "PINCHING/CUTTING",
+  "PINCHING",                                     "PINCHING/CUTTING",
+  "CUTTING",                                      "PINCHING/CUTTING",
+  "NIPPING",                                      "PINCHING/CUTTING",
+  "AIR LAYERING",                                 "PINCHING/CUTTING",
+  
+  # UPROOTING
+  "UPROOTING",                                    "UPROOTING",
+  
+  # FIELD CLEANING
+  "GRASS CLEANING",                               "FIELD CLEANING",
+  "FIELD CLEANING",                               "FIELD CLEANING",
+  "SIDE CLEANING",                                "FIELD CLEANING",
+  "CLEANING WEED",                                "FIELD CLEANING",
+  "CLEANING AND WEEDING",                         "FIELD CLEANING",
+  "WEEDING AND CLEANING",                         "FIELD CLEANING",
+  "CLEANING",                                     "FIELD CLEANING",
   
   # TRANSPLANTING
   "TRANSPLANTING",                                "TRANSPLANTING",
@@ -532,20 +546,20 @@ correspondances_oper <- tribble(
   "PLANT PROTECTION",                             "PLANT PROTECTION",
   "BAGGING",                                      "PLANT PROTECTION",
   "ASH",                                          "PLANT PROTECTION",
-  "FUMIGATION",                                   "PLANT PROTECTION",
-  "SPRAY",                                        "PLANT PROTECTION",
-  "FUNGICIDE",                                    "PLANT PROTECTION",
-  "INSECTICIDE",                                  "PLANT PROTECTION",
-  "HORMONE",                                      "PLANT PROTECTION",
-  "HARMONE APPLICATION",                          "PLANT PROTECTION",
-  "SULPHUR",                                      "PLANT PROTECTION",
-  "VITAMIN",                                      "PLANT PROTECTION",
-  "HERBICIDE",                                    "PLANT PROTECTION",
-  "WEEDICIDE",                                    "PLANT PROTECTION",
-  "HARBISIDE",                                    "PLANT PROTECTION",
-  "HARBICIDE",                                    "PLANT PROTECTION",
-  "DEFOLIATION",                                  "PLANT PROTECTION",
-  "IPM AND IDM",                                  "PLANT PROTECTION",
+  
+  # PESTICIDE
+  "FUMIGATION",                                   "PESTICIDE",
+  "SPRAY",                                        "PESTICIDE",
+  "FUNGICIDE",                                    "PESTICIDE",
+  "INSECTICIDE",                                  "PESTICIDE",
+  "DEFOLIATION",                                  "PESTICIDE",
+  "IPM AND IDM",                                  "PESTICIDE",
+  
+  # HERBICIDE
+  "HERBICIDE",                                    "HERBICIDE",
+  "WEEDICIDE",                                    "HERBICIDE",
+  "HARBISIDE",                                    "HERBICIDE",
+  "HARBICIDE",                                    "HERBICIDE",
   
   # FERTILIZER
   "FERTILIZER",                                   "FERTILIZER APPL.",
@@ -555,12 +569,20 @@ correspondances_oper <- tribble(
   "COMPOST",                                      "FERTILIZER APPL.",
   "NUTRIENT",                                     "FERTILIZER APPL.",
   "TILIZER APPLICATION",                          "FERTILIZER APPL.",
+  "HORMONE",                                      "FERTILIZER APPL.",
+  "HARMONE APPLICATION",                          "FERTILIZER APPL.",
+  "SULPHUR",                                      "FERTILIZER APPL.",
+  "VITAMIN",                                      "FERTILIZER APPL.",
   
-  # HARVESTING/THRESHING
-  "HARVEST",                                      "HARVESTING & THRESHING",
-  "THRASHING",                                    "HARVESTING & THRESHING",
-  "THRESHING",                                    "HARVESTING & THRESHING",
-  "WINNOWING",                                    "HARVESTING & THRESHING",
+  # HARVESTINGTHRESHING
+  "HARVEST",                                      "HARVESTING",
+  
+  # THRESHING
+  "THRASHING",                                    "THRESHING",
+  "THRESHING",                                    "THRESHING",
+  
+  # WINNOWING
+  "WINNOWING",                                    "WINNOWING",
   
   # MARKETING
   "MARKETING",                                    "MARKETING",
@@ -614,6 +636,51 @@ CultInput <- CultInput |>
     )
   ) |>
   select(-OPERATION_STANDARD)
+```
+
+
+*3. Créer les catégories principales*
+
+```{r}
+# Nouvelles catégories OPERATION
+cat_operations <- tribble(
+  ~SUB_OPERATION,        ~OPERATION,
+
+  "HAND WEEDING",        "HAND WEEDING",
+  "WEEDING",             "WEEDING",
+  "FIELD CLEANING",      "WEEDING",
+  "HERBICIDE",           "WEEDING",
+  "HARVESTING",          "HARVESTING & THRESHING",
+  "THRESHING",           "HARVESTING & THRESHING",
+  "WINNOWING",           "HARVESTING & THRESHING",
+  "INTERCULTURE",        "INTERCULTURE",
+  "PINCHING/CUTTING",    "INTERCULTURE",
+  "MANURING",            "INTERCULTURE",
+  "IRRIGATION",          "IRRIGATION",
+  "LAND PREPARATION",    "LAND PREPARATION",
+  "BUNDING",             "LAND PREPARATION",
+  "DIGGING",             "LAND PREPARATION",
+  "LEVELING",            "LAND PREPARATION",
+  "MARKETING",           "MARKETING",
+  "SOWING",              "SEED SOWING",
+  "TRANSPLANTING",       "TRANSPLANTING",
+  "UPROOTING",           "TRANSPLANTING",
+  "PLANT PROTECTION",    "PLANT PROTECTION MEASURES",
+  "PESTICIDE",           "PLANT PROTECTION MEASURES",
+  "FERTILIZER APPL.",    "FERTILIZER APPL.",
+  "SUPERVISION",         "SUPERVISION",
+  "TRANSPORT",           "TRANSPORT",
+  "NURSERY RAISING",     "NURSERY RAISING",
+  "OTHERS",              "OTHERS"
+)
+```
+
+```{r, warning=FALSE}
+# Ajouter les opérations recatégorisées dans Cultivation_cult_distinctes
+CultInput <- CultInput |>
+  rename(SUB_OPERATION = OPERATION) |>
+  left_join(cat_operations, by = "SUB_OPERATION") |>
+  relocate(OPERATION, .after = DT_OPER)
 ```
 
 
@@ -898,7 +965,6 @@ L'objectif est d'avoir pour chaque opération (même date d'opération), une seu
 CultInput_MAT <- CultInput_MAT |>
   group_by(VDS_ID, SUB_PLOT_CODE, SEASON, DT_OPER, OPERATION, .keep = "all") |>
   mutate(row_id = row_number()) |>
-  filter(row_id <= 6) |>  # Limiter à 6 outils max
   ungroup() |>
   pivot_wider(
     id_cols = c(SUR_YR, VDS_ID, PLOT_NAME, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, REGION, SUR_MON_YR, DT_OPER, OPERATION),
