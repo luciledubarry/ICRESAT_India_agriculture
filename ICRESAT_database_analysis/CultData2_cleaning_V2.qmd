@@ -125,6 +125,8 @@ Cultivation_long <- Cultivation_long |>
 ```
 
 
+REVOIR LES VARIABLES GENDER ET EMPLOYMENT !
+
 *Gender*
 
 J'intégre le travail fait par les bullocks dans le travail des hommes, puisque cela inclut le conducteur. 
@@ -241,6 +243,68 @@ Cultivation_long <- Cultivation_long |>
 ```
 
 
+*Mécanisation*
+
+Je crée la variable mechanized, qui indique pour chaque opération si une machine a été utilisée (TR, SP, DS, SM, PT, ET, CH, TH, SD, MK, DP, AUTO ou CYCLE WEEDER). 
+
+```{r}
+mechanized <- Cultivation_long |>
+  mutate(is_machinery = rowSums(across(contains("TYPE_MAT"), ~ .x == "MACHINERY"), na.rm = TRUE) > 0) |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, OPERATION) |>
+  summarise(mechanized = any(is_machinery), .groups = "drop")
+
+# Ajouter la variable à Cultivation_long
+Cultivation_long <- Cultivation_long |>
+  left_join(mechanized, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "OPERATION"))
+```
+
+
+*Labour mécanisé par saison*
+
+```{r}
+mechanized_tilling <- Cultivation_long |> 
+  filter(OPERATION == "LAND PREPARATION") |>
+
+# Identifier les champs mécanisant land preparation 
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON) |>
+  summarise(mechanized_tilling = any(mechanized), .groups = "drop")
+
+# Ajouter la variable à Cultivation_long
+Cultivation_long <- Cultivation_long |>
+  left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON"))
+```
+
+
+*Travail total (tout type de travail confondu)*
+
+```{r}
+cols_work_hr <- c(paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")))
+
+Cultivation_long[cols_work_hr] <- lapply(Cultivation_long[cols_work_hr], function(x) ifelse(is.na(x), 0, x))
+
+Cultivation_long <- Cultivation_long |>
+  mutate(WORK_HR_T = rowSums(across(all_of(cols_work_hr))),
+         HACRE_T = WORK_HR_T/CROP_AREA)
+```
+
+
+*Ménages faisant du hand weeding par saison*
+
+```{r}
+hand_weeding <- Cultivation_long |>
+  filter(OPERATION == "WEEDING") |>
+
+# Identifier les champs faisant du hand weeding
+  select(WORK_HR_T, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  mutate(hand_weeding = if_else(WORK_HR_T == 0, FALSE, TRUE)) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, hand_weeding)
+
+# Ajouter la variable à Cultivation_long
+Cultivation_long <- Cultivation_long |>
+  left_join(hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP", "SEASON"))
+```
+
+
 ## Ordre des variables
 
 ```{r}
@@ -267,9 +331,9 @@ plots_by_household <- Cultivation_long |>
   distinct(
     SUR_YR, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP,
     PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, VAR_TYPE, VAR_NAME, 
-    REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct, 
+    REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct, mechanized_tilling,
     SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR,
-    RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT
+    RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, hand_weeding
            )
 
 full_operation <- expand_grid(
@@ -282,9 +346,9 @@ Avec le code suivant, les doublons sont bien conservés puisque toutes les ligne
 
 ```{r, message=FALSE, warning=FALSE}
 cols_expand <- c(
-  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
   paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
-  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
   paste0("TYPE_MAT_", c("1", "2", "3", "4", "5", "6")),
   paste0("NAME_MAT_", c("1", "2", "3", "4", "5", "6")),
   paste0("UNIT_MAT_", c("1", "2", "3", "4", "5", "6")),
@@ -307,8 +371,8 @@ Cultivation_expand <- full_operation |>
 
 ```{r}
 cols_labor <- c(
-  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
-  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T"))
 )
 
 Cultivation_expand <- Cultivation_expand |>
@@ -317,7 +381,68 @@ Cultivation_expand <- Cultivation_expand |>
     ~ if_else(is.na(DT_OPER), 0, .),
     .names = "{.col}"
   ))
+
+Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
 ```
+
+
+********************************************************************************
+
+# Construire les tables
+
+## Tables sur le travail
+
+*Au niveau de l'opération*
+
+J'additionne les heures de travail par opération et saison pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts.
+
+```{r}
+Cultivation_labor <- Cultivation_expand
+
+sum_cols_labor <- function(df, group_vars, cols_to_sum) {
+  df |>
+    group_by(across(all_of(group_vars))) |>
+    summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
+}
+
+group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_AREA",
+                "CROP_AREA", "IRRI_AREA", "IRRIGATION", "PLOT_CODE", "SUB_PLOT_CODE",
+                "OPERATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE",
+                "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME",
+                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "SOIL_TYPE", "SOIL_DEPTH",
+                "SOIL_FERT", "SOIL_DEGR", "SLOPE", "hand weeding")
+
+Cultivation_labor <- sum_cols_labor(Cultivation_labor, group_vars, cols_labor)
+```
+
+
+Je crée la variable mechanized, qui indique pour chaque opération si une machine a été utilisé (TR, SP, DS, SM, PT, ET, CH, TH, SD, MK, DP, AUTO ou CYCLE WEEDER). 
+
+```{r}
+mat_cols <- Cultivation_labor |> select(contains("TYPE_MAT"))
+
+Cultivation_labor <- Cultivation_labor |>
+  mutate(mechanized2 = rowSums(mat_cols == "MACHINERY", na.rm = TRUE) > 0) |>
+
+# Conserver seulement les variables sur le travail
+  select(-contains(c("MAT", "WAGE")))
+```
+
+
+*Au niveau du ménage*
+
+
+
+
+## Tables sur la mécanisation
+
+```{r}
+# Sélectionner les variables sur la mécanisation
+Cultivation_mat <- Cultivation_expand |>
+  select(-contains(c("WORK", "HACRE", "WAGE")))
+```
+
+
 
 
 
