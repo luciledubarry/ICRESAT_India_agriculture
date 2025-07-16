@@ -34,7 +34,7 @@ library(here)
 ```{r}
 #| message: false
 #| warning: false
-# Choisir l'année
+# Choisir l'année (2005, 2006 ou 2008)
 annee <- 2008
 
 charger_fichier <- function(zone, type, annee, suffix = ".xlsx") {
@@ -921,20 +921,20 @@ cat(" - Plots sans équivalent dans CultOutput :", n_non_matched2, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
 ```
 
-```{r Correspondance des régions}
-# Faire ressortir les codes de chaque région puis comparer les bases
+```{r Correspondance des villages}
+# Faire ressortir les codes de chaque village puis comparer les bases
 CultInput_merged <- CultInput_merged |> mutate(STATE = substr(VDS_ID, 1, 1))
 CultOutput <- CultOutput |> mutate(STATE = substr(VDS_ID, 1, 1))
 Landholding <- Landholding |> mutate(STATE = substr(VDS_ID, 1, 1))
 
-region_cultinput <- unique(CultInput_merged$STATE)
-region_cultoutput <- unique(CultOutput$STATE)
-region_landholding <- unique(Landholding$STATE)
+village_cultinput <- unique(CultInput_merged$STATE)
+village_cultoutput <- unique(CultOutput$STATE)
+village_landholding <- unique(Landholding$STATE)
 
 list(
-  CultInput = sort(region_cultinput),
-  CultOutput = sort(region_cultoutput),
-  Landholding = sort(region_landholding)
+  CultInput = sort(village_cultinput),
+  CultOutput = sort(village_cultoutput),
+  Landholding = sort(village_landholding)
 )
 ```
 
