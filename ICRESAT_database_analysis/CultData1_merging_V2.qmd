@@ -352,26 +352,20 @@ CultOutput <- CultOutput |>
 # Liste des opérations principales
 key_operations <- c(
   
-  # LAND PREPARATION
-  "LAND PREPARATION", "FIELD PREPARATION", "PLOUGHING", "PUDDLING", "EARTHING UP", "BED PREPARATION", "BEEDING", "FURROW", "SOIL UP", "PANJI", "PUNJI", "BROAD CASTING", "ROTAVATOR", "PHANTAN", "V-PASS", "CANAL PREPARATION", "LEVELING", "LEVELLING",
+  # BUNDING
+  "BUND", "WATER CHANNEL",  "BASIN",
+  
+  # DIGGING
+  "DIGGING", "LINING", "LINES", "FILLING", "TRENCHING", "PITTING", "LINE MAKING",
   
   # UPROOTING
   "UPROOTING", 
   
-  # FIELD CLEANING
-  "FIELD CLEANING", "GRASS CLEANING", "SIDE CLEANING", "CLEANING AND WEEDING", "CLEANING WEED", 
+  # LAND PREPARATION
+  "LAND PREPARATION", "FIELD PREPARATION", "PLOUGHING", "PUDDLING", "EARTHING UP", "BED PREPARATION", "BEEDING", "FURROW", "SOIL UP", "PANJI", "PUNJI", "BROAD CASTING", "ROTAVATOR", "PHANTAN", "V-PASS", "CANAL PREPARATION", "LEVELING", "LEVELLING",
   
-  # FENCE TRIMMING
-  "FENCE", "FENCING", 
-  
-  # INTERCULTURE
-  "INTERCULTURE", "HOEING", "PLUCKING", "THINNING", "BEDICIDE", "BINDING",
-  
-  # TRANSPLANTING
-  "TRANSPLANTING", "PLANTING", "PLANTATION",
-  
-  # PESTICIDE
-  "PESTICIDE", "SPRAY", "FUNGICIDE", "INSECTICIDE", "DEFOLIATION", "IPM AND IDM",
+  # DIPPING
+  "DIPPING", "DRENCHING",
   
   # SOWING
   "SOWING", "SEED",
@@ -379,41 +373,41 @@ key_operations <- c(
   # HERBICIDE
   "HERBICIDE", "WEEDICIDE", "HARBISIDE",
   
-  # PLANT PROTECTION
-  "PLANT PROTECTION", "BAGGING", "ASH", "FUMIGATION",
-  
   # HAND WEEDIND
   "HAND WEEDING",
   
-  # FERTILIZER
-  "FERTILIZER", "FERTILIZING", "FERTIGATION", "FYM", "COMPOST", "NUTRIENT", "HORMONE", "SULPHUR", "VITAMIN",
+  # FIELD CLEANING
+  "FIELD CLEANING", "GRASS CLEANING", "SIDE CLEANING", "CLEANING AND WEEDING", "WEEDING AND CLEANING", "CLEANING WEED", 
   
   # HARVESTING/THRESHING
   "HARVEST", "THRESHING", "THRASHING",
+  
+  # WINNOWING
+  "WINNOWING",
+  
+  # FENCE TRIMMING
+  "FENCE", "FENCING", 
+  
+  # MANURING
+  "MULCHING", "MANURING", 
+  
+  # PINCHING/CUTTING
+  "PINCHING", "PRUNING", "CUTTING", "AIR LAYERING", "NIPPING",
+  
+  # INTERCULTURE
+  "INTERCULTURE", "HOEING", "PLUCKING", "THINNING", "BEDICIDE", "BINDING",
+  
+  # TRANSPLANTING
+  "TRANSPLANTING", "PLANTING", "PLANTATION",
   
   # TRANSPORT
   "TRANSPORT", "LOADING", "STACKING", "PACKING", "CARRY",
   
   # IRRIGATION
-  "IRRIGATION", "PIPELINE", "WATERING",
-  
-  # DIGGING
-  "DIGGING", "LINING", "LINES", "FILLING", "TRENCHING", "PITTING", "LINE MAKING",
-  
-  # DIPPING
-  "DIPPING", "DRENCHING",
-  
-  # BUNDING
-  "BUND", "WATER CHANNEL",  "BASIN",
+  "IRRIGATION", "PIPELINE",
   
   # SUPERVISION
   "SUPERVISION", "WATCHING",
-  
-  # PINCHING/CUTTING
-  "PINCHING", "PRUNING", "CUTTING", "AIR LAYERING", "NIPPING",
-  
-  # MANURING
-  "MULCHING", "MANURING", 
   
   # GRADING/TAGGING
   "GRADING", "TAGGING", 
@@ -424,9 +418,6 @@ key_operations <- c(
   # GIRDLING
   "GIRDLING", "GRIDLING",
   
-  # WINNOWING
-   "WINNOWING", 
-  
   # NURSERY RAISING
   "NURSERY RAISING",
   
@@ -434,7 +425,16 @@ key_operations <- c(
   "TRANSFORMATION", "PROCESSING", "REMOVING",
   
   # OTHERS
-  "CURING", "COLLECTION")
+  "CURING", "COLLECTION",
+  
+  # PLANT PROTECTION
+  "PLANT PROTECTION", "BAGGING", "ASH", "FUMIGATION",
+   
+  # PESTICIDE
+  "PESTICIDE", "SPRAY", "FUNGICIDE", "INSECTICIDE", "DEFOLIATION", "IPM AND IDM",
+  
+  # FERTILIZER
+  "FERTILIZER", "FERTILIZING", "FERTIGATION", "FYM", "COMPOST", "NUTRIENT", "HORMONE", "SULPHUR", "VITAMIN")
 
 pattern_oper <- paste(key_operations, collapse = "|")
 
@@ -646,7 +646,7 @@ CultInput <- CultInput |>
 cat_operations <- tribble(
   ~SUB_OPERATION,        ~OPERATION,
 
-  "HAND WEEDING",        "HAND WEEDING",
+  "HAND WEEDING",        "WEEDING",
   "WEEDING",             "WEEDING",
   "FIELD CLEANING",      "WEEDING",
   "HERBICIDE",           "WEEDING",
@@ -709,7 +709,9 @@ Pour éliminer les doublons pour le calcul des heures de travail, je différenci
 
 ```{r}
 CultInput_MAT <- CultInput |>
-  select(-c(LAB_TYPE, WORK_HR, WAGE))
+  select(-c(LAB_TYPE, WORK_HR, WAGE)) |>
+  filter(!(is.na(NAME_MAT) & is.na(TYPE_MAT)) &
+           NAME_MAT != 0)
 
 CultInput_LAB <- CultInput |>
   select(-c(TYPE_MAT, NAME_MAT, UNIT_MAT, QTY_MAT, RATE_MAT, VAL_MAT, SOURCE_MAT)) |>
@@ -724,13 +726,31 @@ CultInput_LAB <- CultInput |>
 CultInput_LAB$WORK_HR <- as.numeric(as.character(CultInput_LAB$WORK_HR))
 CultInput_LAB$WORK_HR <- round(CultInput_LAB$WORK_HR, 1)
 CultInput_LAB$WAGE <- as.numeric(as.character(CultInput_LAB$WAGE))
+```
 
+
+*Additionner les heures de travail par opération et type de travail*
+
+```{r}
+n_avant <- nrow(CultInput_LAB)
+CultInput_LAB <- CultInput_LAB |>
+  group_by(across(everything())) |>
+  mutate(WORK_HR = sum(WORK_HR),
+         WAGE = sum(WAGE)) |>
+  ungroup() |>
+  mutate(HACRE = WORK_HR/CROP_AREA) |>   # Calculer les heures de travail par acre
+  distinct()
+n_avant - nrow(CultInput_LAB)
+```
+
+```{r}
 # Supprimer les doublons lorsque seule la date SUR_MON_YR diffère (en conservant la date la plus ancienne)
+n_avant <- nrow(CultInput_LAB)
 CultInput_LAB <- CultInput_LAB |>
   arrange(SUR_MON_YR) |>
   distinct(across(-SUR_MON_YR), .keep_all = TRUE)
+n_avant - nrow(CultInput_LAB)
 ```
-
 
 Je vérifie si les doublons de WORK_HR dans CultInput_LAB sont dûs à des salaires différents et pourraient donc représenter des travailleurs distincts. On identifie les doublons pour lesquels les différences entre temps de travail et salaire sont cohérentes. 
 
@@ -763,34 +783,20 @@ cat("Nombre de doublons avec un salaire et un temps de travail cohérents :", nr
 cat("Sur un total de", nrow(dup_CultInput_LAB), "doublons soit", round(100 * nrow(dup_CultInput_LAB |> filter(comparison)) / nrow(dup_CultInput_LAB), 1), "%\n")
 ```
 
-```{r Doublons de WORK_HR dans CultInput_LAB}
+```{r Doublons de WORK_HR dans CultInput_LAB, warning=FALSE, message=FALSE}
 # Supprimer les doublons entre WAGE et WORK_HR quand les salaires et les heures de travail ne sont pas cohérents (en conservant le nombre le plus haut)
 dup_CultInput_LAB <- dup_CultInput_LAB |>
-  select(VDS_ID, PLOT_NAME, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, DT_OPER, OPERATION, LAB_TYPE, comparison)
-
-CultInput_LAB <- CultInput_LAB |>
-  left_join(dup_CultInput_LAB, by = c("VDS_ID", "PLOT_NAME", "SUB_PLOT_CODE", "CROP_AREA", "IRRI_AREA", "SEASON", "DT_OPER", "OPERATION", "LAB_TYPE"))
+  select(VDS_ID, PLOT_NAME, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, SUR_MON_YR, DT_OPER, OPERATION, LAB_TYPE, comparison)
 
 n_avant <- nrow(CultInput_LAB)
 CultInput_LAB <- CultInput_LAB |>
-  filter(is.na(comparison) | comparison) |>
-  arrange(desc(WORK_HR)) |>
-  select(-comparison)
+  left_join(dup_CultInput_LAB, by = c("VDS_ID", "PLOT_NAME", "SUB_PLOT_CODE", "CROP_AREA", "IRRI_AREA", "SEASON", "SUR_MON_YR", "DT_OPER", "OPERATION", "LAB_TYPE")) |>
+  group_by(across(-c(WORK_HR, WAGE, comparison))) |>
+  filter(is.na(comparison) | comparison | WAGE == max(WAGE, na.rm = TRUE)) |>
+  select(-comparison) |>
+  ungroup()
 n_avant - nrow(CultInput_LAB)
 ```
-
-*Additionner les heures de travail par opération et type de travail*
-
-```{r}
-CultInput_LAB <- CultInput_LAB |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, SEASON, LAB_TYPE, SUR_MON_YR, DT_OPER, OPERATION, .keep = "all") |>
-  mutate(WORK_HR = sum(WORK_HR),
-         WAGE = sum(WAGE)) |>
-  ungroup() |>
-  mutate(HACRE = WORK_HR/CROP_AREA) |>   # Calculer les heures de travail par acre
-  distinct()
-```
-
 
 *Pivoter la table CultInput_LAB*
 
@@ -816,14 +822,6 @@ dup_CultInput_MAT <- CultInput_MAT |>
   filter(n() > 1) |>
   mutate(row_id = row_number()) |> 
   ungroup()
-```
-
-Je supprime les lignes pour lesquelles aucune information sur la mécanisation n'est pas indiquée (soit quand NAME_MAT et TYPE_MAT sont n/a). 
-
-```{r}
-CultInput_MAT <- CultInput_MAT |>
-  filter(!(is.na(NAME_MAT) & is.na(TYPE_MAT)),
-         NAME_MAT != 0)
 ```
 
 
@@ -998,13 +996,14 @@ CultInput_merged <- full_join(
 
 ```{r Enlever les doublons de PlotList}
 # Supprimer les lignes identiques
+n_avant <- nrow(PlotList)
 PlotList <- PlotList |> distinct() |>
 
 # Supprimer les doublons causés par des valeurs de IRRI_AREA différentes
   arrange(IRRI_AREA) |>
   distinct(across(-IRRI_AREA), .keep_all = TRUE)
+n_avant - nrow(PlotList)
 ```
-
 
 *Corriger les superficies manquantes*
 
@@ -1026,11 +1025,13 @@ PlotList <- PlotList |>
 ```
 
 Je supprime les champs pour lesquels aucune des informations principales n'est complétées. 
+
 ```{r}
+n_avant <- nrow(PlotList)
 PlotList <- PlotList |>
   filter(!if_all(c(CROP_AREA, PLOT_AREA, PLOT_CODE, SUB_PLOT_CODE), is.na))
+n_avant - nrow(PlotList)
 ```
-
 
 *Incohérences entre PLOT_CODE et SUB_PLOT_CODE*
 
@@ -1069,12 +1070,14 @@ dup_rows_PlotList <- PlotList |>
   ungroup()
 
 # Supprimer les lignes avec les mêmes variables VDS_ID / PLOT_CODE / SEASON en double. Supprimer celles avec le plus de NA.
+n_avant <- nrow(PlotList)
 PlotList <- PlotList |>
   mutate(n_na = rowSums(across(everything(), is.na))) |>
   group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, SEASON) |>
   slice_min(order_by = n_na, with_ties = FALSE) |>
   ungroup() |>
   select(-n_na)
+n_avant - nrow(PlotList)
 ```
 
 
@@ -1105,12 +1108,14 @@ dup_rows_CultOutput <- CultOutput |>
   ungroup()
 
 # Supprimer les lignes avec les mêmes variables VDS_ID / SUB_PLOT_CODE / SEASON en double. Supprimer celles avec le plus de NA.
+n_avant <- nrow(CultOutput)
 CultOutput <- CultOutput |>
   mutate(n_na = rowSums(across(everything(), is.na))) |>
   group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
   slice_min(order_by = n_na, with_ties = FALSE) |>
   ungroup() |>
   select(-n_na)
+n_avant - nrow(CultOutput)
 ```
 
 
@@ -1124,6 +1129,7 @@ dup_rows_Landholding <- Landholding |>
   ungroup()
 
 # Supprimer les doublons avec le même couple VDS_ID / PLOT_CODE. Supprimer les lignes avec le plus de n/a. 
+n_avant <- nrow(Landholding)
 Landholding <- Landholding |>
   mutate(n_na = rowSums(across(everything(), is.na))) |>
   group_by(VDS_ID, PLOT_CODE) |>
@@ -1131,6 +1137,7 @@ Landholding <- Landholding |>
   slice_min(order_by = n_na, with_ties = FALSE) |>
   ungroup() |>
   select(-n_na)
+n_avant - nrow(Landholding)
 ```
 
 
