@@ -3,7 +3,7 @@ title: "Fichier 1 (V2) : Créer la base Cultivation"
 format: html
 editor: source
 params:
-  annee: 2014  # par défaut
+  annee: 2011  # par défaut
 ---
 
 ```{r}
@@ -30,12 +30,14 @@ library(here)
 
 # Importer les données
 
-```{r import_data}
+```{r params_annee}
 #| message: false
 #| warning: false
 # Récupérer l'année depuis les paramètres
 annee <- params$annee
+```
 
+```{r import_data, message=FALSE, warning=FALSE}
 charger_fichier <- function(zone, type, annee, suffix = ".xlsx") {
   nom_fichier <- paste0(zone, "_", type, "_", annee, suffix)
   read_excel(here::here("raw_data", nom_fichier))
@@ -799,6 +801,19 @@ n_avant - nrow(CultInput_LAB)
 
 *Pivoter la table CultInput_LAB*
 
+ATTENTION : Je pense que l'erreur est liée à des lignes en double (tous sauf WORK_HR, HACRE, WAGE)
+
++ faire attention à ne pas créer des doublons à cause de SUB_OPERATION 
+
+```{r}
+dup_CultInput_LAB <- CultInput_LAB |>
+  group_by(across(-c(WAGE, WORK_HR, HACRE, SUB_OPERATION))) |>
+  filter(n() > 1) |>
+  mutate(row_id = row_number()) |> 
+  ungroup()
+```
+
+
 L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant les heures de travail par type de travail. Pour ce faire, je pivote en large la table CultInput_LAB.
 
 ```{r pivot_cultinput_lab}
@@ -806,7 +821,7 @@ CultInput_LAB <- CultInput_LAB |>
   pivot_wider(
     names_from = LAB_TYPE,
     values_from = c(WORK_HR, WAGE, HACRE),
-    values_fill = 0,
+    values_fill = list(WORK_HR = 0, WAGE = NA_real_, HACRE = 0),
     names_glue = "{.value}_{LAB_TYPE}"
   ) 
 ```
@@ -1436,7 +1451,7 @@ Cultivation_wide <- CultInput_merged |>
 Cultivation_wide <- Cultivation_wide |>
   relocate(PLOT_CODE, .before = SUB_PLOT_CODE) |>
   relocate(PLOT_AREA, .before = CROP_AREA) |>
-  relocate(SUR_MON_YR, before = VDS_ID) |>
+  relocate(SUR_MON_YR, .before = VDS_ID) |>
   relocate(IRRI_AREA, .after = CROP_AREA) |>
   relocate(c(VAR_TYPE_1, VAR_TYPE_2, VAR_TYPE_3, VAR_TYPE_4), 
            .after = c(VAR_NAME_1, VAR_NAME_2, VAR_NAME_3, VAR_NAME_4))
