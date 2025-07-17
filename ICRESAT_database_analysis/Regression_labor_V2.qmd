@@ -1,0 +1,302 @@
+---
+title: "Régression (partie 1) V2 : Analyse du travail total par acre selon la caste"
+format: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = ls())
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(tibble)
+library(tidyverse)
+library(gt)
+library(xtable)
+library(modelsummary)
+```
+
+```{r}
+Table_labor_plot <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_plot.rds"))
+
+Table_labor_hh <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_hh.rds"))
+```
+
+********************************************************************************
+
+```{r}
+# Vérifier les doublons présents dans Table_labor_plot avant toute modification
+dup_plots_paddy <- Table_labor_plot |>
+  filter(SEASON == "KHARIF") |>
+  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, AREA_HH, PLOT_AREA, CROP_AREA, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, VILLAGE_CROP, CASTE_GROUP, IRRI_AREA, IRRIGATION, with_paddy, paddy_prct, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
+  distinct() |>
+  group_by(VDS_ID, SUB_PLOT_CODE, SEASON, CROP_AREA, CROP, VAR_NAME, VAR_TYPE) |>
+  filter(n() > 1) |>
+  mutate(row_in_group = row_number()) |> 
+  ungroup()
+```
+
+
+
+********************************************************************************
+
+### Modifier les variables
+
+*Expliciter les variables sur soil characteristics*
+
+- Type de terre (Soil_type) : 
+1=Red, 2=Shallow black/Murrum, 3=Medium Black, 4=Deep Black, 5=Sandy, 6=Loam, 7=Sandy loam, 8=Clay, 9=Clay loam, 10=Problematic soils (Saline/alkaline,etc.), 11=Others (specificied in SOIL_TYPE_OT)
+
+- Dégradation du sol (Soil_degr) : 
+1=No problem, 2=Soil erosion, 3=Nutrient depletion, 4=Water logging, 5=Salinity/Acidity, 6=Others
+
+- Fertilité du champ (Soil_fert) :
+1=Very poor, 2=Poor, 3=Good, 4=Very good 
+
+- Inclination du champ (Slope) : 
+1=Leveled 0-1%, 2=Slight slope 1-3%, 3=Medium slope 3-10%, 4=High slope >10% 
+
+- Profondeur du champ (soil_depth) : Average soil depth in centimeters
+
+```{r}
+# Convertir en numériques les variables sur soil characteristics
+Table_labor_plot <- Table_labor_plot |>
+  mutate(SOIL_DEPTH = as.numeric(as.character(SOIL_DEPTH)),
+         SOIL_FERT = as.numeric(as.character(SOIL_FERT)),
+         SLOPE = as.numeric(as.character(SLOPE)))
+
+# Définir les catégories de référence pour les variables catégorielles
+Table_labor_plot$SOIL_TYPE <- factor(Table_labor_plot$SOIL_TYPE)
+Table_labor_plot$SOIL_TYPE <- relevel(Table_labor_plot$SOIL_TYPE, ref = "1")
+
+Table_labor_plot$SOIL_DEGR <- factor(Table_labor_plot$SOIL_DEGR)
+Table_labor_plot$SOIL_DEGR <- relevel(Table_labor_plot$SOIL_DEGR, ref = "1")
+```
+
+
+*Réécrire les variables en dummies*
+
+```{r}
+Table_labor_plot <- Table_labor_plot |>
+  mutate(
+    mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
+    IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
+    REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
+    )
+```
+
+Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"),
+
+Je définie les catégories de référence pour STATE et VILLAGE.
+
+```{r}
+# State
+Table_labor_plot$STATE <- factor(Table_labor_plot$STATE)
+
+# Village
+Table_labor_plot$VILLAGE <- factor(Table_labor_plot$VILLAGE)
+
+# Caste
+Table_labor_plot$CASTE_GROUP <- factor(Table_labor_plot$CASTE_GROUP)
+```
+
+La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité omise étant la catégorie de référence. 
+
+
+*Superficie au carré*
+
+```{r}
+Table_labor_plot <- Table_labor_plot |>
+  mutate(CROP_AREA_SQ = CROP_AREA^2,
+         PLOT_AREA_SQ = PLOT_AREA^2,
+         AREA_HH_SQ = AREA_HH^2)
+```
+
+
+********************************************************************************
+
+## Régressions
+
+## Au niveau de l'opération
+
+### Tout type de travail confondu
+
+L'objectif de ces premières régressions est de comprendre pourquoi on observe un différence de l'intensité du travail (Hr/acre) entre les castes, même après avoir contrôler pour plusieurs variables (mécanisation, superficie du champ). 
+
+Niveau d'analyse : On se concentre au niveau des opérations par champ. 
+p = plot ; H = Household ; o = opération. 
+
+Outcome : Travail total par acre, tout type de travail confondu. 
+
+On se concentre sur la culture du riz (en Kharif). 
+
+```{r}
+Table_labor_plot <- Table_labor_plot |>
+  filter(CROP == "PADDY", SEASON == "KHARIF")
+```
+
+#### Toutes opérations
+
+```{r}
+reg_all_oper <- lm(HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH 
+                   + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling 
+                   + STATE, data = Table_labor_plot)
+summary(reg_all_oper)
+```
+
+Attention : Il y a beaucoup d'observations effacées à cause des n/a de Machinery. 
+
+Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
+Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
+
+Code pour Var_type : 
+- 1 = Local (catégorie de référence),
+- 2 = HYV,
+- 3 = Hybrid,
+- 4 = BT,
+- 5 = Others
+
+
+#### Par opération
+
+Je refais la régression pour les opérations principales du riz en Kharif. 
+
+```{r}
+reg_land <- Table_labor_plot |>
+  filter(OPERATION == "LAND PREPARATION") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE,
+     data = _)
+summary(reg_land)
+```
+
+Attention : Pour cette régression, c'est normal que mechanized_tilling soit NA, car machinery_tilling et MACHINERY sont identiques. R ne considère pas le deuxième coefficient, à cause du problème de colinéarité que cela causerait. 
+
+
+```{r}
+reg_harvest <- Table_labor_plot |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + STATE,
+     data = _)
+summary(Table_labor_plot)
+```
+
+
+```{r}
+reg_weeding <- Table_labor_plot |>
+  filter(OPERATION == "HAND WEEDING") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling + STATE,
+     data = _)
+summary(reg_weeding)
+```
+
+ttention: Il faut enlever Machinery pour étudier Hand weeding, car cette opération n'est jamais mécanisé. Il n'y a qu'une seule modalité pour Machinery, donc R ne peut pas créer de dummies. 
+
+
+```{r}
+reg_trans <- Table_labor_plot |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + STATE,
+     data = _)
+summary(reg_trans)
+```
+
+#### Avec le min de variables explicatives
+
+```{r}
+reg_min <- lm(HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + STATE, data = Table_labor_plot)
+summary(reg_min)
+```
+
+Variables nécessaires pour n'avoir aucune différence significative entre BC et FC: STATE + AREA_CROP
+
+
+********************************************************************************
+
+### Par type de travail
+
+On refait les régressions précédentes, avec comme outcome les heures de travail par acre pour chaque type de travail (femme/homme, familial/employé).
+
+On se conceentre sur le culture du riz (en Kharif). 
+
+```{r}
+Cultivation_labor <- Cultivation_labor |>
+  filter(CROP == "PADDY")
+```
+
+
+#### FF: Travail féminin familial
+
+En se concentrant sur le ratio Hr/acre pour le travail féminin familial, on regarde s'il y a une différence significative entre FC et BC, avec les mêmes variables de contrôle. Notre hypothèse est que la demande de travail familial féminin soit moindre pour les FC. 
+
+```{r}
+reg_FF <- lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + STATE, data = Table_labor_plot)
+summary(reg_FF)
+```
+
+Refaire cette régression sans mechanized et mechanized_tilling qui peuvent être des stratégies de substitution pour faire baisser FF
+
+
+##### Hand weeding
+
+```{r}
+reg_FF <- Table_labor_plot |>
+  filter(OPERATION == "HAND WEEDING") |>
+  lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+##### Harvesting
+
+```{r}
+reg_FF <- Table_labor_plot |>
+  filter(OPERATION == "HARVESTING & THRESHING") |>
+  lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+##### Transplanting
+
+```{r}
+reg_FF <- Table_labor_plot |>
+  filter(OPERATION == "TRANSPLANTING") |>
+  lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = _)
+summary(reg_FF)
+```
+
+
+#### HF: Travail féminin employé
+
+```{r}
+reg_HF <- lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = Table_labor_plot)
+summary(reg_HF)
+```
+
+Rajouter un dummy OPERATION pour les régressions toutes opérations confondues 
+
+
+#### FM: Travail masculin familial
+
+```{r}
+reg_FM <- lm(HACRE_FM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = Table_labor_plot)
+options(scipen = 999)
+summary(reg_FM)
+options(scipen = 0)
+```
+
+#### HM: Travail masculin employé
+
+```{r}
+reg_HM <- lm(HACRE_HM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = Table_labor_plot)
+summary(reg_HM)
+```
+
+
