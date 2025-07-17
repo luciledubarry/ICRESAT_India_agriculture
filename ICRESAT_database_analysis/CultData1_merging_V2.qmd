@@ -2,6 +2,8 @@
 title: "Fichier 1 (V2) : Créer la base Cultivation"
 format: html
 editor: source
+params:
+  annee: 2014  # par défaut
 ---
 
 ```{r}
@@ -13,7 +15,6 @@ cat("\014")
 
 ```{r}
 #| message: false
-here::i_am("ICRESAT_database_analysis/CultData1_merging.qmd")
 library(dplyr)
 library(tidyr)
 library(knitr)
@@ -29,15 +30,15 @@ library(here)
 
 # Importer les données
 
-```{r}
+```{r import_data}
 #| message: false
 #| warning: false
-# Choisir l'année
-annee <- 2011
+# Récupérer l'année depuis les paramètres
+annee <- params$annee
 
 charger_fichier <- function(zone, type, annee, suffix = ".xlsx") {
   nom_fichier <- paste0(zone, "_", type, "_", annee, suffix)
-  read_excel(here("raw_data", nom_fichier))
+  read_excel(here::here("raw_data", nom_fichier))
 }
 
 EAST_CultInput      <- charger_fichier("EAST", "CultInput", annee)
@@ -61,7 +62,7 @@ SAT_Household_info  <- charger_fichier("SAT", "Household", annee)
 
 J'ajoute dans la base CultInput une variable pour identifier de quelle région proviennent les données. 
 
-```{r Création la variable REGION}
+```{r var_REGION}
 SAT_CultInput <- SAT_CultInput |>
   mutate(REGION = "SAT")
   
@@ -72,7 +73,7 @@ EAST_CultInput <- EAST_CultInput |>
 
 PLOT_AREA désigne la superficie du plot et CROP_AREA celle du subplot (égale à celle du plot s'il n'y a pas de division du champ). De la même manière, PLOT_CODE désigne l'identifiant du plot et SUB_PLOT_CODE l'identifiant du subplot.
 
-```{r}
+```{r funct_rename}
 # Fonction pour renommer les variables
 rename_if_exists <- function(df, old, new) {
   if (old %in% names(df)) {
@@ -82,7 +83,7 @@ rename_if_exists <- function(df, old, new) {
 }
 ```
 
-```{r Harmoniser les noms des variables}
+```{r func_renam_applied}
 SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "PLOT_AREA", "CROP_AREA")
 SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "CROP_NAME", "CROP")
 SAT_CultOutput <- rename_if_exists(SAT_CultOutput, "OP_REMARKS", "REMARKS")
@@ -112,7 +113,7 @@ SAT_Household_info <- SAT_Household_info |>
   select(VDS_ID, CASTE, CASTE_GROUP)
 ```
 
-```{r Harmoniser les types de chaque colonne}
+```{r class_cols}
 # Je repère si les colonnes ayant le même nom et vérifie si elles sont du même type (numeric ou character). Si ce n'est pas le cas, je les convertis en character, ce qui limite le nombre de NA. Il est nécessaire que les colonnes soient du même type pour utiliser la fonction bind_rows. 
 
 common_cols_cultinput <- intersect(names(EAST_CultInput), names(SAT_CultInput))
@@ -140,7 +141,7 @@ for (col in common_cols_landholding) {
 }
 ```
 
-```{r Rassembler les tables par région}
+```{r merge_by_region}
 CultInput <- bind_rows(EAST_CultInput, SAT_CultInput)
 CultOutput <- bind_rows(EAST_CultOutput, SAT_CultOutput)
 PlotList <- bind_rows(EAST_PlotList, SAT_PlotList)
@@ -184,7 +185,7 @@ cat(" Nombre de potentiel crop damage :", nrow(crop_damage), "\n")
 
 *Enregistrer PlotList*
 
-```{r}
+```{r save_plotlist}
 # Définir le chemin du dossier
 folder_path <- here("Base de données générées", "PlotList")
 
@@ -216,9 +217,9 @@ saveRDS(
 
 Je pense que la variable PLOT_CODE complétée dans les bases CultInput et CultOutput représente l'identifiant du subplot (plutôt que du plot). C'est pourquoi, je renomme la variable SUB_PLOT_CODE pour ces 2 bases. 
 
-```{r}
+```{r select_vars}
 CultInput <- CultInput |>
-  select(SUR_YR, REGION, VDS_ID, PLOT_NAME, PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, SUR_MON_YR, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, WAGE, NAME_MAT, TYPE_MAT, QTY_MAT, UNIT_MAT, VAL_MAT, RATE_MAT, SOURCE_MAT) |>
+  select(REGION, VDS_ID, PLOT_NAME, PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, SUR_MON_YR, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, WAGE, NAME_MAT, TYPE_MAT, QTY_MAT, UNIT_MAT, VAL_MAT, RATE_MAT, SOURCE_MAT) |>
   filter(!LAB_TYPE %in% c("0", "8", "B")) |>
   rename(SUB_PLOT_CODE = PLOT_CODE) |>
   mutate(PLOT_CODE = substr(SUB_PLOT_CODE, 1, 1),
@@ -241,7 +242,7 @@ Household_info <- Household_info |>
   mutate(across(everything(), toupper))
 ```
 
-```{r}
+```{r func_numeric_vars}
 # Convertir et arrondir les superficies à la deuxième décimale
 convertir_arrondir <- function(df, cols) {
   df[cols] <- lapply(df[cols], function(x) round(as.numeric(as.character(x)), 2))
@@ -260,7 +261,7 @@ PlotList   <- convertir_arrondir(PlotList,   c("IRRI_AREA", "CROP_AREA", "PLOT_A
 
 ### Noms des cultures
 
-```{r}
+```{r table_crops}
 # Table de correspondance des cultures
 correspondances_crop <- tribble(
   ~CULTURE_VARIANT,      ~CULTURE_STANDARD,
@@ -323,7 +324,7 @@ correspondances_crop <- tribble(
 )
 ```
 
-```{r}
+```{r apply_table_crops}
 # PlotList :
 # Appliquer les cultures harmonisées à CROP_1
 PlotList <- PlotList |>
@@ -348,7 +349,7 @@ CultOutput <- CultOutput |>
 
 *1. Simplifier le nom des opérations*
 
-```{r}
+```{r table_suboperations}
 # Liste des opérations principales
 key_operations <- c(
   
@@ -448,7 +449,7 @@ CultInput <- CultInput |>
 
 *2. Regrouper les opérations*
 
-```{r}
+```{r table_operations}
 # Regrouper les opérations en principales opérations
 correspondances_oper <- tribble(
   ~OPERATION_VARIANT,                             ~OPERATION_STANDARD,
@@ -625,7 +626,7 @@ correspondances_oper <- tribble(
 )
 ```
 
-```{r}
+```{r apply_table_operations}
 # CultInput : Appliquer les opérations harmonisées
 CultInput <- CultInput |>
   left_join(correspondances_oper, by = c("OPERATION" = "OPERATION_VARIANT")) |>
@@ -641,7 +642,7 @@ CultInput <- CultInput |>
 
 *3. Créer les catégories principales*
 
-```{r}
+```{r categories_operations}
 # Nouvelles catégories OPERATION
 cat_operations <- tribble(
   ~SUB_OPERATION,        ~OPERATION,
@@ -673,9 +674,7 @@ cat_operations <- tribble(
   "NURSERY RAISING",     "NURSERY RAISING",
   "OTHERS",              "OTHERS"
 )
-```
 
-```{r, warning=FALSE}
 # Ajouter les opérations recatégorisées dans Cultivation_cult_distinctes
 CultInput <- CultInput |>
   rename(SUB_OPERATION = OPERATION) |>
@@ -692,7 +691,7 @@ CultInput <- CultInput |>
 
 *Lignes identiques dans CultInput*
 
-```{r}
+```{r dup_cultinput}
 dup_CultInput <- CultInput |>
   group_by(across(everything())) |>
   filter(n() > 1) |>
@@ -707,7 +706,7 @@ ATTENTION : Que faire des lignes identiques ? Est-ce qu'on considère que ce son
 
 Pour éliminer les doublons pour le calcul des heures de travail, je différencie la base CultInput en deux parties en se basant sur le questionnaire : l'une sur le travail (human and bullock labor), la deuxième sur la mécanisation (Machinery inputs and machinery use).
 
-```{r}
+```{r divide_cultinput}
 CultInput_MAT <- CultInput |>
   select(-c(LAB_TYPE, WORK_HR, WAGE)) |>
   filter(!(is.na(NAME_MAT) & is.na(TYPE_MAT)) &
@@ -754,7 +753,7 @@ n_avant - nrow(CultInput_LAB)
 
 Je vérifie si les doublons de WORK_HR dans CultInput_LAB sont dûs à des salaires différents et pourraient donc représenter des travailleurs distincts. On identifie les doublons pour lesquels les différences entre temps de travail et salaire sont cohérentes. 
 
-```{r Doublons de WORK_HR dans CultInput_LAB}
+```{r table_dup_wage}
 # Tableau des doublons par rapport à WORK_HR et WAGE
 dup_CultInput_LAB <- CultInput_LAB |>
   group_by(across(-c(WAGE, WORK_HR))) |>
@@ -783,7 +782,7 @@ cat("Nombre de doublons avec un salaire et un temps de travail cohérents :", nr
 cat("Sur un total de", nrow(dup_CultInput_LAB), "doublons soit", round(100 * nrow(dup_CultInput_LAB |> filter(comparison)) / nrow(dup_CultInput_LAB), 1), "%\n")
 ```
 
-```{r Doublons de WORK_HR dans CultInput_LAB, warning=FALSE, message=FALSE}
+```{r delete_dup_wage, warning=FALSE, message=FALSE}
 # Supprimer les doublons entre WAGE et WORK_HR quand les salaires et les heures de travail ne sont pas cohérents (en conservant le nombre le plus haut)
 dup_CultInput_LAB <- dup_CultInput_LAB |>
   select(VDS_ID, PLOT_NAME, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, SUR_MON_YR, DT_OPER, OPERATION, LAB_TYPE, comparison)
@@ -802,7 +801,7 @@ n_avant - nrow(CultInput_LAB)
 
 L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant les heures de travail par type de travail. Pour ce faire, je pivote en large la table CultInput_LAB.
 
-```{r}
+```{r pivot_cultinput_lab}
 CultInput_LAB <- CultInput_LAB |>
   pivot_wider(
     names_from = LAB_TYPE,
@@ -829,7 +828,7 @@ dup_CultInput_MAT <- CultInput_MAT |>
 
 Je modifie TYPE_MAT quand l'information est manquante, en fonction de NAME_MAT (je ne peux pas me baser sur l'opération, car pour un même type d'opération, il peut avoir plusieurs outils utilisés). 
 
-```{r}
+```{r table_typemat}
 # Table de correspondance entre NAME_MAT et TYPE_MAT
 correspondances_typemat <- tribble(
   ~NAME_MAT,             ~TYPE_MAT,
@@ -932,7 +931,7 @@ correspondances_typemat <- tribble(
 )
 ```
 
-```{r}
+```{r apply_table_typemat}
 # Modifier TYPE_MAT quant il est manquant selon le tableau de correspondance
 type_mat_missing <- CultInput_MAT |>
   filter(is.na(TYPE_MAT)) |>
@@ -959,13 +958,13 @@ CultInput_MAT <- CultInput_MAT |>
 
 L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant toutes les outils utilisés à cette date. Pour ce faire, je pivote en large la table CultInput_MAT.
 
-```{r}
+```{r pivot_cultinput_mat}
 CultInput_MAT <- CultInput_MAT |>
   group_by(VDS_ID, SUB_PLOT_CODE, SEASON, DT_OPER, OPERATION, .keep = "all") |>
   mutate(row_id = row_number()) |>
   ungroup() |>
   pivot_wider(
-    id_cols = c(SUR_YR, VDS_ID, PLOT_NAME, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, REGION, SUR_MON_YR, DT_OPER, OPERATION),
+    id_cols = c(VDS_ID, PLOT_NAME, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, REGION, SUR_MON_YR, DT_OPER, OPERATION),
     names_from = row_id,
     values_from = c(TYPE_MAT, NAME_MAT, UNIT_MAT, QTY_MAT, VAL_MAT, RATE_MAT, SOURCE_MAT),
     names_glue = "{.value}_{row_id}"
@@ -975,13 +974,13 @@ CultInput_MAT <- CultInput_MAT |>
 
 #### Fusionné
 
-```{r}
+```{r create_cultinput_merged}
 any(duplicated(CultInput_MAT[, c("VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")]))
 
 any(duplicated(CultInput_LAB[, c("VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")]))
 ```
-```{r}
-keys_join <- c("SUR_YR", "VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "REGION", "CROP_AREA", "IRRI_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")
+```{r Fusionner CultInput}
+keys_join <- c("VDS_ID", "PLOT_NAME", "PLOT_CODE", "SUB_PLOT_CODE", "REGION", "CROP_AREA", "IRRI_AREA", "SUR_MON_YR", "DT_OPER", "OPERATION", "SEASON")
 
 # Fusionner les deux tables
 CultInput_merged <- full_join(
@@ -994,7 +993,7 @@ CultInput_merged <- full_join(
 
 ### PlotList
 
-```{r Enlever les doublons de PlotList}
+```{r dup_plotlist}
 # Supprimer les lignes identiques
 n_avant <- nrow(PlotList)
 PlotList <- PlotList |> distinct() |>
@@ -1083,7 +1082,7 @@ n_avant - nrow(PlotList)
 
 ### CultOutput
 
-```{r}
+```{r table_dup_cultoutput}
 # Supprimer les lignes identiques
 CultOutput <- CultOutput |> distinct() |>
 
@@ -1100,7 +1099,7 @@ CultOutput <- CultOutput |> distinct() |>
   )
 ```
 
-```{r Enlever les doublons de CultOutput}
+```{r delete_dup_cultouput}
 # Tableau des doublons CultOutput
 dup_rows_CultOutput <- CultOutput |>
   group_by(VDS_ID, SUB_PLOT_CODE, SEASON) |>
@@ -1121,7 +1120,7 @@ n_avant - nrow(CultOutput)
 
 ### Landholding
 
-```{r Enlever les doublons de Landholding}
+```{r delete_dup_landholding}
 # Tableau des doublons Landholding
 dup_rows_Landholding <- Landholding |>
   group_by(VDS_ID, PLOT_CODE) |>
@@ -1143,7 +1142,7 @@ n_avant - nrow(Landholding)
 
 ## Vérifier les doublons restants
 
-```{r Tableaux de vérification des doublons}
+```{r table_all_dups}
 any(duplicated(PlotList[, c("VDS_ID", "SUB_PLOT_CODE", "CROP_1", "CROP_2", "SEASON")]))
 
 any(duplicated(CultOutput[, c("VDS_ID", "SUB_PLOT_CODE", "SEASON")]))
@@ -1162,7 +1161,7 @@ Les doublons dans CultInput_merged sont causés par des incohérences entre SUR_
 
 ## Correspondance des champs entre les tables
 
-```{r Correspondance CultInput -> Landholding}
+```{r match_cultinput_landholding}
 # Vérifier les couples (VDS_ID, PLOT_CODE)
 landholding_keys <- Landholding |>
   select(VDS_ID, PLOT_CODE)
@@ -1183,7 +1182,7 @@ cat(" - Plots sans match avec Landholding :", n_non_matched3, "\n")
 cat(" - Proportion sans match :", prop_non_matched3, "%\n")
 ```
 
-```{r Correspondance CultInput -> PlotList}
+```{r match_cultinput_plotlist}
 # Vérifier les couples (VDS_ID, SUB_PLOT_CODE, SEASON)
 cultinput_keys <- CultInput_merged |>
   select(VDS_ID, SUB_PLOT_CODE, SEASON, CROP_AREA) |>
@@ -1205,7 +1204,7 @@ cat(" - Plots sans équivalent dans PlotList :", n_non_matched, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched, "%\n")
 ```
 
-```{r Correspondance CultInput -> CultOutput}
+```{r match_cultinput_cultoutput}
 # Vérifier les couples (VDS_ID, PLOT_CODE, SEASON)
 cultoutput_keys <- CultOutput |>
   select(VDS_ID, SUB_PLOT_CODE, SEASON, CROP_AREA) |>
@@ -1222,7 +1221,7 @@ cat(" - Plots sans équivalent dans CultOutput :", n_non_matched2, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched2, "%\n")
 ```
 
-```{r Correspondance des régions}
+```{r match_regions}
 # Faire ressortir les codes de chaque région puis comparer les bases
 CultInput_merged <- CultInput_merged |> mutate(STATE = substr(VDS_ID, 2, 3))
 PlotList  <- PlotList  |> mutate(STATE = substr(VDS_ID, 2, 3))
@@ -1245,7 +1244,7 @@ list(
 
 ## Base validation_ID
 
-```{r Correspondance couple VDS_ID / SUB_PLOT_CODE / SEASON / CROP_AREA entre les bases}
+```{r match_vars_ID}
 validation_ID <- cultinput_keys |>
   rename(CROP_AREA_CI = CROP_AREA) |>
   left_join(
@@ -1260,7 +1259,7 @@ validation_ID <- cultinput_keys |>
 
 ## Modifier Base validation_ID
 
-```{r Harmoniser: Méthode fonction}
+```{r function_harmonise_ID}
 # Harmoniser la base validation_ID: quand 2 des 3 sources (_CI, _CO, _PL) sont identiques pour une même variable, remplacer la 3e valeur par cette valeur majoritaire.
 harmonise_ID <- function(df, var) {
   var_CI <- sym(paste0(var, "_CI"))
@@ -1294,7 +1293,7 @@ harmonise_ID <- function(df, var) {
 validation_ID <- harmonise_ID(validation_ID, "CROP_AREA")
 ```
 
-```{r Résultats Base validation_ID}
+```{r base_validation_ID}
 validation_ID <- validation_ID |>
   mutate(CROP_AREA_match = CROP_AREA_CI == CROP_AREA_PL & CROP_AREA_CI == CROP_AREA_CO)
 
@@ -1314,7 +1313,7 @@ cat(" - Area false :", one_false, "\n")
 
 Je crée la variable OK pour identifier et sélectionner seulement les champs ayant leur équivalent dans les trois tables.
 
-```{r}
+```{r add_validated}
 # Création de la variable OK
 validation_ID <- validation_ID |>
   mutate(OK = coalesce(CROP_AREA_match, FALSE))
@@ -1327,7 +1326,7 @@ cat("Nombre de lignes validées : ", nb_OK, "\n")
 cat("Pourcentage du total : ", pourcentage_OK, "%\n")
 ```
 
-```{r}
+```{r verif_validated}
 # Ajouter la variable OK dans toutes les bases 
 
 # CultInput: 
@@ -1373,7 +1372,7 @@ lignes_validees <- tibble(
 print(lignes_validees)
 ```
 
-```{r}
+```{r filter_validated}
 # Sélectionner dans toutes les bases seulement les lignes validées
 CultInput_merged <- CultInput_merged |>
   filter(OK==TRUE) |>
@@ -1394,7 +1393,7 @@ PlotList <- PlotList |>
 
 ## Joindre en colonne les bases
 
-```{r}
+```{r merge_tables}
 Cultivation_wide <- CultInput_merged |>
   select(-PLOT_NAME) |>
 
@@ -1432,13 +1431,12 @@ Cultivation_wide <- CultInput_merged |>
   select(-c(IRRI_AREA_PL, CROP_1_PL, CROP_2_PL, CROP_3_PL, CROP_4_PL))
 ```
 
-```{r}
+```{r reorder_vars}
 # Changer l'ordre des colonnes de Cultivation_wide
 Cultivation_wide <- Cultivation_wide |>
-  relocate(SUR_YR, .before = VDS_ID) |>
   relocate(PLOT_CODE, .before = SUB_PLOT_CODE) |>
   relocate(PLOT_AREA, .before = CROP_AREA) |>
-  relocate(SUR_MON_YR, .after = SUR_YR) |>
+  relocate(SUR_MON_YR, before = VDS_ID) |>
   relocate(IRRI_AREA, .after = CROP_AREA) |>
   relocate(c(VAR_TYPE_1, VAR_TYPE_2, VAR_TYPE_3, VAR_TYPE_4), 
            .after = c(VAR_NAME_1, VAR_NAME_2, VAR_NAME_3, VAR_NAME_4))
@@ -1451,7 +1449,7 @@ Cultivation_wide <- Cultivation_wide |>
 
 Les identifiants des ménages peuvent ne pas correspondre entre les deux tables, lorsque VDS_ID est indiqué pour la mauvaise année dans Household_info. 
 
-```{r}
+```{r harmoniser_householdinfo}
 dernier_chiffre <- substr(as.character(annee), 4, 4)
 
 Household_info <- Household_info |>
@@ -1462,7 +1460,7 @@ Household_info <- Household_info |>
 
 Je vérifie la correspondance des ménages entre Cultivation et Household_info, une fois les années harmonisées. 
 
-```{r Correspondance Cultivation -> Household_info}
+```{r match_cultivation_householdinfo}
 household_keys <- Household_info |>
   select(VDS_ID) |>
   distinct()
@@ -1485,7 +1483,7 @@ cat(" - Proportion sans équivalent :", prop_non_matched4, "%\n")
 
 *Ajouter la caste*
 
-```{r}
+```{r add_caste}
 Cultivation_wide <- Cultivation_wide |>
   left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
   mutate(
@@ -1494,7 +1492,7 @@ Cultivation_wide <- Cultivation_wide |>
 
 Je regarde le nombre de n/a pour la caste dans Cultivation.  
 
-```{r}
+```{r verif_na_caste}
 Cultivation_wide |>
   summarise(
     na_caste = sum(is.na(CASTE_GROUP)),
@@ -1510,7 +1508,7 @@ Cultivation_wide |>
 
 ## Enregistrer Cultivation_wide
 
-```{r}
+```{r save_cultivation_wide}
 # Définir le chemin du dossier
 folder_path <- here("Base de données générées", "Cultivation_wide")
 

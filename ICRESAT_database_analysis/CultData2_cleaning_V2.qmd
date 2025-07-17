@@ -216,14 +216,14 @@ Je définie maintenant la part de la terre du ménage (somme de tous ses champs)
 ```{r}
 # Superficie et part de la terre dédiée au riz, par saison
 paddy_area <- Cultivation_long |>
-  distinct(VDS_ID, PLOT_AREA, CROP_AREA, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, CROP_AREA, SEASON) |>
   group_by(VDS_ID, SEASON) |>
-  mutate(AREA_HH = sum(CROP_AREA, na.rm = TRUE)) |>
-  ungroup() |>
-  filter(CROP == "PADDY") |>
-  group_by(VDS_ID, AREA_HH, SEASON) |>
-  summarise(paddy_area = sum(CROP_AREA, na.rm = TRUE), .groups = "drop") |>
-  mutate(paddy_prct = round(100 * paddy_area/AREA_HH, 0))
+  summarise(
+    AREA_HH = sum(CROP_AREA, na.rm = TRUE),
+    paddy_area = sum(CROP_AREA[CROP == "PADDY"], na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(paddy_prct = round(100 * paddy_area / AREA_HH, 0))
 
 # Joindre prct_paddy à la base principale
 Cultivation_long <- Cultivation_long |>
@@ -313,7 +313,7 @@ Cultivation_long <- Cultivation_long |>
 ```{r}
 Cultivation_long <- Cultivation_long |>
   select(
-    SUR_YR, SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
+    SUR_YR, SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, mechanized, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
     # place les colonnes restantes à la fin
   )
 ```
@@ -333,7 +333,7 @@ J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que j
 plots_by_household <- Cultivation_long |>
   distinct(
     SUR_YR, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP,
-    PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, VAR_TYPE, VAR_NAME, 
+    AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, VAR_TYPE, VAR_NAME, 
     REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct, mechanized_tilling,
     SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR,
     RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, hand_weeding
@@ -364,7 +364,7 @@ cols_expand <- c(
 base_to_join <- Cultivation_long |>
   select(
     VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION, 
-    DT_OPER, SUR_MON_YR, MONTH, GENDER, EMPLOYMENT, cols_expand
+    DT_OPER, SUR_MON_YR, mechanized, MONTH, GENDER, EMPLOYMENT, cols_expand
   )
 
 # Jointure sans conflit de colonnes
@@ -393,6 +393,8 @@ Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
 
 # Construire les tables
 
+Tables en long
+
 ## Tables sur le travail
 
 *Au niveau de l'opération*
@@ -400,7 +402,7 @@ Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
 J'additionne les heures de travail par opération et saison pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts.
 
 ```{r}
-Cultivation_labor <- Cultivation_expand
+Table_labor_plot <- Cultivation_expand
 
 sum_cols_labor <- function(df, group_vars, cols_to_sum) {
   df |>
@@ -408,19 +410,40 @@ sum_cols_labor <- function(df, group_vars, cols_to_sum) {
     summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
 }
 
-group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_AREA",
-                "CROP_AREA", "IRRI_AREA", "IRRIGATION", "PLOT_CODE", "SUB_PLOT_CODE",
-                "OPERATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE",
-                "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME",
-                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "SOIL_TYPE", "SOIL_DEPTH",
-                "SOIL_FERT", "SOIL_DEGR", "SLOPE", "hand_weeding")
+group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
+                "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
+                "IRRIGATION", "OPERATION", "mechanized", "mechanized_tilling", "REGION",
+                "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
+                "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
+                "hand_weeding")
 
-Cultivation_labor <- sum_cols_labor(Cultivation_labor, group_vars, cols_labor)
+Table_labor_plot <- sum_cols_labor(Table_labor_plot, group_vars, cols_labor)
 ```
 
 
 *Au niveau du ménage*
 
+J'additionne les heures de travail (toutes opérations confondues) par champ et saison. 
+
+```{r}
+Table_labor_hh <- Cultivation_expand
+
+sum_cols_labor <- function(df, group_vars, cols_to_sum) {
+  df |>
+    group_by(across(all_of(group_vars))) |>
+    summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
+}
+
+group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
+                "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
+                "IRRIGATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE", 
+                "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME", 
+                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "hand_weeding",
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
+
+Table_labor_hh <- sum_cols_labor(Table_labor_hh, group_vars, cols_labor)
+```
 
 
 
@@ -428,12 +451,48 @@ Cultivation_labor <- sum_cols_labor(Cultivation_labor, group_vars, cols_labor)
 
 ```{r}
 # Sélectionner les variables sur la mécanisation
-Cultivation_mat <- Cultivation_expand |>
+Table_mat <- Cultivation_expand |>
   select(-contains(c("WORK", "HACRE", "WAGE")))
 ```
 
 
+********************************************************************************
 
+# Liens extérieurs
+
+## Enregistrer Table_labor
+
+```{r}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "Table_labor")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer Table_labor_plot
+write.csv(
+  Table_labor_plot,
+  file = file.path(folder_path, "Table_labor_plot.csv"),
+  row.names = FALSE
+)
+saveRDS(
+  Table_labor_plot,
+  file = file.path(folder_path, "Table_labor_plot.rds"),
+)
+
+# Enregistrer Table_labor_hh
+write.csv(
+  Table_labor_hh,
+  file = file.path(folder_path, "Table_labor_hh.csv"),
+  row.names = FALSE
+)
+saveRDS(
+  Table_labor_hh,
+  file = file.path(folder_path, "Table_labor_hh.rds"),
+)
+```
 
 
 
