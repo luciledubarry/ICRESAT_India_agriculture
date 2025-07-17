@@ -6,14 +6,18 @@ cat("\014")
 
 here::i_am("ICRESAT_database_analysis/Master_file.R")
 
-quarto::quarto_render("test.qmd", execute_params = list(annee = 2022))
-
 # Sélectionner les années
 annees <- 2011:2014
 liste_annees <- list()
 
+quarto_render(
+  input = here::here("ICRESAT_database_analysis", "CultData1_merging_V2.qmd"),
+  execute_params = list(annee = "2011")
+)
 
-# Lancer les fichiers CultData1 et CultDta2 pour chaque année
+
+
+# Lancer les fichiers CultData1 et CultData2 pour chaque année
 for (annee in annees) {
   cat("Traitement de l'année", annee, "\n")
   
