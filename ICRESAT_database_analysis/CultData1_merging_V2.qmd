@@ -1,21 +1,19 @@
 ---
 title: "Fichier 1 (V2) : Créer la base Cultivation"
-format:   
-  html:
-    output: false
+format: html
 editor: source
 params:
-  annee: 2014  # par défaut
+  annee: 2011  # par défaut
 ---
 
-```{r}
+```{r cleaning}
 #| message: false
-rm(list = ls())
+rm(list = setdiff(ls(), "params"))
 graphics.off()
 cat("\014")
 ```
 
-```{r}
+```{r library}
 #| message: false
 library(dplyr)
 library(tidyr)
@@ -38,8 +36,8 @@ library(here)
 here::i_am("ICRESAT_database_analysis/CultData1_merging_V2.qmd")
 
 # Récupérer l'année depuis les paramètres
-if (!exists("params")) params <- list(annee = 2014)
 annee <- params$annee
+cat("Année :", annee, "\n")
 ```
 
 ```{r import_data, message=FALSE, warning=FALSE}
@@ -188,33 +186,6 @@ crop_damage <- CultInput |>
 
 cat(" Nombre de potentiel crop damage :", nrow(crop_damage), "\n")
 ```
-
-
-*Enregistrer PlotList*
-
-```{r save_plotlist}
-# Définir le chemin du dossier
-folder_path <- here("Base de données générées", "PlotList")
-
-# Créer le dossier s'il n'existe pas
-if (!dir.exists(folder_path)) {
-  dir.create(folder_path, recursive = TRUE)
-}
-
-# Enregistrer le fichier CSV
-write.csv(
-  PlotList,
-  file = file.path(folder_path, "PlotList.csv"),
-  row.names = FALSE
-)
-
-# Enregistrer le fichier RDS
-saveRDS(
-  PlotList,
-  file = file.path(folder_path, "PlotList.rds"),
-)
-```
-
 
 ********************************************************************************
 
@@ -1545,15 +1516,16 @@ fichier_base <- paste0("Cultivation_wide_", annee)
 # Enregistrer le fichier CSV
 write.csv(
   Cultivation_wide,
-  file = file.path(folder_path, "Cultivation_wide.csv"),
+  file = file.path(folder_path, paste0(fichier_base, ".csv")),,
   row.names = FALSE
 )
 
 # Enregistrer le fichier RDS
 saveRDS(
   Cultivation_wide,
-  file = file.path(folder_path, "Cultivation_wide.rds")
+  file = file.path(folder_path, paste0(fichier_base, ".rds"))
 )
 ```
+
 
 

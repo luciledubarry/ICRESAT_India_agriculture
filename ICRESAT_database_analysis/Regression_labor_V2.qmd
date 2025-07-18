@@ -59,7 +59,7 @@ convertir_facteur <- function(df, vars) {
   return(df)
 }
 
-vars_facteurs <- c("SOIL_TYPE", "SOIL_DEGR", "CASTE_GROUP", "VILLAGE", "STATE")
+vars_facteurs <- c("SOIL_TYPE", "SOIL_DEGR", "CASTE_GROUP", "VILLAGE", "STATE", "REGION")
 
 Table_labor_plot <- convertir_facteur(Table_labor_plot, vars_facteurs)
 ```
@@ -189,7 +189,7 @@ summary(reg_harvest)
 
 ```{r}
 reg_weeding <- Table_labor_plot |>
-  filter(OPERATION == "HAND WEEDING") |>
+  filter(OPERATION == "WEEDING") |>
   lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling + STATE,
      data = _)
 summary(reg_weeding)
@@ -213,7 +213,7 @@ reg_min <- lm(HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + STATE, data = T
 summary(reg_min)
 ```
 
-Variables nécessaires pour n'avoir aucune différence significative entre BC et FC: STATE + AREA_CROP
+Variables nécessaires pour n'avoir aucune différence significative entre BC et FC: STATE + CROP_AREA
 
 
 ********************************************************************************
@@ -221,13 +221,6 @@ Variables nécessaires pour n'avoir aucune différence significative entre BC et
 ### Par type de travail
 
 On refait les régressions précédentes, avec comme outcome les heures de travail par acre pour chaque type de travail (femme/homme, familial/employé).
-
-On se conceentre sur le culture du riz (en Kharif). 
-
-```{r}
-Cultivation_labor <- Cultivation_labor |>
-  filter(CROP == "PADDY")
-```
 
 
 #### FF: Travail féminin familial
@@ -246,7 +239,7 @@ Refaire cette régression sans mechanized et mechanized_tilling qui peuvent êtr
 
 ```{r}
 reg_FF <- Table_labor_plot |>
-  filter(OPERATION == "HAND WEEDING") |>
+  filter(OPERATION == "WEEDING") |>
   lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling  + STATE, data = _)
 summary(reg_FF)
 ```
