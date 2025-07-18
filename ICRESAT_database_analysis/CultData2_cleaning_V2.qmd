@@ -291,7 +291,7 @@ Cultivation_long <- Cultivation_long |>
 ```
 
 
-*Ménages faisant du hand weeding par saison*
+*Champs faisant du hand weeding par saison*
 
 ```{r}
 hand_weeding <- Cultivation_long |>
@@ -313,7 +313,7 @@ Cultivation_long <- Cultivation_long |>
 ```{r}
 Cultivation_long <- Cultivation_long |>
   select(
-    SUR_YR, SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, mechanized, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
+    SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, mechanized, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
     # place les colonnes restantes à la fin
   )
 
@@ -335,7 +335,7 @@ J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que j
 ```{r}
 plots_by_household <- Cultivation_long |>
   distinct(
-    SUR_YR, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP,
+    VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP,
     AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, VAR_TYPE, VAR_NAME, 
     REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct, mechanized_tilling,
     SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR,
@@ -413,7 +413,7 @@ sum_cols_labor <- function(df, group_vars, cols_to_sum) {
     summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
 }
 
-group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
+group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
                 "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
                 "IRRIGATION", "OPERATION", "mechanized", "mechanized_tilling", "REGION",
                 "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
@@ -438,7 +438,7 @@ sum_cols_labor <- function(df, group_vars, cols_to_sum) {
     summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
 }
 
-group_vars <- c("SUR_YR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
+group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
                 "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
                 "IRRIGATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE", 
                 "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME", 

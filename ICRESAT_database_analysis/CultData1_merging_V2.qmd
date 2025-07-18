@@ -5,7 +5,7 @@ format:
     output: false
 editor: source
 params:
-  annee: 2013  # par défaut
+  annee: 2014  # par défaut
 ---
 
 ```{r}
@@ -38,7 +38,7 @@ library(here)
 here::i_am("ICRESAT_database_analysis/CultData1_merging_V2.qmd")
 
 # Récupérer l'année depuis les paramètres
-if (!exists("params")) params <- list(annee = 2013)
+if (!exists("params")) params <- list(annee = 2014)
 annee <- params$annee
 ```
 
@@ -1545,14 +1545,14 @@ fichier_base <- paste0("Cultivation_wide_", annee)
 # Enregistrer le fichier CSV
 write.csv(
   Cultivation_wide,
-  file = file.path(folder_path, paste0(fichier_base, ".csv")),
+  file = file.path(folder_path, "Cultivation_wide.csv"),
   row.names = FALSE
 )
 
 # Enregistrer le fichier RDS
 saveRDS(
   Cultivation_wide,
-  file = file.path(folder_path, paste0(fichier_base, ".rds"))
+  file = file.path(folder_path, "Cultivation_wide.rds")
 )
 ```
 
