@@ -298,19 +298,19 @@ Cultivation_long <- Cultivation_long |>
 
 *Champs faisant du hand weeding par saison*
 
-```{r add_hand_weeding}
+A REVOIR!
+
 hand_weeding <- Cultivation_long |>
   filter(OPERATION == "WEEDING") |>
 
-# Identifier les champs faisant du hand weeding
+Identifier les champs faisant du hand weeding
   select(WORK_HR_T, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
   mutate(hand_weeding = if_else(WORK_HR_T == 0, FALSE, TRUE)) |>
   distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, hand_weeding)
 
-# Ajouter la variable à Cultivation_long
+Ajouter la variable à Cultivation_long
 Cultivation_long <- Cultivation_long |>
   left_join(hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP", "SEASON"))
-```
 
 
 ## Ordre des variables
@@ -344,7 +344,7 @@ plots_by_household <- Cultivation_long |>
     AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, VAR_TYPE, VAR_NAME, 
     REGION, STATE, VILLAGE, VILLAGE_CROP, with_paddy, paddy_prct, mechanized_tilling,
     SOIL_TYPE, SOIL_TYPE_OT, SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR,
-    RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, hand_weeding
+    RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT
            )
 
 full_operation <- expand_grid(
@@ -356,18 +356,14 @@ full_operation <- expand_grid(
 Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliquées dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
 
 ```{r apply_expand_oper, message=FALSE, warning=FALSE}
-cols_expand <- c(
-  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
-  paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
-  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
-  paste0("TYPE_MAT_", c("1", "2", "3", "4", "5", "6")),
-  paste0("NAME_MAT_", c("1", "2", "3", "4", "5", "6")),
-  paste0("UNIT_MAT_", c("1", "2", "3", "4", "5", "6")),
-  paste0("QTY_MAT_", c("1", "2", "3", "4", "5", "6")),
-  paste0("VAL_MAT_", c("1", "2", "3", "4", "5", "6")),
-  paste0("RATE_MAT_", c("1", "2", "3", "4", "5", "6")),
-  paste0("SOURCE_MAT_", c("1", "2", "3", "4", "5", "6"))
-)
+pattern_vars <- c("WORK_HR_", "WAGE_", "HACRE_", "TYPE_MAT_", "NAME_MAT_", 
+                  "UNIT_MAT_", "QTY_MAT_", "VAL_MAT_", "RATE_MAT_", "SOURCE_MAT_")
+
+# Extraire toutes les colonnes qui correspondent à l’un des motifs
+cols_expand <- names(Cultivation_long)[
+  sapply(pattern_vars, function(p) grepl(p, names(Cultivation_long))) |>
+    apply(1, any)
+]
 
 base_to_join <- Cultivation_long |>
   select(
@@ -423,8 +419,7 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "IRRIGATION", "OPERATION", "mechanized", "mechanized_tilling", "REGION",
                 "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
                 "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
-                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
-                "hand_weeding")
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
 
 Table_labor_plot <- sum_cols_labor(Table_labor_plot, group_vars, cols_labor)
 ```
