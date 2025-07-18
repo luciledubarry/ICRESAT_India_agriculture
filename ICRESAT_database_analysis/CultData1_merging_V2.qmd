@@ -1,9 +1,11 @@
 ---
 title: "Fichier 1 (V2) : Créer la base Cultivation"
-format: html
+format:   
+  html:
+    output: false
 editor: source
 params:
-  annee: 2011  # par défaut
+  annee: 2013  # par défaut
 ---
 
 ```{r}
@@ -33,7 +35,10 @@ library(here)
 ```{r params_annee}
 #| message: false
 #| warning: false
+here::i_am("ICRESAT_database_analysis/CultData1_merging_V2.qmd")
+
 # Récupérer l'année depuis les paramètres
+if (!exists("params")) params <- list(annee = 2013)
 annee <- params$annee
 ```
 
@@ -729,17 +734,16 @@ CultInput_LAB$WORK_HR <- round(CultInput_LAB$WORK_HR, 1)
 CultInput_LAB$WAGE <- as.numeric(as.character(CultInput_LAB$WAGE))
 ```
 
-
-*Additionner les heures de travail par opération et type de travail*
+*Gérer les doublons*
 
 ```{r}
+# Additionner les lignes identiques
 n_avant <- nrow(CultInput_LAB)
 CultInput_LAB <- CultInput_LAB |>
   group_by(across(everything())) |>
   mutate(WORK_HR = sum(WORK_HR),
          WAGE = sum(WAGE)) |>
   ungroup() |>
-  mutate(HACRE = WORK_HR/CROP_AREA) |>   # Calculer les heures de travail par acre
   distinct()
 n_avant - nrow(CultInput_LAB)
 ```
@@ -799,20 +803,23 @@ CultInput_LAB <- CultInput_LAB |>
 n_avant - nrow(CultInput_LAB)
 ```
 
-*Pivoter la table CultInput_LAB*
-
-ATTENTION : Je pense que l'erreur est liée à des lignes en double (tous sauf WORK_HR, HACRE, WAGE)
-
-+ faire attention à ne pas créer des doublons à cause de SUB_OPERATION 
+*Additionner les heures de travail par opération et type de travail*
 
 ```{r}
-dup_CultInput_LAB <- CultInput_LAB |>
-  group_by(across(-c(WAGE, WORK_HR, HACRE, SUB_OPERATION))) |>
-  filter(n() > 1) |>
-  mutate(row_id = row_number()) |> 
-  ungroup()
+n_avant <- nrow(CultInput_LAB)
+CultInput_LAB <- CultInput_LAB |>
+  select(-SUB_OPERATION) |>           # SUB_OPERATION bloque le pivot wider
+  group_by(across(-c(WAGE, WORK_HR))) |>
+  mutate(WORK_HR = sum(WORK_HR),
+         WAGE = sum(WAGE)) |>
+  ungroup() |>
+  mutate(HACRE = WORK_HR/CROP_AREA) |>   # Calculer les heures de travail par acre
+  distinct()
+n_avant - nrow(CultInput_LAB)
 ```
 
+
+*Pivoter la table CultInput_LAB*
 
 L'objectif est d'avoir pour chaque opération (même date d'opération), une seule ligne par champ indiquant les heures de travail par type de travail. Pour ce faire, je pivote en large la table CultInput_LAB.
 
@@ -1521,7 +1528,7 @@ Cultivation_wide |>
 
 # Liens extérieurs
 
-## Enregistrer Cultivation_wide
+## Enregistrer Cultivation_wide_annee
 
 ```{r save_cultivation_wide}
 # Définir le chemin du dossier
@@ -1532,17 +1539,20 @@ if (!dir.exists(folder_path)) {
   dir.create(folder_path, recursive = TRUE)
 }
 
+# Ajouter l'année au nom de fichier
+fichier_base <- paste0("Cultivation_wide_", annee)
+
 # Enregistrer le fichier CSV
 write.csv(
   Cultivation_wide,
-  file = file.path(folder_path, "Cultivation_wide.csv"),
+  file = file.path(folder_path, paste0(fichier_base, ".csv")),
   row.names = FALSE
 )
 
 # Enregistrer le fichier RDS
 saveRDS(
   Cultivation_wide,
-  file = file.path(folder_path, "Cultivation_wide.rds"),
+  file = file.path(folder_path, paste0(fichier_base, ".rds"))
 )
 ```
 
