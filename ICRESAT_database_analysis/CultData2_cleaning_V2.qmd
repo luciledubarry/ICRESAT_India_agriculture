@@ -316,6 +316,9 @@ Cultivation_long <- Cultivation_long |>
     SUR_YR, SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, mechanized, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
     # place les colonnes restantes à la fin
   )
+
+# Convertir les variables en numérique
+Cultivation_long <- convertir_num(Cultivation_long, c("SOIL_DEPTH", "SOIL_FERT", "SLOPE"))
 ```
 
 
