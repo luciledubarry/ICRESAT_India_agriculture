@@ -21,6 +21,10 @@ Base de données générées/
 *.rds
 *.csv
 
+# Fichiers intermédiaires
+ICRESAT_database_analysis/
+*.rmarkdown
+
 # Fichiers système
 .DS_Store
 Thumbs.db
