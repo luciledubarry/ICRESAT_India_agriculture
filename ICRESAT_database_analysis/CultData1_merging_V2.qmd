@@ -1516,7 +1516,7 @@ fichier_base <- paste0("Cultivation_wide_", annee)
 # Enregistrer le fichier CSV
 write.csv(
   Cultivation_wide,
-  file = file.path(folder_path, paste0(fichier_base, ".csv")),,
+  file = file.path(folder_path, paste0(fichier_base, ".csv")),
   row.names = FALSE
 )
 

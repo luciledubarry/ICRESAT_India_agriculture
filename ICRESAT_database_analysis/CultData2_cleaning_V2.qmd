@@ -31,7 +31,7 @@ annee <- params$annee
 cat("Année :", annee, "\n")
 
 data_to_import <- paste0("Cultivation_wide_", annee, ".rds")
-Cultivation_wide_annee <- readRDS(here::here("Base de données générées", "Cultivation_wide", data_to_import))
+Cultivation_wide <- readRDS(here::here("Base de données générées", "Cultivation_wide", data_to_import))
 ```
 
 
@@ -507,25 +507,27 @@ if (!dir.exists(folder_path)) {
 }
 
 # Enregistrer Table_labor_plot
+name_table <- paste0("Table_labor_plot_", annee)
 write.csv(
   Table_labor_plot,
-  file = file.path(folder_path, "Table_labor_plot.csv"),
+  file = file.path(folder_path, paste0(name_table, ".csv")),
   row.names = FALSE
 )
 saveRDS(
   Table_labor_plot,
-  file = file.path(folder_path, "Table_labor_plot.rds"),
+  file = file.path(folder_path, paste0(name_table, ".rds"))
 )
 
 # Enregistrer Table_labor_hh
+name_table <- paste0("Table_labor_hh_", annee)
 write.csv(
   Table_labor_hh,
-  file = file.path(folder_path, "Table_labor_hh.csv"),
+  file = file.path(folder_path, paste0(name_table, ".csv")),
   row.names = FALSE
 )
 saveRDS(
   Table_labor_hh,
-  file = file.path(folder_path, "Table_labor_hh.rds"),
+  file = file.path(folder_path, paste0(name_table, ".rds"))
 )
 ```
 
