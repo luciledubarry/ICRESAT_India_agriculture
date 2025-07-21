@@ -52,7 +52,7 @@ Cultivation_wide <- convertir_num(Cultivation_wide, c("PRCT_AREA_1", "PRCT_AREA_
 ```
 
 ```{r pivot_longer}
-# Variables auxquelles appliquer PRCT_AREA
+# Variables à faire pivoter en long
 var_prefixes <- c(
   "CROP_AREA", "IRRI_AREA",
   paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
@@ -60,31 +60,12 @@ var_prefixes <- c(
   paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
 )
 
-ajuster_par_pct <- function(df, var_prefix, pct_vars = paste0("PRCT_AREA_", 1:4)) {
-  for (i in seq_along(pct_vars)) {
-    df[[paste0(var_prefix, "_", i)]] <- ifelse(
-      df[[pct_vars[i]]] == 0 | is.na(df[[pct_vars[i]]]),
-      NA_real_,
-      df[[var_prefix]] * df[[pct_vars[i]]] / 100
-    )
-  }
-  df[[var_prefix]] <- NULL
-  df
-}
-
-Cultivation_long <- Cultivation_wide
-
-for (v in var_prefixes) {
-  Cultivation_long <- ajuster_par_pct(Cultivation_long, v)
-}
-
-# Variables à faire pivoter en long
 cols_to_pivot <- paste0("^(", paste(
-  c("CROP", "PRCT_AREA", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "VAR_NAME", "VAR_TYPE", var_prefixes),
+  c("CROP", "PRCT_AREA", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "VAR_NAME", "VAR_TYPE"),
   collapse = "|"
 ), ")_[1-4]$")
 
-Cultivation_long <- Cultivation_long |>
+Cultivation_long <- Cultivation_wide |>
   pivot_longer(
     cols = matches(cols_to_pivot),
     names_to = c(".value", "NB"),
@@ -92,7 +73,27 @@ Cultivation_long <- Cultivation_long |>
   ) |>
 
 # Supprimer les lignes qui n'ont pas de crop, soit PRCT_AREA == 0
-  filter(!is.na(PRCT_AREA)) |>
+  filter(!is.na(PRCT_AREA))
+```
+
+```{r apply_prct}
+# Variables auxquelles appliquer PRCT_AREA
+var_prefixes <- c(
+  "CROP_AREA", "IRRI_AREA",
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("WAGE_",     c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("HACRE_",    c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
+)
+
+vars_existantes <- intersect(var_prefixes, colnames(Cultivation_long))
+
+# Appliquer PRCT_AREA aux colonnes existantes
+Cultivation_long <- Cultivation_long |>
+  mutate(across(
+    all_of(vars_existantes),
+    ~ ifelse(is.na(PRCT_AREA) | PRCT_AREA == 0, NA_real_, .x * PRCT_AREA / 100)
+  )) |>
+  
   select(-NB) |>
   relocate(CROP_AREA, .after = PLOT_AREA) |>
   relocate(IRRI_AREA, .after = CROP_AREA) |>
