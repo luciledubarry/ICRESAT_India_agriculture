@@ -712,10 +712,10 @@ CultInput_LAB$WAGE <- as.numeric(as.character(CultInput_LAB$WAGE))
 n_avant <- nrow(CultInput_LAB)
 CultInput_LAB <- CultInput_LAB |>
   group_by(across(everything())) |>
-  mutate(WORK_HR = sum(WORK_HR),
-         WAGE = sum(WAGE)) |>
-  ungroup() |>
-  distinct()
+  summarise(WORK_HR = sum(WORK_HR),
+            WAGE = sum(WAGE),
+            .groups = "drop")
+
 n_avant - nrow(CultInput_LAB)
 ```
 
@@ -774,6 +774,7 @@ CultInput_LAB <- CultInput_LAB |>
 n_avant - nrow(CultInput_LAB)
 ```
 
+
 *Additionner les heures de travail par opération et type de travail*
 
 ```{r}
@@ -781,14 +782,15 @@ n_avant <- nrow(CultInput_LAB)
 CultInput_LAB <- CultInput_LAB |>
   select(-SUB_OPERATION) |>           # SUB_OPERATION bloque le pivot wider
   group_by(across(-c(WAGE, WORK_HR))) |>
-  mutate(WORK_HR = sum(WORK_HR),
-         WAGE = sum(WAGE)) |>
-  ungroup() |>
-  mutate(HACRE = WORK_HR/CROP_AREA) |>   # Calculer les heures de travail par acre
-  distinct()
+  summarise(
+    WORK_HR = sum(WORK_HR, na.rm = TRUE),
+    WAGE = sum(WAGE, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(HACRE = WORK_HR / CROP_AREA)   # Calculer les heures de travail par acre
+
 n_avant - nrow(CultInput_LAB)
 ```
-
 
 *Pivoter la table CultInput_LAB*
 
