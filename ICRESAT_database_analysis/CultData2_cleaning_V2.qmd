@@ -289,10 +289,12 @@ Cultivation_long <- Cultivation_long |>
 ```{r add_work_t}
 cols_work_hr <- c(paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")))
 
-Cultivation_long[cols_work_hr] <- lapply(Cultivation_long[cols_work_hr], function(x) ifelse(is.na(x), 0, x))
+vars_existantes <- intersect(cols_work_hr, colnames(Cultivation_long))
+
+Cultivation_long[vars_existantes] <- lapply(Cultivation_long[vars_existantes], function(x) ifelse(is.na(x), 0, x))
 
 Cultivation_long <- Cultivation_long |>
-  mutate(WORK_HR_T = rowSums(across(all_of(cols_work_hr))),
+  mutate(WORK_HR_T = rowSums(across(all_of(vars_existantes))),
          HACRE_T = WORK_HR_T/CROP_AREA)
 ```
 
@@ -383,14 +385,16 @@ cols_labor <- c(
   paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T"))
 )
 
+vars_existantes <- intersect(cols_work_hr, colnames(Cultivation_long))
+
 Cultivation_expand <- Cultivation_expand |>
   mutate(across(
-    all_of(cols_labor),
+    all_of(vars_existantes),
     ~ if_else(is.na(DT_OPER), 0, .),
     .names = "{.col}"
   ))
 
-Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
+Cultivation_expand <- convertir_num(Cultivation_expand, vars_existantes)
 ```
 
 
@@ -422,7 +426,7 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
                 "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
 
-Table_labor_plot <- sum_cols_labor(Table_labor_plot, group_vars, cols_labor)
+Table_labor_plot <- sum_cols_labor(Table_labor_plot, group_vars, vars_existantes)
 ```
 
 
@@ -446,7 +450,7 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "SOIL_TYPE", "SOIL_DEPTH", 
                 "SOIL_FERT", "SOIL_DEGR", "SLOPE")
 
-Table_labor_hh <- sum_cols_labor(Table_labor_hh, group_vars, cols_labor)
+Table_labor_hh <- sum_cols_labor(Table_labor_hh, group_vars, vars_existantes)
 ```
 
 
