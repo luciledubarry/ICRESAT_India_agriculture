@@ -3,7 +3,7 @@ title: "Fichier 1 (V2) : Créer la base Cultivation"
 format: html
 editor: source
 params:
-  annee: 2011  # par défaut
+  annee: 2013  # par défaut
 ---
 
 ```{r cleaning}
@@ -827,14 +827,17 @@ Je modifie TYPE_MAT quand l'information est manquante, en fonction de NAME_MAT (
 # Table de correspondance entre NAME_MAT et TYPE_MAT
 correspondances_typemat <- tribble(
   ~NAME_MAT,             ~TYPE_MAT,
+  "FERTILIZER",          "FERTILIZER",
   "UREA",                "FERTILIZER",
   "URE",                 "FERTILIZER",
   "URIA",                "FERTILIZER",
+  "SPP",                 "FERTILIZER",
   "MOP",                 "FERTILIZER",
   "NPK",                 "FERTILIZER",
   "N.P.K",               "FERTILIZER",
   "SULPHATE",            "FERTILIZER",
   "AMMONIUM SULPHATE",   "FERTILIZER",
+  "POUSHAK",             "FERTILIZER",
   "DAP",                 "FERTILIZER",
   "POTASH",              "FERTILIZER",
   "POTAS",               "FERTILIZER",
@@ -845,17 +848,43 @@ correspondances_typemat <- tribble(
   "GROWMORE",            "FERTILIZER",
   "SSP",                 "FERTILIZER",
   "GROMOR",              "FERTILIZER",
+  "19-19-19",            "FERTILIZER",
+  "BIPUL VITAMIN",       "FERTILIZER",
   
+  "WEEDICIDE",           "WEEDICIDE",
+  "PRITI HARBICIDE",     "WEEDICIDE",
+  "IMAZETHAPYR 10% SL",  "WEEDICIDE",
   "ROUNDUP",             "WEEDICIDE",
+  "MASCHETI",            "WEEDICIDE",
+  "PURSUIT",             "WEEDICIDE",
+  "2-4D",                "WEEDICIDE",
+  "24D",                 "WEEDICIDE",
+  "HEERA SUPER",         "WEEDICIDE",
+  "PHOSPHATE",           "WEEDICIDE",
   "IMAZETHAPYR",         "WEEDICIDE",
   "HUNTER",              "WEEDICIDE",
   "TOTAL",               "WEEDICIDE",
   "BUTACLOUR",           "WEEDICIDE",
   "2-4D",                "WEEDICIDE",
+  "2, 4D",               "WEEDICIDE",
   "SATHI",               "WEEDICIDE",
   "SAATHI",              "WEEDICIDE",
   "TOP STAR",            "WEEDICIDE",
+  "BUTOCLOX",            "WEEDICIDE",
+  "GOL",                 "WEEDICIDE",
+  "ALLGRIP",             "WEEDICIDE",
+  "TARGA SUPER",         "WEEDICIDE",
+  "LAGAAM",              "WEEDICIDE",
+  "PETICLOUR",           "WEEDICIDE",
+  "REJAR",               "WEEDICIDE",
+  "DANADAR",             "WEEDICIDE",
+  "ROGOHTI",             "WEEDICIDE",
+  "NOMNI GOLD",          "WEEDICIDE",
+  "ANUGOR",              "WEEDICIDE",
+  "JUDO",                "WEEDICIDE",
   
+  
+  "MACHINERY",           "MACHINERY",
   "TR",                  "MACHINERY",
   "T.R",                 "MACHINERY",
   "TRACTOR",             "MACHINERY",
@@ -879,6 +908,7 @@ correspondances_typemat <- tribble(
   "DP",                  "MACHINERY",
   "D.P",                 "MACHINERY",
   "DIESEL PUMP",         "MACHINERY",
+  "KEROSENE PUMP",       "MACHINERY",
   "TH",                  "MACHINERY",
   "THRESHER",            "MACHINERY",
   "ET",                  "MACHINERY",
@@ -886,9 +916,9 @@ correspondances_typemat <- tribble(
   "ELECTRIC MOTOR",      "MACHINERY",
   "AUTO",                "MACHINERY",
   "TRUCK",               "MACHINERY",
+  "WINNOWER",            "MACHINERY",
   
   "SEE",                 "SEED",
-  "PADDY",               "SEED",
   "ONION",               "SEED",
   "ONIONS",              "SEED",
   "BEAN",                "SEED",
@@ -919,10 +949,83 @@ correspondances_typemat <- tribble(
   "PEAS",                "SEED",
   "MUSTARD",             "SEED",
   "MAIZE",               "SEED",
+  "EGYPTYIN COLVER (BAESEEM)", "SEED",
   
+  "PESTICIDE",           "PESTICIDE/FUNGICIDE",
+  "SUPER KILLER-10",     "PESTICIDE/FUNGICIDE",
+  "ROGORUS",             "PESTICIDE/FUNGICIDE",
+  "TATAMEDA",            "PESTICIDE/FUNGICIDE",
+  "THIMET-10-G",         "PESTICIDE/FUNGICIDE",
+  "FUNGICIDE",           "PESTICIDE/FUNGICIDE",
+  "FUNGISIDE",           "PESTICIDE/FUNGICIDE",
+  "MEDICINE",            "PESTICIDE/FUNGICIDE",
+  "INDOPHEN",            "PESTICIDE/FUNGICIDE",
+  "SP (SARK)",           "PESTICIDE/FUNGICIDE",
   "SWARNA",              "PESTICIDE/FUNGICIDE",
+  "TRIAZOPHOS",          "PESTICIDE/FUNGICIDE",
+  "ROGAR",               "PESTICIDE/FUNGICIDE",
+  "PENDIMETHALIN",       "PESTICIDE/FUNGICIDE",
+  "PROCLAIM",            "PESTICIDE/FUNGICIDE",
+  "SHOOTER",             "PESTICIDE/FUNGICIDE",
+  "PROFIX SUPER",        "PESTICIDE/FUNGICIDE",
+  "IMIDACLOPRID",        "PESTICIDE/FUNGICIDE",
+  "ACEPHATE",            "PESTICIDE/FUNGICIDE",
+  "ANTRACOL",            "PESTICIDE/FUNGICIDE",
+  "MONOCROTOPHOS",       "PESTICIDE/FUNGICIDE",
+  "MONOCROTOPHOS 36% SL", "PESTICIDE/FUNGICIDE",
+  "DORMEX",              "PESTICIDE/FUNGICIDE",
+  "SULPHUR",             "PESTICIDE/FUNGICIDE",
+  "SONA POWDER",         "PESTICIDE/FUNGICIDE",
+  "CARBENDAIZM",         "PESTICIDE/FUNGICIDE",
+  "LANCER GOLD",         "PESTICIDE/FUNGICIDE",
+  "BIFENTHRIN",          "PESTICIDE/FUNGICIDE",
+  "TEBUCONAZOLE",        "PESTICIDE/FUNGICIDE",
+  "BOULD",               "PESTICIDE/FUNGICIDE",
+  "SAVILS",              "PESTICIDE/FUNGICIDE",
+  "FLONICAMID",          "PESTICIDE/FUNGICIDE",
+  "QUINALPHOS",          "PESTICIDE/FUNGICIDE",
+  "SAAF",                "PESTICIDE/FUNGICIDE",
+  "FENPROPATHRIN",       "PESTICIDE/FUNGICIDE",
+  "ERADICATOR",          "PESTICIDE/FUNGICIDE",
+  "COMBIPLUS",           "PESTICIDE/FUNGICIDE",
+  "PHORATE",             "PESTICIDE/FUNGICIDE",
+  "FIPRONIL",            "PESTICIDE/FUNGICIDE",
+  "PHENTHOATE",          "PESTICIDE/FUNGICIDE",
+  "EMAMECTIN BENZOATE",  "PESTICIDE/FUNGICIDE",
+  "FANTAC PLUS",         "PESTICIDE/FUNGICIDE",
+  "CYPERMETHRIN",        "PESTICIDE/FUNGICIDE",
+  "CROJAINE",            "PESTICIDE/FUNGICIDE",
+  "METASINE",            "PESTICIDE/FUNGICIDE",
+  "CHLORPYRIPHOS 50% EC", "PESTICIDE/FUNGICIDE",
+  "TRICYCLAZOLE 75%",    "PESTICIDE/FUNGICIDE",
+  "CHLORANTRANILPROLE",  "PESTICIDE/FUNGICIDE",
+  "LUCID",               "PESTICIDE/FUNGICIDE",
+  "TRACER",              "PESTICIDE/FUNGICIDE",
+  "TRICOFAL",            "PESTICIDE/FUNGICIDE",
+  "THRISUL",             "PESTICIDE/FUNGICIDE",
+  "COROZEN",             "PESTICIDE/FUNGICIDE",
+  "PACTUS",              "PESTICIDE/FUNGICIDE",
+  "VAJRA",               "PESTICIDE/FUNGICIDE",
+  "VAJRAM",              "PESTICIDE/FUNGICIDE",
+  "POLO",                "PESTICIDE/FUNGICIDE",
+  
   "FYM",                 "ORGANIC MATERIAL",
-  "ZINC",                "MICRONUTRIENT"
+  "COMPOST",             "ORGANIC MATERIAL",
+  "MANURE",              "ORGANIC MATERIAL",
+  "POULTRY MANURE",      "ORGANIC MATERIAL", 
+  "VERMICOMPOST",        "ORGANIC MATERIAL",
+  "VERMI COMPOST",       "ORGANIC MATERIAL",
+  "LEAFY VEGETABLE",     "ORGANIC MATERIAL",
+  "VEGETABLE",           "ORGANIC MATERIAL",
+  "GREEN LEAF",          "ORGANIC MATERIAL",
+  "ASH",                 "ORGANIC MATERIAL",
+  "COW DUNG",            "ORGANIC MATERIAL",
+
+  "ZINC",                "MICRONUTRIENT",
+  "D LAB LAB",           "MICRONUTRIENT",
+  "CALCIUM",             "MICRONUTRIENT",
+  "BHUCHETAN",           "MICRONUTRIENT",
+  "TONIC",               "MICRONUTRIENT"
 )
 ```
 
@@ -934,13 +1037,16 @@ type_mat_missing <- CultInput_MAT |>
   left_join(correspondances_typemat, by = "NAME_MAT") |>
 
 # Règles supplémentaires : 
-# Si NAME_MAT contient "SEED", alors TYPE_MAT = "SEED"
-  mutate(TYPE_MAT = case_when(
-    str_detect(NAME_MAT, regex("SEED", ignore_case = TRUE)) ~ "SEED",
-    TRUE ~ TYPE_MAT
-  )) |>
+# Si NAME_MAT contient SEED ou PADDY, alors TYPE_MAT = "SEED"
+  mutate(
+    TYPE_MAT = case_when(
+      str_detect(NAME_MAT, regex("SEED|PADDY", ignore_case = TRUE)) ~ "SEED",
+      
 # Tous les TYPE_MAT encore NA deviennent "OTHERS"
-  mutate(TYPE_MAT = replace_na(TYPE_MAT, "OTHERS"))
+      is.na(TYPE_MAT) ~ "OTHERS",
+      TRUE ~ TYPE_MAT
+    )
+  )
 
 # Remplacer les lignes modifiées dans la table d'origine
 CultInput_MAT <- CultInput_MAT |>

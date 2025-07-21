@@ -26,25 +26,45 @@ library(modelsummary)
 ```
 
 ```{r}
-Table_labor_plot <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_plot.rds"))
+Table_labor_plot_all <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_plot_all.rds"))
 
-Table_labor_hh <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_hh.rds"))
+Table_labor_hh_all <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_hh_all.rds"))
+
+Cultivation_expand_all <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand_all.rds"))
 ```
 
 ********************************************************************************
 
 ```{r}
 # Vérifier les doublons présents dans Table_labor_plot avant toute modification
-dup_plots_paddy <- Table_labor_plot |>
+dup_plots_paddy <- Table_labor_plot_all |>
   filter(SEASON == "KHARIF") |>
-  select(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, AREA_HH, PLOT_AREA, CROP_AREA, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, VILLAGE_CROP, CASTE_GROUP, IRRI_AREA, IRRIGATION, with_paddy, paddy_prct, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
+  select(YEAR, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, AREA_HH, PLOT_AREA, CROP_AREA, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, VILLAGE_CROP, CASTE_GROUP, IRRI_AREA, IRRIGATION, with_paddy, paddy_prct, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
   distinct() |>
-  group_by(VDS_ID, SUB_PLOT_CODE, SEASON, CROP_AREA, CROP, VAR_NAME, VAR_TYPE) |>
+  group_by(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP_AREA, CROP, VAR_NAME, VAR_TYPE) |>
   filter(n() > 1) |>
   mutate(row_in_group = row_number()) |> 
   ungroup()
 ```
 
+
+*Check Hacre_T et Work_hr_T*
+
+```{r}
+cols_labor <- c(
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "T")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "T"))
+)
+
+test_work_T <- Cultivation_expand_all |>
+  select(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP, CROP_AREA, OPERATION, DT_OPER, all_of(cols_labor)) |>
+  select(-WORK_HR_T) |>
+  mutate(total_hrs = rowSums(across(contains("WORK_HR")), na.rm = TRUE),
+         HACRE_T = round(HACRE_T, 2),
+         check_hacre = round(total_hrs/CROP_AREA, 2),
+         diff_hacre = check_hacre != HACRE_T) |>
+  select(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP, OPERATION, DT_OPER, HACRE_T, CROP_AREA, total_hrs, check_hacre, diff_hacre)
+```
 
 
 ********************************************************************************
@@ -61,7 +81,7 @@ convertir_facteur <- function(df, vars) {
 
 vars_facteurs <- c("SOIL_TYPE", "SOIL_DEGR", "CASTE_GROUP", "VILLAGE", "STATE", "REGION")
 
-Table_labor_plot <- convertir_facteur(Table_labor_plot, vars_facteurs)
+Table_labor_plot_all <- convertir_facteur(Table_labor_plot_all, vars_facteurs)
 ```
 
 La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité omise étant la catégorie de référence. 
@@ -85,15 +105,15 @@ La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité om
 
 ```{r}
 # Définir les catégories de référence pour les variables catégorielles
-Table_labor_plot$SOIL_TYPE <- relevel(Table_labor_plot$SOIL_TYPE, ref = "1")
-Table_labor_plot$SOIL_DEGR <- relevel(Table_labor_plot$SOIL_DEGR, ref = "1")
+Table_labor_plot_all$SOIL_TYPE <- relevel(Table_labor_plot_all$SOIL_TYPE, ref = "1")
+Table_labor_plot_all$SOIL_DEGR <- relevel(Table_labor_plot_all$SOIL_DEGR, ref = "1")
 ```
 
 
 *Réécrire les variables en dummies*
 
 ```{r}
-Table_labor_plot <- Table_labor_plot |>
+Table_labor_plot_all <- Table_labor_plot_all |>
   mutate(
     mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
     IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
@@ -101,22 +121,7 @@ Table_labor_plot <- Table_labor_plot |>
     )
 ```
 
-Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"),
-
-
-*Superficie au carré*
-
-```{r}
-Table_labor_plot <- Table_labor_plot |>
-  mutate(CROP_AREA_SQ = CROP_AREA^2,
-         PLOT_AREA_SQ = PLOT_AREA^2,
-         AREA_HH_SQ = AREA_HH^2)
-
-Table_labor_hh <- Table_labor_hh |>
-  mutate(CROP_AREA_SQ = CROP_AREA^2,
-         PLOT_AREA_SQ = PLOT_AREA^2,
-         AREA_HH_SQ = AREA_HH^2)
-```
+Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"). 
 
 
 ********************************************************************************
@@ -137,7 +142,7 @@ Outcome : Travail total par acre, tout type de travail confondu.
 On se concentre sur la culture du riz (en Kharif). 
 
 ```{r}
-Table_labor_plot <- Table_labor_plot |>
+Table_labor_plot_all <- Table_labor_plot_all |>
   filter(CROP == "PADDY", SEASON == "KHARIF")
 ```
 
@@ -146,7 +151,7 @@ Table_labor_plot <- Table_labor_plot |>
 ```{r}
 reg_all_oper <- lm(HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH 
                    + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling 
-                   + STATE, data = Table_labor_plot)
+                   + STATE, data = Table_labor_plot_all)
 summary(reg_all_oper)
 ```
 
