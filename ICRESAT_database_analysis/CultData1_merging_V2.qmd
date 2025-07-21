@@ -198,7 +198,7 @@ Je pense que la variable PLOT_CODE complétée dans les bases CultInput et CultO
 ```{r select_vars}
 CultInput <- CultInput |>
   select(REGION, VDS_ID, PLOT_NAME, PLOT_CODE, CROP_AREA, IRRI_AREA, SEASON, SUR_MON_YR, DT_OPER, OPERATION, LAB_TYPE, WORK_HR, WAGE, NAME_MAT, TYPE_MAT, QTY_MAT, UNIT_MAT, VAL_MAT, RATE_MAT, SOURCE_MAT) |>
-  filter(LAB_TYPE %in% c("FM", "HM", "EM", "FF", "HF", "EF", "FC", "HC", "EC", "OB", "FC", "EB", "RS")) |>
+  filter(LAB_TYPE %in% c("FM", "HM", "EM", "FF", "HF", "EF", "FC", "HC", "EC", "OB", "FC", "EB", "HB", "RS")) |>
   rename(SUB_PLOT_CODE = PLOT_CODE) |>
   mutate(PLOT_CODE = substr(SUB_PLOT_CODE, 1, 1),
          across(everything(), toupper))
