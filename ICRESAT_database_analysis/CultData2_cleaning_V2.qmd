@@ -3,7 +3,7 @@ title: "Fichier 2 (V2) : Création de variables"
 format: html
 editor: source
 params:
-  annee: 2014  # par défaut
+  annee: 2011  # par défaut
 ---
 
 ```{r cleaning, message=FALSE, warning=FALSE}
@@ -442,8 +442,8 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
                 "IRRIGATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE", 
                 "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME", 
-                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "hand_weeding",
-                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
+                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "SOIL_TYPE", "SOIL_DEPTH", 
+                "SOIL_FERT", "SOIL_DEGR", "SLOPE")
 
 Table_labor_hh <- sum_cols_labor(Table_labor_hh, group_vars, cols_labor)
 ```
