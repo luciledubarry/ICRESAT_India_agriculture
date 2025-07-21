@@ -247,25 +247,23 @@ Cultivation_long <- Cultivation_long |>
 
 *Mécanisation*
 
-Je crée la variable mechanized, qui indique pour chaque opération si une machine a été utilisée (TR, SP, DS, SM, PT, ET, CH, TH, SD, MK, DP, AUTO ou CYCLE WEEDER). 
+Je créé des variables binaires qui indiquent pour chaque opération si un produit/machine a été utilisé. 
 
-```{r add_mechanized}
-mechanized <- Cultivation_long |>
-  mutate(is_machinery = rowSums(across(contains("TYPE_MAT"), ~ .x == "MACHINERY"), na.rm = TRUE) > 0) |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, OPERATION) |>
-  summarise(mechanized = any(is_machinery), .groups = "drop")
+```{r add_mecanisation}
+use_typemat <- function(df, type_mat, nom_var) {
+  df |>
+    mutate(is_type = rowSums(across(contains("TYPE_MAT"), ~ .x == type_mat), na.rm = TRUE) > 0) |>
+    group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, OPERATION) |>
+    summarise("{nom_var}" := any(is_type), .groups = "drop") |>
+    left_join(df, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "OPERATION"))
+}
 
-# Ajouter la variable à Cultivation_long
 Cultivation_long <- Cultivation_long |>
-  left_join(mechanized, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "OPERATION"))
+  use_typemat("MACHINERY", "use_machinery") |>
+  use_typemat("FERTILIZER", "use_fertilizer") |>
+  use_typemat("PESTICIDE/FUNGICIDE", "use_pesticide") |>
+  use_typemat("WEEDICIDE", "use_weedicide")
 ```
-
-
-faire la même chose pour chaqe type de typemat : fertilizer, pesticide, weedicide/herbicide
-
-puis crééer des variables binaires :hand weeding ()
-
-
 
 
 *Labour mécanisé par saison*
@@ -299,9 +297,24 @@ Cultivation_long <- Cultivation_long |>
 ```
 
 
+*Weeding : hand and chemical weeding*
+
+Je créé la variable hand weeding pour identifier ayant fait du weeding sans utiliser de machine ni produit, et la variable chemical weeding pour ceux ayant utilisé du weedicide (impliquant généralement un sprayer).
+
+```{r}
+Cultivation_long <- Cultivation_long |>
+  mutate(chemical_weeding = OPERATION == "WEEDING" & WORK_HR_T > 0 & use_weedicide,
+         hand_weeding = OPERATION == "WEEDING" &
+                        WORK_HR_T > 0 &
+                       (is.na(use_weedicide) | !use_weedicide) &
+                       (is.na(mechanized) | !mechanized)
+  )
+```
+
+
 *Champs faisant du hand weeding par saison*
 
-A REVOIR!
+A REVOIR! 
 
 hand_weeding <- Cultivation_long |>
   filter(OPERATION == "WEEDING") |>
@@ -314,6 +327,21 @@ Identifier les champs faisant du hand weeding
 Ajouter la variable à Cultivation_long
 Cultivation_long <- Cultivation_long |>
   left_join(hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP", "SEASON"))
+
+
+
+*test*
+
+```{r}
+n_avant <- nrow(Cultivation_long)
+t_work_hr <- Cultivation_long |>
+  select(-DT_OPER) |>
+  distinct()
+
+n_avant - nrow(t_work_hr)
+```
+
+
 
 
 ## Ordre des variables
@@ -370,8 +398,8 @@ cols_expand <- names(Cultivation_long)[
 
 base_to_join <- Cultivation_long |>
   select(
-    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION, 
-    DT_OPER, SUR_MON_YR, mechanized, MONTH, cols_expand
+    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION, DT_OPER, SUR_MON_YR, 
+    MONTH, use_machinery, use_fertilizer, use_pesticide, use_weedicide, cols_expand
   )
 
 # Jointure sans conflit de colonnes
@@ -421,7 +449,8 @@ sum_cols_labor <- function(df, group_vars, cols_to_sum) {
 
 group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
                 "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
-                "IRRIGATION", "OPERATION", "mechanized", "mechanized_tilling", "REGION",
+                "IRRIGATION", "OPERATION", "mechanized_tilling", "use_machinery", ,
+                "use_fertilizer", "use_pesticide", "use_weedicide", "REGION",
                 "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
                 "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
                 "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
