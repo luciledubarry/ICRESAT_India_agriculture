@@ -3,7 +3,7 @@ title: "Fichier 1 (V2) : Créer la base Cultivation"
 format: html
 editor: source
 params:
-  annee: 2012  # par défaut
+  annee: 2011  # par défaut
 ---
 
 ```{r cleaning}
