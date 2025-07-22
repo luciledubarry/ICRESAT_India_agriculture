@@ -3,7 +3,7 @@ title: "Fichier 2 (V3) : Création des tables"
 format: html
 editor: source
 params:
-  annee: 2011  # par défaut
+  annee: 2012  # par défaut
 ---
 
 ```{r cleaning, message=FALSE, warning=FALSE}
@@ -379,16 +379,24 @@ table_mat <- table_mat |>
          !is.na(UNIT_MAT), 
          UNIT_MAT != "HR") |>
    mutate(
-    QTY_MAT = if_else(UNIT_MAT == "GM", QTY_MAT / 1000, QTY_MAT),
-    UNIT_MAT = if_else(UNIT_MAT == "GM", "KG", UNIT_MAT),
+    # Convertir grammes en kg
+    QTY_MAT = if_else(UNIT_MAT %in% c("GM", "GRAM"), QTY_MAT / 1000, QTY_MAT),
+    UNIT_MAT = if_else(UNIT_MAT %in% c("GM", "GRAM"), "KG", UNIT_MAT),
+    
+    # Convertir millilitres en litres
     QTY_MAT = if_else(UNIT_MAT == "ML", QTY_MAT / 1000, QTY_MAT),
     UNIT_MAT = if_else(UNIT_MAT == "ML", "LT", UNIT_MAT),
-    # QT = quintal (1 quintal = 100 KG) ?
+    
+    # Convertir tonnes en kg
+    QTY_MAT = if_else(UNIT_MAT == "TON", QTY_MAT * 1000, QTY_MAT),
+    UNIT_MAT = if_else(UNIT_MAT == "TON", "KG", UNIT_MAT),
+    
+    # Convertir quintaux en kg (1 QT = 100 kg) ?
     QTY_MAT = if_else(UNIT_MAT == "QT" & TYPE_MAT == "FERTILIZER", QTY_MAT * 100, QTY_MAT),
     UNIT_MAT = if_else(UNIT_MAT == "QT" & TYPE_MAT == "FERTILIZER", "KG", UNIT_MAT)
   ) |>
 
-# Additionner les quantités par champ pour le même type de produit
+# Additionner les quantités par champ pour le même produit
   group_by(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, OPERATION, TYPE_MAT, UNIT_MAT) |>
   summarise(QTY_MAT = sum(QTY_MAT, na.rm = TRUE), .groups = "drop")
 ```
@@ -480,7 +488,9 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "FERTILIZER_KG", "FERTILIZER_LT", "PESTICIDE_KG", "PESTICIDE_LT", 
                 "WEEDICIDE_KG", "WEEDICIDE_LT")
 
-Cultivation_oper <- sum_cols_labor(Cultivation_oper, group_vars, cols_labor)
+vars_existantes <- intersect(group_vars, colnames(Cultivation_oper))
+
+Cultivation_oper <- sum_cols_labor(Cultivation_oper, vars_existantes, cols_labor)
 ```
 
 
