@@ -251,11 +251,17 @@ Je créé des variables binaires qui indiquent pour chaque opération si un prod
 
 ```{r add_mecanisation}
 use_typemat <- function(df, type_mat, nom_var) {
-  df |>
+  info_typemat <- df |>
     mutate(is_type = rowSums(across(contains("TYPE_MAT"), ~ .x == type_mat), na.rm = TRUE) > 0) |>
     group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, OPERATION) |>
-    summarise("{nom_var}" := any(is_type), .groups = "drop") |>
-    left_join(df, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "OPERATION"))
+    summarise("{nom_var}" := any(is_type), .groups = "drop")
+
+  df <- left_join(df, info_typemat, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "OPERATION"))
+  
+  # Remplacer les n/a par FALSE
+  df[[nom_var]] <- replace_na(df[[nom_var]], FALSE)
+
+  df
 }
 
 Cultivation_long <- Cultivation_long |>
@@ -416,11 +422,17 @@ cols_labor <- c(
 vars_existantes <- intersect(cols_work_hr, colnames(Cultivation_long))
 
 Cultivation_expand <- Cultivation_expand |>
-  mutate(across(
+  mutate(
+    across(
     all_of(vars_existantes),
     ~ if_else(is.na(DT_OPER), 0, .),
     .names = "{.col}"
-  ))
+    ),
+    across(
+      c("use_fertilizer", "use_machinery", "use_pesticide", "use_weedicide"),
+      ~ replace_na(.x, FALSE)
+    )
+  )
 
 Cultivation_expand <- convertir_num(Cultivation_expand, vars_existantes)
 ```
@@ -432,7 +444,7 @@ Cultivation_expand <- convertir_num(Cultivation_expand, vars_existantes)
 
 Tables en long
 
-## Tables sur le travail
+## Labor
 
 *Au niveau de l'opération*
 
@@ -483,24 +495,14 @@ Table_labor_hh <- sum_cols_labor(Table_labor_hh, group_vars, vars_existantes)
 ```
 
 
-
-## Tables sur la mécanisation
-
-```{r table_mat}
-# Sélectionner les variables sur la mécanisation
-Table_mat <- Cultivation_expand |>
-  select(-contains(c("WORK", "HACRE", "WAGE")))
-```
-
-
-## Tables sur les chemicals
+## Chemicals
 
 La table suivante indique au niveau du champ (toutes opérations confondues), quels produits ont été utilisés dnas la saison et en quelle quantité (avec l'unité).   
 
 ```{r table_chemicals}
 # Sélectionner les variables
 Table_chemicals <- Cultivation_expand |>
-  select(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CASTE_GROUP, AREA_HH, PLOT_AREA, CROP_AREA, contains(c("TYPE_MAT", "UNIT_MAT", "QTY_MAT")))
+  select(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CASTE_GROUP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, use_fertilizer, use_pesticide, use_weedicide, contains(c("TYPE_MAT", "UNIT_MAT", "QTY_MAT")), with_paddy, paddy_prct, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SLOPE, SOIL_DEPTH, VILLAGE, STATE, REGION)
 
 # Pivoter la table en long : variables _MAT
 pattern_vars <- c("TYPE_MAT_", "NAME_MAT_", "UNIT_MAT_", "QTY_MAT_")
@@ -516,7 +518,11 @@ Table_chemicals <- Table_chemicals |>
     names_to = c(".value", "mat_index"),
     names_pattern = "(.*)_(\\d)"
   ) |>
-  filter(!is.na(TYPE_MAT)) |>
+
+# Conserver toutes les lignes avec matériel et une seule ligne par champ s’il n’y a aucun matériel déclaré
+  group_by(VDS_ID, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, CROP_AREA) |>
+  filter(!is.na(TYPE_MAT) | (all(is.na(TYPE_MAT)) & mat_index == "1")) |>
+  ungroup() |>
   select(-mat_index)
 ```
 
@@ -525,11 +531,11 @@ Table_chemicals <- convertir_num(Table_chemicals, "QTY_MAT")
 
 # Additionner les quantités par champ pour le même type de produit
 Table_chemicals <- Table_chemicals |>
-  filter(TYPE_MAT %in% c("PESTICIDE/FUNGICIDE", "FERTILIZER", "WEEDICIDE", "OTHERS")) |>
-  group_by(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, PLOT_AREA, CROP_AREA, TYPE_MAT, UNIT_MAT) |>
+  mutate(TYPE_MAT = replace_na(TYPE_MAT, "NONE"),
+         QTY_MAT = if_else(TYPE_MAT == "NONE", 0, QTY_MAT)) |>
+  group_by(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CASTE_GROUP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, TYPE_MAT, UNIT_MAT, with_paddy, paddy_prct, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SLOPE, SOIL_DEPTH, VILLAGE, STATE, REGION) |>
   summarise(QTY_MAT = sum(QTY_MAT, na.rm = TRUE), .groups = "drop")
 ```
-
 
 
 ********************************************************************************
@@ -563,7 +569,9 @@ saveRDS(
 ```
 
 
-## Enregistrer Table_labor
+## Enregistrer Tables
+
+*Table_labor*
 
 ```{r save_tables_labor}
 # Définir le chemin du dossier
@@ -599,5 +607,28 @@ saveRDS(
 )
 ```
 
+*Table_chemicals*
+
+```{r save_table_chemicals}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "Table_chemicals")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer Table_chemicals
+name_table <- paste0("Table_chemicals_", annee)
+write.csv(
+  Table_chemicals,
+  file = file.path(folder_path, paste0(name_table, ".csv")),
+  row.names = FALSE
+)
+saveRDS(
+  Table_chemicals,
+  file = file.path(folder_path, paste0(name_table, ".rds"))
+)
+```
 
 
