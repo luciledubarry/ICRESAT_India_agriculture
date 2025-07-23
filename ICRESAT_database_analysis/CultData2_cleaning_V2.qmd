@@ -519,7 +519,9 @@ Cultivation_plot <- Cultivation_expand |>
   group_by(across(all_of(group_vars))) |>
   mutate(mechanized = any(mechanized), .groups = "drop")
 
-Cultivation_plot <- sum_cols_labor(Cultivation_plot, c(group_vars, "mechanized"), cols_sum_plot)
+cols_existantes <- intersect(cols_sum_plot, colnames(Cultivation_plot))
+
+Cultivation_plot <- sum_cols_labor(Cultivation_plot, c(group_vars, "mechanized"), cols_existantes)
 ```
 
 
@@ -531,7 +533,7 @@ Cultivation_hh <- Cultivation_expand
 group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "AREA_HH", "REGION", "STATE", "VILLAGE", 
                 "VILLAGE_CROP", "with_paddy", "paddy_prct")
 
-Cultivation_hh <- sum_cols_labor(Cultivation_hh, group_vars, cols_sum_plot)
+Cultivation_hh <- sum_cols_labor(Cultivation_hh, group_vars, cols_existantes)
 ```
 
 
