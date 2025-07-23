@@ -3,7 +3,7 @@ title: "Fichier 2 (V3) : Création des tables"
 format: html
 editor: source
 params:
-  annee: 2012  # par défaut
+  annee: 2011  # par défaut
 ---
 
 ```{r cleaning, message=FALSE, warning=FALSE}
@@ -159,7 +159,6 @@ Cultivation_expand <- Cultivation_expand |>
 Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
 ```
 
-
 ********************************************************************************
 
 ## Ajouter des variables
@@ -253,23 +252,15 @@ Cultivation_expand <- Cultivation_expand |>
   select(-PER_IRRI)
 ```
 
+*Superficie au carré*
 
-*Champs faisant du hand weeding par saison*
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(CROP_AREA_SQ = CROP_AREA^2,
+         PLOT_AREA_SQ = PLOT_AREA^2,
+         AREA_HH_SQ = AREA_HH^2)
+```
 
-A REVOIR! 
-
-hand_weeding <- Cultivation_long |>
-  filter(OPERATION == "WEEDING") |>
-
-Identifier les champs faisant du hand weeding
-  select(WORK_HR_T, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
-  mutate(hand_weeding = if_else(WORK_HR_T == 0, FALSE, TRUE)) |>
-  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON, hand_weeding)
-
-Ajouter la variable à Cultivation_long
-Cultivation_long <- Cultivation_long |>
-  left_join(hand_weeding, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP", "SEASON"))
-  
 
 ### Sur l'opération
 
@@ -441,6 +432,32 @@ Cultivation_expand <- Cultivation_expand |>
   )
 ```
 
+*Champs faisant du hand weeding par saison*
+
+```{r}
+hand_weeding_plot <- Cultivation_expand |>
+  filter(OPERATION == "WEEDING") |>
+
+# Identifier les champs faisant seulement du hand weeding
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
+  summarise(hand_weeding_plot = all(hand_weeding) & all(!chemical_weeding), 
+            .groups = "drop")
+
+# Ajouter la variable à la base
+Cultivation_expand <- Cultivation_expand |>
+  left_join(hand_weeding_plot, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "VAR_NAME", "VAR_TYPE", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT"))
+```
+
+
+### Modifier VDS_ID
+
+VDS_ID indique initiallement l'année (4e et 5e caractètres). Je supprime ces caractères pour pouvoir identifier un ménage chaque année.
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(VDS_ID = paste0(substr(VDS_ID, 1, 3), substr(VDS_ID, 6, nchar(VDS_ID))))
+```
+
 
 ### Ordre des variables
 
@@ -484,9 +501,10 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "IRRIGATION", "OPERATION", "mechanized_tilling", "mechanized", "REGION",
                 "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
                 "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
-                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE",
-                "FERTILIZER_KG", "FERTILIZER_LT", "PESTICIDE_KG", "PESTICIDE_LT", 
-                "WEEDICIDE_KG", "WEEDICIDE_LT")
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
+                "hand_weeding_plot","FERTILIZER_KG", "FERTILIZER_LT", "PESTICIDE_KG", 
+                "PESTICIDE_LT", "WEEDICIDE_KG", "WEEDICIDE_LT", "AREA_HH_SQ", 
+                "PLOT_AREA_SQ", "CROP_AREA_SQ")
 
 vars_existantes <- intersect(group_vars, colnames(Cultivation_oper))
 
@@ -511,8 +529,9 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
                 "IRRIGATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE", 
                 "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME", 
-                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "SOIL_TYPE", "SOIL_DEPTH", 
-                "SOIL_FERT", "SOIL_DEGR", "SLOPE")
+                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "hand_weeding_plot", 
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
+                "AREA_HH_SQ", "PLOT_AREA_SQ", "CROP_AREA_SQ")
 
 # Regrouper l'utilisation de machines (variable mechanized) au niveau du champ
 Cultivation_plot <- Cultivation_expand |>
@@ -531,7 +550,7 @@ Cultivation_plot <- sum_cols_labor(Cultivation_plot, c(group_vars, "mechanized")
 Cultivation_hh <- Cultivation_expand
   
 group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "AREA_HH", "REGION", "STATE", "VILLAGE", 
-                "VILLAGE_CROP", "with_paddy", "paddy_prct")
+                "VILLAGE_CROP", "with_paddy", "paddy_prct", "AREA_HH_SQ")
 
 Cultivation_hh <- sum_cols_labor(Cultivation_hh, group_vars, cols_existantes)
 ```

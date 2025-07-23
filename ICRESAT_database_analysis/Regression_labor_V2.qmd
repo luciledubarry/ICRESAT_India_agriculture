@@ -4,13 +4,13 @@ format: html
 editor: source
 ---
 
-```{r, message=FALSE, warning=FALSE}
+```{r cleaning, message=FALSE, warning=FALSE}
 rm(list = ls())
 graphics.off()
 cat("\014")
 ```
 
-```{r, message=FALSE, warning=FALSE}
+```{r library, message=FALSE, warning=FALSE}
 here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
 library(dplyr)
 library(tidyr)
@@ -25,19 +25,21 @@ library(xtable)
 library(modelsummary)
 ```
 
-```{r}
-Table_labor_plot_all <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_plot_all.rds"))
+```{r import_data}
+Cultivation_oper_all <- readRDS(here::here("Base de données générées", "Cultivation_oper", "Cultivation_oper_all.rds"))
 
-Table_labor_hh_all <- readRDS(here::here("Base de données générées", "Table_labor", "Table_labor_hh_all.rds"))
+Cultivation_plot_all <- readRDS(here::here("Base de données générées", "Cultivation_plot", "Cultivation_plot_all.rds"))
 
-Cultivation_expand_all <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand_all.rds"))
+Cultivation_hh_all <- readRDS(here::here("Base de données générées", "Cultivation_hh", "Cultivation_hh_all.rds"))
 ```
 
 ********************************************************************************
 
-```{r}
-# Vérifier les doublons présents dans Table_labor_plot avant toute modification
-dup_plots_paddy <- Table_labor_plot_all |>
+# Vérifications des tables
+
+```{r verif_dups}
+# Vérifier les doublons présents dans Cultivation_plot_all avant toute modification
+dup_plots_paddy <- Cultivation_plot_all |>
   filter(SEASON == "KHARIF") |>
   select(YEAR, VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, AREA_HH, PLOT_AREA, CROP_AREA, VAR_TYPE, VAR_NAME, REGION, STATE, VILLAGE, VILLAGE_CROP, CASTE_GROUP, IRRI_AREA, IRRIGATION, with_paddy, paddy_prct, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, SOIL_TYPE, SOIL_FERT, SOIL_DEGR, SOIL_DEPTH, SLOPE) |>
   distinct() |>
@@ -50,20 +52,22 @@ dup_plots_paddy <- Table_labor_plot_all |>
 
 *Check Hacre_T et Work_hr_T*
 
-```{r}
-cols_labor <- c(
-  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "T")),
-  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "T"))
-)
+```{r verif_total_hrs}
+cols_work <- c(paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "HB")))
 
-test_work_T <- Cultivation_expand_all |>
-  select(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP, CROP_AREA, OPERATION, DT_OPER, all_of(cols_labor)) |>
-  select(-WORK_HR_T) |>
-  mutate(total_hrs = rowSums(across(contains("WORK_HR")), na.rm = TRUE),
-         HACRE_T = round(HACRE_T, 2),
-         check_hacre = round(total_hrs/CROP_AREA, 2),
-         diff_hacre = check_hacre != HACRE_T) |>
-  select(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP, OPERATION, DT_OPER, HACRE_T, CROP_AREA, total_hrs, check_hacre, diff_hacre)
+cols_hacre <- c(paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "HB")))
+
+test_work_T <- Cultivation_oper_all |>
+  select(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP, CROP_AREA, OPERATION, WORK_HR_T, HACRE_T, all_of(cols_work), all_of(cols_hacre)) |>
+    mutate(
+    total_hrs = round(rowSums(across(all_of(cols_work)), na.rm = TRUE), 2),
+    WORK_HR_T = round(WORK_HR_T, 2),
+    HACRE_T = round(HACRE_T, 2),
+    diff_work_t = total_hrs != WORK_HR_T,
+    check_hacre = round(total_hrs / CROP_AREA, 2),
+    diff_hacre = check_hacre != HACRE_T
+  ) |>
+  select(YEAR, VDS_ID, SUB_PLOT_CODE, SEASON, CROP, OPERATION, CROP_AREA, WORK_HR_T, total_hrs, diff_work_t, HACRE_T, check_hacre, diff_hacre)
 ```
 
 
@@ -73,7 +77,7 @@ test_work_T <- Cultivation_expand_all |>
 
 *Convertir les variables catégorielles en facteur*
 
-```{r}
+```{r func_factors}
 convertir_facteur <- function(df, vars) {
   df[vars] <- lapply(df[vars], factor)
   return(df)
@@ -81,7 +85,12 @@ convertir_facteur <- function(df, vars) {
 
 vars_facteurs <- c("SOIL_TYPE", "SOIL_DEGR", "CASTE_GROUP", "VILLAGE", "STATE", "REGION")
 
-Table_labor_plot_all <- convertir_facteur(Table_labor_plot_all, vars_facteurs)
+Cultivation_oper_all <- convertir_facteur(Cultivation_oper_all, vars_facteurs)
+Cultivation_plot_all <- convertir_facteur(Cultivation_plot_all, vars_facteurs)
+
+vars_facteurs <- c("CASTE_GROUP", "VILLAGE", "STATE", "REGION")
+
+Cultivation_hh_all <- convertir_facteur(Cultivation_hh_all, vars_facteurs)
 ```
 
 La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité omise étant la catégorie de référence. 
@@ -103,17 +112,20 @@ La fonction lm() crée automatiquement des dummies (n - 1), avec la modalité om
 
 - Profondeur du champ (soil_depth) : Average soil depth in centimeters
 
-```{r}
+```{r var_categories}
 # Définir les catégories de référence pour les variables catégorielles
-Table_labor_plot_all$SOIL_TYPE <- relevel(Table_labor_plot_all$SOIL_TYPE, ref = "1")
-Table_labor_plot_all$SOIL_DEGR <- relevel(Table_labor_plot_all$SOIL_DEGR, ref = "1")
+Cultivation_oper_all$SOIL_TYPE <- relevel(Cultivation_oper_all$SOIL_TYPE, ref = "1")
+Cultivation_oper_all$SOIL_DEGR <- relevel(Cultivation_oper_all$SOIL_DEGR, ref = "1")
+
+Cultivation_plot_all$SOIL_TYPE <- relevel(Cultivation_plot_all$SOIL_TYPE, ref = "1")
+Cultivation_plot_all$SOIL_DEGR <- relevel(Cultivation_plot_all$SOIL_DEGR, ref = "1")
 ```
 
 
 *Réécrire les variables en dummies*
 
-```{r}
-Table_labor_plot_all <- Table_labor_plot_all |>
+```{r vars_dummies}
+Cultivation_oper_all <- Cultivation_oper_all |>
   mutate(
     mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
     IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
@@ -122,6 +134,18 @@ Table_labor_plot_all <- Table_labor_plot_all |>
 ```
 
 Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"). 
+
+
+*Variable binaire : Pesticide, Weedicide*
+
+```{r add_use_pesticide}
+Cultivation_oper_all <- Cultivation_oper_all |>
+  mutate(
+    use_pesticide = PESTICIDE_KG > 0 | PESTICIDE_LT > 0,
+    use_weedicide = WEEDICIDE_KG > 0 | WEEDICIDE_LT > 0
+  )
+```
+
 
 
 ********************************************************************************
@@ -141,21 +165,14 @@ Outcome : Travail total par acre, tout type de travail confondu.
 
 On se concentre sur la culture du riz (en Kharif). 
 
-```{r}
-Table_labor_plot_all <- Table_labor_plot_all |>
-  filter(CROP == "PADDY", SEASON == "KHARIF")
-```
-
 #### Toutes opérations
 
-```{r}
-reg_all_oper <- lm(HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH 
-                   + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling 
-                   + STATE, data = Table_labor_plot_all)
+```{r reg_all_oper}
+reg_all_oper <- Cultivation_oper_all |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_all_oper)
 ```
-
-Attention : Il y a beaucoup d'observations effacées à cause des n/a de Machinery. 
 
 Attention : On ne peut pas mettre à la fois STATE et VILLAGE dans la régression. 
 Il y a un problème de colinéarité parfaite entre STATE et VILLAGE, car chaque village appartient exactement à un seul state. Donc connaître le village suffit à déterminer le state et inversement. 
@@ -172,49 +189,42 @@ Code pour Var_type :
 
 Je refais la régression pour les opérations principales du riz en Kharif. 
 
-```{r}
-reg_land <- Table_labor_plot |>
-  filter(OPERATION == "LAND PREPARATION") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE,
-     data = _)
+```{r reg_land}
+reg_land <- Cultivation_oper_all |>
+  filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "LAND PREPARATION") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_land)
 ```
 
 Attention : Pour cette régression, c'est normal que mechanized_tilling soit NA, car machinery_tilling et MACHINERY sont identiques. R ne considère pas le deuxième coefficient, à cause du problème de colinéarité que cela causerait. 
 
-
-```{r}
-reg_harvest <- Table_labor_plot |>
-  filter(OPERATION == "HARVESTING & THRESHING") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + STATE,
-     data = _)
+```{r reg_harvest}
+reg_harvest <- Cultivation_oper_all |>
+  filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "HARVESTING & THRESHING") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_harvest)
 ```
 
-
-```{r}
-reg_weeding <- Table_labor_plot |>
-  filter(OPERATION == "WEEDING") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling + STATE,
-     data = _)
+```{r reg_weeding}
+reg_weeding <- Cultivation_oper_all |>
+  filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "WEEDING") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_weeding)
 ```
 
-ttention: Il faut enlever Machinery pour étudier Hand weeding, car cette opération n'est jamais mécanisé. Il n'y a qu'une seule modalité pour Machinery, donc R ne peut pas créer de dummies. 
-
-
-```{r}
-reg_trans <- Table_labor_plot |>
-  filter(OPERATION == "TRANSPLANTING") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + STATE,
-     data = _)
+```{r reg_trans}
+reg_trans <- Cultivation_oper_all |>
+  filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "TRANSPLANTING") |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + STATE, data = _)
 summary(reg_trans)
 ```
 
 #### Avec le min de variables explicatives
 
-```{r}
-reg_min <- lm(HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + STATE, data = Table_labor_plot)
+```{r reg_min}
+reg_min <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY", CROP_AREA != 0) |>
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + STATE, data = _)
 summary(reg_min)
 ```
 
@@ -232,8 +242,10 @@ On refait les régressions précédentes, avec comme outcome les heures de trava
 
 En se concentrant sur le ratio Hr/acre pour le travail féminin familial, on regarde s'il y a une différence significative entre FC et BC, avec les mêmes variables de contrôle. Notre hypothèse est que la demande de travail familial féminin soit moindre pour les FC. 
 
-```{r}
-reg_FF <- lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + STATE, data = Table_labor_plot)
+```{r reg_FF}
+reg_FF <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_FF)
 ```
 
@@ -242,62 +254,63 @@ Refaire cette régression sans mechanized et mechanized_tilling qui peuvent êtr
 
 ##### Hand weeding
 
-```{r}
-reg_FF <- Table_labor_plot |>
-  filter(OPERATION == "WEEDING") |>
-  lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized_tilling  + STATE, data = _)
+```{r reg_FF_weeding}
+reg_FF <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY", OPERATION == "WEEDING") |>
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_FF)
 ```
 
 ##### Harvesting
 
-```{r}
-reg_FF <- Table_labor_plot |>
-  filter(OPERATION == "HARVESTING & THRESHING") |>
-  lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = _)
+```{r reg_FF_harvest}
+reg_FF <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY", OPERATION == "HARVESTING & THRESHING") |>
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_FF)
 ```
 
 ##### Transplanting
 
-```{r}
-reg_FF <- Table_labor_plot |>
-  filter(OPERATION == "TRANSPLANTING") |>
-  lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = _)
+```{r reg_FF_trans}
+reg_FF <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY", OPERATION == "TRANSPLANTING") |>
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_FF)
 ```
 
 
 #### HF: Travail féminin employé
 
-```{r}
-reg_HF <- lm(HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = Table_labor_plot)
+```{r reg_HF}
+reg_HF <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + OPERATION + YEAR + STATE, data = _)
 summary(reg_HF)
 ```
 
-Rajouter un dummy OPERATION pour les régressions toutes opérations confondues 
-
-
 #### FM: Travail masculin familial
 
-```{r}
-reg_FM <- lm(HACRE_FM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = Table_labor_plot)
-options(scipen = 999)
+```{r reg_FM}
+reg_FM <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  lm(formula = HACRE_FM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_FM)
-options(scipen = 0)
 ```
 
 #### HM: Travail masculin employé
 
-```{r}
-reg_HM <- lm(HACRE_HM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling  + STATE, data = Table_labor_plot)
+```{r reg_HM}
+reg_HM <- Cultivation_oper_all |>
+  filter(SEASON == "KHARIF", CROP == "PADDY") |>
+  lm(formula = HACRE_HM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
 summary(reg_HM)
 ```
 
 
 ********************************************************************************
 
-# Tableau de régression 
+# Tableaux de régression 
 
 ## Au niveau du ménage
 
@@ -309,40 +322,38 @@ First table:  Household level database only with villages whose main crop is ric
 
 Controls for Reg 1–3: Caste ; Total land ; Total Land sq ; Village dummies. 
 
-```{r}
+```{r reg1_hh}
 # Reg 1: Outcome: Hours per acres of female family work in Kharif
-reg1_hh <- Table_labor_hh |>
+reg1_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + VILLAGE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE, data = _)
 summary(reg1_hh)
 ```
 
-```{r}
+```{r reg2_hh}
 # Reg 2: Outcome: Probability to cultivate rice in Kharif
-reg2_hh <- Table_labor_hh |>
+reg2_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = with_paddy ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + VILLAGE, data = _)
-options(scipen = 999)
-summary(reg1_hh)
-options(scipen = 0)
+  lm(formula = with_paddy ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE, data = _)
+summary(reg2_hh)
 ```
 
-```{r}
+```{r reg3_hh}
 # Reg 3: Outcome: Share of land allocated to rice in Kharif
-reg3_hh <- Table_labor_hh |>
+reg3_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(forumla = paddy_prct ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + VILLAGE, data = _)
+  lm(formula = paddy_prct ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE, data = _)
 summary(reg3_hh)
 ```
 
 *Tableau de régression au niveau du ménage*
 
-```{r}
+```{r model_reg_hh}
 # Liste des modèles
 models_hh <- list(
-  "Female family labor (Hours/acre)" = reg1_hh,
-  "Rice cultivation (Yes/No)" = reg2_hh,
-  "Share land to rice" = reg3_hh
+  "\\makecell{Female family labor \\\\ (Hours/acre)}" = reg1_hh,
+  "\\makecell{Rice cultivation \\\\ (Yes/No)}" = reg2_hh,
+  "\\makecell{Share land \\\\ to rice}" = reg3_hh
 )
 
 # Noms des variables
@@ -357,21 +368,27 @@ coef_map_hh <- c(
 options("modelsummary_format_numeric_latex" = "plain")
 
 # Création du tableau
-modelsummary(
+table_tex <- modelsummary(
   models_hh,
   coef_map = coef_map_hh,
   gof_omit = "R2|Adj|AIC|BIC|F|Log|Std|RMSE",  # pour supprimer stats inutiles
   stars = TRUE,
   statistic = "({std.error})",             # erreur standard entre parenthèses
+  escape = FALSE,
   add_rows = data.frame(
-    Variable = "Village FE",
-    `Hours/acre (Female)` = "Yes",
-    `Rice cultivation (Yes/No)` = "Yes",
-    `Share land to rice` = "Yes"
+    Variable = c("Year FE", "Village FE"),
+    "\\makecell{Female family labor \\\\ (Hours/acre)}" = c("Yes", "Yes"),
+    "\\makecell{Rice cultivation \\\\ (Yes/No)}" = c("Yes", "Yes"),
+    "\\makecell{Share land \\\\ to rice}" = c("Yes", "Yes")
   ),
-  output = "markdown"  # ou "latex"
+  output = "latex"
 )
+
+# Ajouter \small
+table_tex_wrapped <- paste0("\\small\n", table_tex)
+writeLines(table_tex_wrapped, "tables_reg/reg_hh.tex")
 ```
+
 
 ********************************************************************************
 
@@ -380,60 +397,69 @@ modelsummary(
 Second table : Subplot level database, only with subplot planted with rice in Kharif with villages whose main crop is rice.
 – Reg 4: Outcome : Probability to do hand weeding [Check if enough variation? Share of plot without “hand weeding operation"?]
 – Reg 5: Outcome: Hours per acre hand weeding (those who do not do hand weeding = 0)
-– Reg 6: Outcome: Quantity of herbicides per acre
+– Reg 6: Outcome: Probability of using weedicides / pesticides
 
 Controls for Reg 4–6: Caste; Total land ; Total Land sq ; Plot size ; Plot size sq; Subplot size ; Subplot size sq; Village dummies ; Characteristics/Quality of land (at what level is it defined?)
 
-```{r}
+```{r reg4_plot}
 # Reg 4: Outcome : Probability to do hand weeding
-Table_labor_plot |>
-  filter(VILLAGE_CROP == "PADDY",
-         CROP == "PADDY",
-         SEASON == "KHARIF") |>
-  summarise(
-    n = n(),
-    hand_weeding_n = n_distinct(hand_weeding),
-    area_hh_n = n_distinct(AREA_HH_SQ),
-    plot_area_n = n_distinct(PLOT_AREA_SQ),
-    crop_area_n = n_distinct(CROP_AREA_SQ),
-    caste_n = n_distinct(CASTE_GROUP),
-    village_n = n_distinct(VILLAGE),
-    soil_type_n = n_distinct(SOIL_TYPE),
-    soil_fert_n = n_distinct(SOIL_FERT),
-    slope_n = n_distinct(SLOPE),
-    soil_degr_n = n_distinct(SOIL_DEGR),
-    soil_depth_n = n_distinct(SOIL_DEPTH)
-  )
-
-reg4_plot <- Table_labor_plot |>
+reg4_plot <- Cultivation_plot_all |>
   filter(VILLAGE_CROP == "PADDY",
          CROP == "PADDY",
          SEASON == "KHARIF") |> 
-  lm(formula = hand_weeding ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA
-     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + VILLAGE + SOIL_TYPE + SOIL_FERT 
+  lm(formula = hand_weeding_plot ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
      + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
 summary(reg4_plot)
 ```
 
-```{r}
+```{r reg5_plot}
 # Reg 5: Outcome: Hours per acre hand weeding
-reg5_plot <- Table_labor_plot |>
+reg5_plot <- Cultivation_oper_all |>
   filter(OPERATION == "WEEDING",
+         WORK_HR_T > 0,
+         CROP == "PADDY",
          VILLAGE_CROP == "PADDY",
-         SEASON == "KAHRIF") |>
+         SEASON == "KHARIF") |>
   lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
-     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + VILLAGE + SOIL_TYPE + SOIL_FERT 
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
      + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
 summary(reg5_plot)
 ```
 
-*Tableau de régression au niveau du subplot*
+```{r reg6_plot_1}
+# Reg 6: Outcome: Probability of using weedicides
+reg6_plot_1 <- Cultivation_oper_all |>
+  filter(CROP == "PADDY",
+         VILLAGE_CROP == "PADDY",
+         SEASON == "KHARIF") |>
+  lm(formula = use_weedicide ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+summary(reg6_plot_1)
+```
 
-```{r}
+```{r reg6_plot_2}
+# Reg 6: Outcome: Probability of using pesticides
+reg6_plot_2 <- Cultivation_oper_all |>
+  filter(CROP == "PADDY",
+         VILLAGE_CROP == "PADDY",
+         SEASON == "KHARIF") |>
+  lm(formula = use_pesticide ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+summary(reg6_plot_2)
+```
+
+*Tableau de régression au niveau du champ*
+
+```{r model_reg_plot}
 # Liste des modèles
 models_subplot <- list(
-  "Probability to do hand weeding" = reg4_plot,
-  "Labor in hand weeding (Hours/acre)" = reg5_plot
+  "\\makecell{Probability to do \\\\ hand weeding}" = reg4_plot,
+  "\\makecell{Labor in hand weeding \\\\ (Hours/acre)}" = reg5_plot,
+  "\\makecell{Probability of \\\\ using weedicides}" = reg6_plot_1,
+  "\\makecell{Probability of \\\\ using pesticides}" = reg6_plot_2
 )
 
 # Noms des variables
@@ -443,26 +469,120 @@ coef_map_subplot <- c(
   "CASTE_GROUPST" = "Caste: ST",
   "AREA_HH" = "Household area",
   "PLOT_AREA" = "Plot area",
-  "AREA_CROP" = "Subplot area"
+  "CROP_AREA" = "Subplot area"
 )
 
 options("modelsummary_format_numeric_latex" = "plain")
 
 # Création du tableau
-modelsummary(
+table_tex <- modelsummary(
   models_subplot,
   coef_map = coef_map_subplot,
   gof_omit = "R2|Adj|AIC|BIC|F|Log|Std|RMSE",  # pour supprimer stats inutiles
   stars = TRUE,
   statistic = "({std.error})",             # erreur standard entre parenthèses
+  escape = FALSE,
   add_rows = data.frame(
-    Variable = c("Village FE", "Soil characteristics FE"),
-    `Probability to do hand weeding` = c("Yes", "Yes"),
-    `Labor in hand weeding (Hours/acre)` = c("Yes", "Yes")
+    Variable = c("Year FE", "Village FE", "Soil characteristics FE"),
+    "\\makecell{Probability to do \\\\ hand weeding}" = c("Yes", "Yes", "Yes"),
+    "\\makecell{Labor in hand weeding \\\\ (Hours/acre)}" = c("Yes", "Yes", "Yes"),
+    "\\makecell{Probability of \\\\ using weedicides}" = c("Yes", "Yes", "Yes"),
+    "\\makecell{Probability of \\\\ using pesticides}" = c("Yes", "Yes", "Yes")
   ),
-  output = "latex"  # ou "markdown"
+  output = "latex"
 )
+
+# Ajouter \scriptsize
+table_tex_wrapped <- paste0("\\scriptsize\n", table_tex)
+writeLines(table_tex_wrapped, "tables_reg/reg_plot.tex")
 ```
 
+
+********************************************************************************
+
+## Au niveau de l'opération
+
+SubPlot X Operation level database, only with subplot planted with rice in kharif with villages whose main crop is rice. Without Hand Weeding, and other operations where mechanization is irrelevant (for example
+“marketing")
+– Reg 7: Outcome: Probability of mechanizing the operation
+– Reg 8: Outcome: Nb of hours of hired labor per acre
+
+Controls Reg 7–8: Caste; Total land ; Total Land sq ; Plot size ; Plot size sq; Subplot size ; Subplot size sq; Village dummies ; Characteristics/Quality of land (at what level is it defined?) ; Operation dummies
+
+Additional control for Reg 8: Dummy that indicates whether the operation is mechanized.
+
+```{r cultivation_spe_oper}
+# Filtrer pour les champs de riz dans les villages dont la culture dominante est le riz
+Table_spe_oper <- Cultivation_oper_all |>
+  filter(VILLAGE_CROP == "PADDY",
+         CROP == "PADDY") |>
+  
+# Conserver seulement les opérations d'intérêt
+  filter(OPERATION %in% c("LAND PREPARATION", "HARVESTING & THRESHING", "TRANSPLANTING", "PLANT PROTECTION MEASURES", "FERTILIZER APPL.", "IRRIGATION", "SEED SOWING", "INTERCULTURE")) |>
+
+# Calculer les heures de travail pour le travail employé
+  mutate(hired_work = WORK_HR_HF + WORK_HR_HM,
+         hired_work_hacre = hired_work/CROP_AREA)
+```
+
+```{r reg7_oper}
+# Reg 7: Outcome: Probability of mechanizing the operation
+reg7_oper <- lm(mechanized ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
+                + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + YEAR + VILLAGE 
+                + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH + SOIL_DEGR, 
+                data = Table_spe_oper)
+summary(reg7_oper)
+```
+
+```{r reg8_oper}
+# Reg 8: Outcome: Nb of hours of hired labor per acre
+reg8_oper <- lm(hired_work_hacre ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ 
+                + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + YEAR +
+                + VILLAGE + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH 
+                + SOIL_DEGR + mechanized, data = Table_spe_oper)
+summary(reg8_oper)
+```
+
+*Tableau de régression au niveau d'opération*
+
+```{r model_reg_oper}
+models_oper <- list(
+  "\\makecell{Probability of mechanizing \\\\ the operation}" = reg7_oper,
+  "\\makecell{Hired labor \\\\ (Hours/acre)}" = reg8_oper
+)
+
+# Noms des variables
+coef_map_oper <- c(
+  "CASTE_GROUPFC" = "Caste: FC",
+  "CASTE_GROUPSC" = "Caste: SC",
+  "CASTE_GROUPST" = "Caste: ST",
+  "AREA_HH" = "Household area",
+  "PLOT_AREA" = "Plot area",
+  "CROP_AREA" = "Subplot area",
+  "mechanizedTRUE" = "Mecanised"
+)
+
+options("modelsummary_format_numeric_latex" = "plain")
+
+# Création du tableau
+table_tex <- modelsummary(
+  models_oper,
+  coef_map = coef_map_oper,
+  gof_omit = "R2|Adj|AIC|BIC|F|Log|Std|RMSE",  # pour supprimer stats inutiles
+  stars = TRUE,
+  statistic = "({std.error})",             # erreur standard entre parenthèses
+  escape = FALSE,
+  add_rows = data.frame(
+    Variable = c("Year / Village / Operation FE", "Soil characteristics FE"),
+    "\\makecell{Probability of mechanizing \\\\ the operation}" = c("Yes", "Yes"),
+    "\\makecell{Hired labor \\\\ (Hours/acre)}" = c("Yes", "Yes")
+  ),
+  output = "latex"
+)
+
+# Ajouter \scriptsize
+table_tex_wrapped <- paste0("\\scriptsize\n", table_tex)
+writeLines(table_tex_wrapped, "tables_reg/reg_oper.tex")
+```
 
 
