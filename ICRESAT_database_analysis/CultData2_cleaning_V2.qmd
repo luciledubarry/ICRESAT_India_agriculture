@@ -1,6 +1,9 @@
 ---
 title: "Fichier 2 (V3) : Création des tables"
-format: html
+format:
+  html:
+    toc: true
+    theme: cosmo
 editor: source
 params:
   annee: 2011  # par défaut

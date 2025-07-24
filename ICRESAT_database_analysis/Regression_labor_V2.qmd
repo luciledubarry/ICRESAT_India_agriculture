@@ -1,6 +1,9 @@
 ---
 title: "Régression (partie 1) V2 : Analyse du travail total par acre selon la caste"
-format: html
+format:
+  html:
+    toc: true
+    theme: cosmo
 editor: source
 ---
 
@@ -83,12 +86,12 @@ convertir_facteur <- function(df, vars) {
   return(df)
 }
 
-vars_facteurs <- c("SOIL_TYPE", "SOIL_DEGR", "CASTE_GROUP", "VILLAGE", "STATE", "REGION")
+vars_facteurs <- c("SOIL_TYPE", "SOIL_DEGR", "CASTE_GROUP", "VILLAGE", "STATE", "REGION", "YEAR")
 
 Cultivation_oper_all <- convertir_facteur(Cultivation_oper_all, vars_facteurs)
 Cultivation_plot_all <- convertir_facteur(Cultivation_plot_all, vars_facteurs)
 
-vars_facteurs <- c("CASTE_GROUP", "VILLAGE", "STATE", "REGION")
+vars_facteurs <- c("CASTE_GROUP", "VILLAGE", "STATE", "REGION", "YEAR")
 
 Cultivation_hh_all <- convertir_facteur(Cultivation_hh_all, vars_facteurs)
 ```
@@ -326,7 +329,7 @@ Controls for Reg 1–3: Caste ; Total land ; Total Land sq ; Village dummies.
 # Reg 1: Outcome: Hours per acres of female family work in Kharif
 reg1_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE)
 summary(reg1_hh)
 ```
 
@@ -427,6 +430,9 @@ reg5_plot <- Cultivation_oper_all |>
 summary(reg5_plot)
 ```
 
+se baser sur la table Cultivation_plot !
+
+
 ```{r reg6_plot_1}
 # Reg 6: Outcome: Probability of using weedicides
 reg6_plot_1 <- Cultivation_oper_all |>
@@ -515,7 +521,8 @@ Additional control for Reg 8: Dummy that indicates whether the operation is mech
 # Filtrer pour les champs de riz dans les villages dont la culture dominante est le riz
 Table_spe_oper <- Cultivation_oper_all |>
   filter(VILLAGE_CROP == "PADDY",
-         CROP == "PADDY") |>
+         CROP == "PADDY",
+         SEASON == "KHARIF") |>
   
 # Conserver seulement les opérations d'intérêt
   filter(OPERATION %in% c("LAND PREPARATION", "HARVESTING & THRESHING", "TRANSPLANTING", "PLANT PROTECTION MEASURES", "FERTILIZER APPL.", "IRRIGATION", "SEED SOWING", "INTERCULTURE")) |>

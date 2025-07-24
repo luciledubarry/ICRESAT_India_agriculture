@@ -2,6 +2,7 @@ library(here)
 library(quarto)
 library(dplyr)
 library(haven)
+library(fs)
 
 rm(list = ls())
 graphics.off()
@@ -14,21 +15,31 @@ here::i_am("ICRESAT_database_analysis/Master_file.R")
 annees <- 2011:2014
 
 
+# Sous-dossier pour les sorties html
+output_dir <- here("ICRESAT_database_analysis", "outputs_html")
+
+
 # Lancer les fichiers CultData1 et CultData2 pour chaque année
 for (annee in annees) {
   cat("Traitement de l'année", annee, "\n")
   
+  # CultData1
+  output_file1 <- paste0("CultData1_merging_", annee, ".html")
   quarto::quarto_render(
     input = here::here("ICRESAT_database_analysis", "CultData1_merging_V2.qmd"),
     execute_params = list(annee = annee),
-    output_file = paste0("CultData1_merging_", annee, ".html")
+    output_file = output_file1
   )
+  file_move(output_file1, path(output_dir, output_file1))
   
+  # CultData2
+  output_file2 <- paste0("CultData2_cleaning_", annee, ".html")
   quarto::quarto_render(
     input = here::here("ICRESAT_database_analysis", "CultData2_cleaning_V2.qmd"),
     execute_params = list(annee = annee),
-    output_file = paste0("CultData2_cleaning_", annee, ".html")
+    output_file = output_file2
   )
+  file_move(output_file2, path(output_dir, output_file2))
 }
 
 
