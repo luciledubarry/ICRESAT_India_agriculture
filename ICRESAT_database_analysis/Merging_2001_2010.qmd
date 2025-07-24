@@ -3,7 +3,7 @@ title: "Fichier 1 : Créer la base Cultivation de 2001 à 2008 - GENERATION II"
 format: html
 editor: source
 params:
-  annee: 2005  # par défaut
+  annee: 2008  # par défaut
 ---
 
 ```{r cleaning}
@@ -27,7 +27,7 @@ library(here)
 ```
 
 
-A FAIRE : manque CASTE_GROUP dans 2005 -> créer un tableau de correspondance similire à TYPE_MAT en se basant sur les castes des autres années 
+A FAIRE : manque CASTE_GROUP dans 2005 -> créer un tableau de correspondance simailire à TYPE_MAT en se basant sur les castes des autres années 
 
 ********************************************************************************
 
@@ -1280,7 +1280,7 @@ Cultivation_wide <- Cultivation_wide |>
 ```
 
 
-### Ajouter la caste
+### Base Household_info
 
 *Correspondance entre Cultivation_wide et Household_info*
 
@@ -1307,8 +1307,84 @@ cat(" - Ménages sans équivalent dans Household_info :", n_non_matched4, "\n")
 cat(" - Proportion sans équivalent :", prop_non_matched4, "%\n")
 ```
 
+#### Catégoriser les castes
 
-*Ajouter la caste*
+```{r table_castegroup}
+# Table de correspondance entre CASTE et CASTE_GROUP
+correspondances_typemat <- tribble(
+  ~CASTE,                ~NEW_CASTE_GROUP,
+  "WANI",                "FC / OBC",
+  
+  "MARATHA",             "FC",
+  "REDDY",               "FC",
+  "KALAL",               "FC",
+  "VYSYA",               "FC",
+  "BRAHMIN",             "FC",
+  "GONDHARI",            "FC",
+  "GONDHALI",            "FC",
+  "WANI",                "FC",
+  "VELAMA",              "FC",
+  "VELMA",               "FC",
+  
+  "KURMA",               "BC",
+  "GOWDA",               "BC",
+  "CHAKALI",             "BC",
+  "PADMASALI",           "BC",
+  "MAHSALI",             "BC",
+  "VADLA",               "BC",
+  "KUMMARI",             "BC",
+  "KAMMARI",             "BC",
+  "GOLLA",               "BC",
+  "TELAGA",              "BC",
+  "MUSTI",               "BC",
+  "MEDARI",              "BC",
+  "BOYA",                "BC",
+  "EDIGA",               "BC",
+  "BHATRAJULU",          "BC",
+  "NAVBOUDH",            "BC",
+  "NAVBOUDHA",           "BC",
+  "NAV BOUDHA",          "BC",
+  "MANGALI",             "BC",
+  "KATIKA",              "BC",
+  
+  "BAINDLA",             "SC",
+  "MADIGA",              "SC",
+  "MALA",                "SC",
+  "MATANG",              "SC",
+  "COBBLER",             "SC",
+  
+  "MALI",                "OBC",
+  "JIREMALI",            "OBC",
+  "JIRE MALI",           "OBC",
+  "KUMBHAR",             "OBC",
+  "WASHERMAN",           "OBC",
+  "BARBAR",              "OBC",
+  "BARBER",              "OBC",
+  "POTTER",              "OBC",
+  "PARIT",               "OBC",
+  "TELI",                "OBC",
+  "CARPENTER",           "OBC",
+  
+  "GOSAWI",              "NT",
+  "GOWARI",              "NT",
+  "BELDAR",              "NT",
+  "RAJPUT",              "NT",
+  "WADAR",               "NT",
+  "SHEPHARD",            "NT",
+  
+  "KOLI",                "SBC",
+  
+  "SUTAR",               "",
+  "MUSLIM",              "",
+  "KAMSALI",             "",
+  "KOSTHI",              "",
+  "SUVARNAKAR",          "",
+  "KAIKADI",             "",
+  "BETTARAJ",            ""
+)
+```
+
+#### Ajouter la caste
 
 ```{r add_caste}
 Cultivation_wide <- Cultivation_wide |>
