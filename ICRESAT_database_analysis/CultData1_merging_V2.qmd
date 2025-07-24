@@ -1591,7 +1591,7 @@ cat(" - Proportion sans équivalent :", prop_non_matched4, "%\n")
 Cultivation_wide <- Cultivation_wide |>
   left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
   mutate(
-    CASTE_GROUP = recode(CASTE_GROUP, `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER"))
+    CASTE_GROUP = recode(CASTE_GROUP, `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER", `MINORITIES` = "OTHER"))
 ```
 
 Je regarde le nombre de n/a pour la caste dans Cultivation.  
