@@ -282,6 +282,23 @@ Cultivation_expand <- Cultivation_expand |>
 ```
 
 
+*Travail féminin et masculin*
+
+```{r}
+fem_cols <- c("WORK_HR_HF", "WORK_HR_FF", "WORK_HR_EF")
+masc_cols <- c(paste0("WORK_HR_", c("HM", "FM", "OB", "HB", "EM", "EB")))
+
+# Additionner les heures par ligne en fonction du genre
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    fem_work = rowSums(select(Cultivation_expand, all_of(fem_cols)), na.rm = TRUE),
+    masc_work = rowSums(select(Cultivation_expand, all_of(masc_cols)), na.rm = TRUE),
+    fem_work_hacre = fem_work/CROP_AREA,
+    masc_work_hacre = masc_work/CROP_AREA
+  )
+```
+
+
 *Month*
 
 ```{r add_month}
@@ -495,7 +512,8 @@ Pour ce faire, je construis la base séparement entre labor et machinery.
 ```{r cultivation_oper}
 cols_labor <- c(
   paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
-  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T"))
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  "fem_work", "masc_work", "fem_work_hacre", "masc_work_hacre"
 )
 Cultivation_oper <- Cultivation_expand
 
@@ -531,7 +549,8 @@ cols_sum_plot <- c(
   "PESTICIDE_KG", "PESTICIDE_LT", 
   "WEEDICIDE_KG", "WEEDICIDE_LT",
   paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
-  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T"))
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  "fem_work", "masc_work", "fem_work_hacre", "masc_work_hacre"
 )
 
 group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 

@@ -384,7 +384,7 @@ table_tex <- modelsummary(
 )
 
 # Ajouter \small
-table_tex_wrapped <- paste0("\\small\n", table_tex)
+table_tex_wrapped <- paste0("\\scriptsize\n", table_tex)
 writeLines(table_tex_wrapped, "tables_reg/reg_hh.tex")
 ```
 
