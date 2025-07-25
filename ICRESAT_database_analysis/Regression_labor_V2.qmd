@@ -125,30 +125,15 @@ Cultivation_plot_all$SOIL_DEGR <- relevel(Cultivation_plot_all$SOIL_DEGR, ref = 
 ```
 
 
-*Réécrire les variables en dummies*
-
-```{r vars_dummies}
-Cultivation_oper_all <- Cultivation_oper_all |>
-  mutate(
-    mechanized_tilling = if_else(mechanized_tilling, "1", "0"),
-    IRRIGATION = recode(IRRIGATION, `Irrigué` = "1", `Non irrigué` = "0"),
-    REGION = recode(REGION, `EAST` = "1", `SAT` = "0")
-    )
-```
-
-Si on considère les n/a de Machinery comme "Non mécanisé", on peut ajouter : MACHINERY = if_else(MACHINERY, "1", "0"). 
-
-
 *Variable binaire : Pesticide, Weedicide*
 
 ```{r add_use_pesticide}
-Cultivation_oper_all <- Cultivation_oper_all |>
+Cultivation_plot_all <- Cultivation_plot_all |>
   mutate(
     use_pesticide = PESTICIDE_KG > 0 | PESTICIDE_LT > 0,
     use_weedicide = WEEDICIDE_KG > 0 | WEEDICIDE_LT > 0
   )
 ```
-
 
 
 ********************************************************************************
@@ -173,7 +158,7 @@ On se concentre sur la culture du riz (en Kharif).
 ```{r reg_all_oper}
 reg_all_oper <- Cultivation_oper_all |>
   filter(CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_all_oper)
 ```
 
@@ -195,7 +180,7 @@ Je refais la régression pour les opérations principales du riz en Kharif.
 ```{r reg_land}
 reg_land <- Cultivation_oper_all |>
   filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "LAND PREPARATION") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_land)
 ```
 
@@ -204,21 +189,21 @@ Attention : Pour cette régression, c'est normal que mechanized_tilling soit NA,
 ```{r reg_harvest}
 reg_harvest <- Cultivation_oper_all |>
   filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "HARVESTING & THRESHING") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_harvest)
 ```
 
 ```{r reg_weeding}
 reg_weeding <- Cultivation_oper_all |>
   filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "WEEDING") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_weeding)
 ```
 
 ```{r reg_trans}
 reg_trans <- Cultivation_oper_all |>
   filter(CROP == "PADDY", SEASON == "KHARIF", OPERATION == "TRANSPLANTING") |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + STATE, data = _)
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + STATE)
 summary(reg_trans)
 ```
 
@@ -227,7 +212,7 @@ summary(reg_trans)
 ```{r reg_min}
 reg_min <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY", CROP_AREA != 0) |>
-  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + STATE, data = _)
+  lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + STATE)
 summary(reg_min)
 ```
 
@@ -248,7 +233,7 @@ En se concentrant sur le ratio Hr/acre pour le travail féminin familial, on reg
 ```{r reg_FF}
 reg_FF <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_FF)
 ```
 
@@ -260,7 +245,7 @@ Refaire cette régression sans mechanized et mechanized_tilling qui peuvent êtr
 ```{r reg_FF_weeding}
 reg_FF <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY", OPERATION == "WEEDING") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_FF)
 ```
 
@@ -269,7 +254,7 @@ summary(reg_FF)
 ```{r reg_FF_harvest}
 reg_FF <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY", OPERATION == "HARVESTING & THRESHING") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_FF)
 ```
 
@@ -278,7 +263,7 @@ summary(reg_FF)
 ```{r reg_FF_trans}
 reg_FF <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY", OPERATION == "TRANSPLANTING") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_FF)
 ```
 
@@ -288,7 +273,7 @@ summary(reg_FF)
 ```{r reg_HF}
 reg_HF <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + OPERATION + YEAR + STATE, data = _)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + OPERATION + YEAR + STATE)
 summary(reg_HF)
 ```
 
@@ -297,7 +282,7 @@ summary(reg_HF)
 ```{r reg_FM}
 reg_FM <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
-  lm(formula = HACRE_FM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_FM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_FM)
 ```
 
@@ -306,7 +291,7 @@ summary(reg_FM)
 ```{r reg_HM}
 reg_HM <- Cultivation_oper_all |>
   filter(SEASON == "KHARIF", CROP == "PADDY") |>
-  lm(formula = HACRE_HM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE, data = _)
+  lm(formula = HACRE_HM ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + AREA_HH + AREA_HH_SQ + IRRIGATION + mechanized + mechanized_tilling + YEAR + STATE)
 summary(reg_HM)
 ```
 
@@ -329,7 +314,7 @@ Controls for Reg 1–3: Caste ; Total land ; Total Land sq ; Village dummies.
 # Reg 1: Outcome: Hours per acres of female family work in Kharif
 reg1_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = HACRE_FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE)
+  lm(formula = HACRE_FF ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + STATE)
 summary(reg1_hh)
 ```
 
@@ -337,7 +322,7 @@ summary(reg1_hh)
 # Reg 2: Outcome: Probability to cultivate rice in Kharif
 reg2_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = with_paddy ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE, data = _)
+  lm(formula = with_paddy ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + STATE)
 summary(reg2_hh)
 ```
 
@@ -345,8 +330,17 @@ summary(reg2_hh)
 # Reg 3: Outcome: Share of land allocated to rice in Kharif
 reg3_hh <- Cultivation_hh_all |>
   filter(VILLAGE_CROP == "PADDY", SEASON == "KHARIF") |>
-  lm(formula = paddy_prct ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE, data = _)
+  lm(formula = paddy_prct ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + STATE)
 summary(reg3_hh)
+```
+
+```{r reg3_hh_2}
+# Reg: Outcome : Probability to do hand weeding
+reg3_hh_2 <- Cultivation_hh_all |>
+  filter(VILLAGE_CROP == "PADDY",
+         SEASON == "KHARIF") |> 
+  lm(formula = hand_weeding_hh ~ CASTE_GROUP + AREA_HH + AREA_HH_SQ + YEAR + STATE)
+summary(reg3_hh_2)
 ```
 
 *Tableau de régression au niveau du ménage*
@@ -356,7 +350,8 @@ summary(reg3_hh)
 models_hh <- list(
   "\\makecell{Female family labor \\\\ (Hours/acre)}" = reg1_hh,
   "\\makecell{Rice cultivation \\\\ (Yes/No)}" = reg2_hh,
-  "\\makecell{Share land \\\\ to rice}" = reg3_hh
+  "\\makecell{Share land \\\\ to rice}" = reg3_hh,
+  "\\makecell{Probability to do \\\\ hand weeding}" = reg3_hh_2
 )
 
 # Noms des variables
@@ -379,10 +374,11 @@ table_tex <- modelsummary(
   statistic = "({std.error})",             # erreur standard entre parenthèses
   escape = FALSE,
   add_rows = data.frame(
-    Variable = c("Year FE", "Village FE"),
+    Variable = c("Year FE", "State FE"),
     "\\makecell{Female family labor \\\\ (Hours/acre)}" = c("Yes", "Yes"),
     "\\makecell{Rice cultivation \\\\ (Yes/No)}" = c("Yes", "Yes"),
-    "\\makecell{Share land \\\\ to rice}" = c("Yes", "Yes")
+    "\\makecell{Share land \\\\ to rice}" = c("Yes", "Yes"),
+    "\\makecell{Probability to do \\\\ hand weeding}" = c("Yes", "Yes")
   ),
   output = "latex"
 )
@@ -411,22 +407,21 @@ reg4_plot <- Cultivation_plot_all |>
          CROP == "PADDY",
          SEASON == "KHARIF") |> 
   lm(formula = hand_weeding_plot ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA
-     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
-     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + STATE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR)
 summary(reg4_plot)
 ```
 
 ```{r reg5_plot}
-# Reg 5: Outcome: Hours per acre hand weeding
+# Reg 5: Outcome: Hours per acre for hand weeding
 reg5_plot <- Cultivation_oper_all |>
-  filter(OPERATION == "WEEDING",
-         WORK_HR_T > 0,
+  filter(hand_weeding == TRUE,
          CROP == "PADDY",
          VILLAGE_CROP == "PADDY",
          SEASON == "KHARIF") |>
   lm(formula = HACRE_T ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
-     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
-     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + STATE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR)
 summary(reg5_plot)
 ```
 
@@ -435,25 +430,25 @@ se baser sur la table Cultivation_plot !
 
 ```{r reg6_plot_1}
 # Reg 6: Outcome: Probability of using weedicides
-reg6_plot_1 <- Cultivation_oper_all |>
+reg6_plot_1 <- Cultivation_plot_all |>
   filter(CROP == "PADDY",
          VILLAGE_CROP == "PADDY",
          SEASON == "KHARIF") |>
   lm(formula = use_weedicide ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
-     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
-     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + STATE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR)
 summary(reg6_plot_1)
 ```
 
 ```{r reg6_plot_2}
 # Reg 6: Outcome: Probability of using pesticides
-reg6_plot_2 <- Cultivation_oper_all |>
+reg6_plot_2 <- Cultivation_plot_all |>
   filter(CROP == "PADDY",
          VILLAGE_CROP == "PADDY",
          SEASON == "KHARIF") |>
   lm(formula = use_pesticide ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
-     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + VILLAGE + SOIL_TYPE + SOIL_FERT 
-     + SLOPE + SOIL_DEPTH + SOIL_DEGR, data = _)
+     + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + YEAR + STATE + SOIL_TYPE + SOIL_FERT 
+     + SLOPE + SOIL_DEPTH + SOIL_DEGR)
 summary(reg6_plot_2)
 ```
 
@@ -489,7 +484,7 @@ table_tex <- modelsummary(
   statistic = "({std.error})",             # erreur standard entre parenthèses
   escape = FALSE,
   add_rows = data.frame(
-    Variable = c("Year FE", "Village FE", "Soil characteristics FE"),
+    Variable = c("Year FE", "State FE", "Soil characteristics FE"),
     "\\makecell{Probability to do \\\\ hand weeding}" = c("Yes", "Yes", "Yes"),
     "\\makecell{Labor in hand weeding \\\\ (Hours/acre)}" = c("Yes", "Yes", "Yes"),
     "\\makecell{Probability of \\\\ using weedicides}" = c("Yes", "Yes", "Yes"),
@@ -535,7 +530,7 @@ Table_spe_oper <- Cultivation_oper_all |>
 ```{r reg7_oper}
 # Reg 7: Outcome: Probability of mechanizing the operation
 reg7_oper <- lm(mechanized ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ + PLOT_AREA 
-                + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + YEAR + VILLAGE 
+                + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + YEAR + STATE 
                 + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH + SOIL_DEGR, 
                 data = Table_spe_oper)
 summary(reg7_oper)
@@ -545,7 +540,7 @@ summary(reg7_oper)
 # Reg 8: Outcome: Nb of hours of hired labor per acre
 reg8_oper <- lm(hired_work_hacre ~ CASTE_GROUP + CROP_AREA + CROP_AREA_SQ 
                 + PLOT_AREA + PLOT_AREA_SQ + AREA_HH + AREA_HH_SQ + OPERATION + YEAR +
-                + VILLAGE + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH 
+                + STATE + SOIL_TYPE + SOIL_FERT + SLOPE + SOIL_DEPTH 
                 + SOIL_DEGR + mechanized, data = Table_spe_oper)
 summary(reg8_oper)
 ```
@@ -580,7 +575,7 @@ table_tex <- modelsummary(
   statistic = "({std.error})",             # erreur standard entre parenthèses
   escape = FALSE,
   add_rows = data.frame(
-    Variable = c("Year / Village / Operation FE", "Soil characteristics FE"),
+    Variable = c("Year / State / Operation FE", "Soil characteristics FE"),
     "\\makecell{Probability of mechanizing \\\\ the operation}" = c("Yes", "Yes"),
     "\\makecell{Hired labor \\\\ (Hours/acre)}" = c("Yes", "Yes")
   ),

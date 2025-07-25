@@ -172,7 +172,9 @@ Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
 
 ```{r add_village}
 Cultivation_expand <- Cultivation_expand |>
-  mutate(VILLAGE = substr(VDS_ID, 2, 6))
+  mutate(VILLAGE = str_c(str_sub(VDS_ID, 2, 2), 
+                         str_sub(VDS_ID, 3, 3), 
+                         str_sub(VDS_ID, 6, 6)))
 ```
 
 
@@ -435,20 +437,24 @@ Cultivation_expand <- Cultivation_expand |>
   )
 ```
 
-*Champs faisant du hand weeding par saison*
+*Ménages / champs faisant du hand weeding par saison*
 
 ```{r}
+# Au niveau du champ : identifier ceux faisant seulement du hand weeding
 hand_weeding_plot <- Cultivation_expand |>
   filter(OPERATION == "WEEDING") |>
-
-# Identifier les champs faisant seulement du hand weeding
   group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
-  summarise(hand_weeding_plot = all(hand_weeding) & all(!chemical_weeding), 
-            .groups = "drop")
+  summarise(hand_weeding_plot = all(hand_weeding & (chemical_weeding == FALSE | is.na(chemical_weeding))), .groups = "drop")
+
+# Identifier les ménages qui ont au moins un champ en hand weeding
+hand_weeding_hh <- hand_weeding_plot |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(hand_weeding_hh = any(hand_weeding_plot), .groups = "drop")
 
 # Ajouter la variable à la base
 Cultivation_expand <- Cultivation_expand |>
-  left_join(hand_weeding_plot, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "VAR_NAME", "VAR_TYPE", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT"))
+  left_join(hand_weeding_plot, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "VAR_NAME", "VAR_TYPE", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT")) |>
+  left_join(hand_weeding_hh, by = c("VDS_ID", "SEASON"))
 ```
 
 
@@ -505,9 +511,9 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
                 "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
                 "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
-                "hand_weeding_plot","FERTILIZER_KG", "FERTILIZER_LT", "PESTICIDE_KG", 
-                "PESTICIDE_LT", "WEEDICIDE_KG", "WEEDICIDE_LT", "AREA_HH_SQ", 
-                "PLOT_AREA_SQ", "CROP_AREA_SQ")
+                "hand_weeding_plot","hand_weeding_hh", "FERTILIZER_KG", "FERTILIZER_LT",
+                "PESTICIDE_KG", "PESTICIDE_LT", "WEEDICIDE_KG", "WEEDICIDE_LT", "AREA_HH_SQ", 
+                "hand_weeding", "chemical_weeding", "PLOT_AREA_SQ", "CROP_AREA_SQ")
 
 vars_existantes <- intersect(group_vars, colnames(Cultivation_oper))
 
@@ -533,8 +539,8 @@ group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE",
                 "IRRIGATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE", 
                 "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME", 
                 "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "hand_weeding_plot", 
-                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
-                "AREA_HH_SQ", "PLOT_AREA_SQ", "CROP_AREA_SQ")
+                "hand_weeding_hh", "AREA_HH_SQ", "PLOT_AREA_SQ", "CROP_AREA_SQ",
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
 
 # Regrouper l'utilisation de machines (variable mechanized) au niveau du champ
 Cultivation_plot <- Cultivation_expand |>
@@ -553,7 +559,7 @@ Cultivation_plot <- sum_cols_labor(Cultivation_plot, c(group_vars, "mechanized")
 Cultivation_hh <- Cultivation_expand
   
 group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "AREA_HH", "REGION", "STATE", "VILLAGE", 
-                "VILLAGE_CROP", "with_paddy", "paddy_prct", "AREA_HH_SQ")
+                "VILLAGE_CROP", "with_paddy", "paddy_prct", "AREA_HH_SQ", "hand_weeding_hh")
 
 Cultivation_hh <- sum_cols_labor(Cultivation_hh, group_vars, cols_existantes)
 ```
