@@ -1,0 +1,895 @@
+---
+title: "Contrôle pour la méchanisation (V2) : Analyse du travail féminin familial par caste"
+format:
+  html:
+    toc: true
+    theme: cosmo
+editor: source
+params:
+  annee: 2011  # par défaut
+---
+
+```{r cleaning, message=FALSE, warning=FALSE}
+rm(list = setdiff(ls(), "params"))
+graphics.off()
+cat("\014")
+```
+
+```{r library, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(tibble)
+library(tidyverse)
+library(gt)
+```
+
+```{r import_data}
+Cultivation_expand_all <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand_all.rds"))
+
+Cultivation_oper_all <- readRDS(here::here("Base de données générées", "Cultivation_oper", "Cultivation_oper_all.rds"))
+
+Cultivation_plot_all <- readRDS(here::here("Base de données générées", "Cultivation_plot", "Cultivation_plot_all.rds"))
+
+Cultivation_hh_all <- readRDS(here::here("Base de données générées", "Cultivation_hh", "Cultivation_hh_all.rds"))
+```
+
+
+********************************************************************************
+
+## Travail sans mécanisation
+
+On observe que les hautes castes ont une demande de travail moindre (Hr/acre plus bas) pour les principales opérations que les autres castes, même en excluant les opérations mécanisées dans la saison. 
+
+Pourquoi les FC ont besoin de moins de travail pour la culture du riz en Kharif ? 
+- vérifier que le nombre d'opérations non mécanisées par acste soit suffisant ;
+- refaire les résultats sans distinguer le genre et le type de travail (travail total) ;
+- faire le lien avec la taille du champ. 
+
+```{r tables_mecanisation}
+cols_labor <- c(paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "HB", "T")),
+                paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "EM", "FC", "EB", "HB", "T")))
+
+mecanisation_oper <- Cultivation_oper_all |>
+  select(YEAR, VDS_ID, CASTE_GROUP, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, AREA_HH, PLOT_AREA, CROP_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, OPERATION, all_of(cols_labor), PESTICIDE_KG, PESTICIDE_LT, WEEDICIDE_KG, WEEDICIDE_LT, FERTILIZER_KG, FERTILIZER_LT, mechanized, mechanized_tilling) |>
+  mutate(
+    use_pesticide = PESTICIDE_KG > 0 | PESTICIDE_LT > 0,
+    use_fertilizer = FERTILIZER_KG > 0 | FERTILIZER_LT > 0,
+    use_weedicide = WEEDICIDE_KG > 0 | WEEDICIDE_LT > 0
+  )
+
+mecanisation_plot <- Cultivation_plot_all |>
+  select(YEAR, VDS_ID, CASTE_GROUP, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, AREA_HH, PLOT_AREA, CROP_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT, all_of(cols_labor), PESTICIDE_KG, PESTICIDE_LT, WEEDICIDE_KG, WEEDICIDE_LT, FERTILIZER_KG, FERTILIZER_LT, mechanized, mechanized_tilling) |>
+  mutate(
+    use_pesticide = PESTICIDE_KG > 0 | PESTICIDE_LT > 0,
+    use_fertilizer = FERTILIZER_KG > 0 | FERTILIZER_LT > 0,
+    use_weedicide = WEEDICIDE_KG > 0 | WEEDICIDE_LT > 0
+  )
+```
+
+
+### Hr/acre selon le type de main d'oeuvre
+
+On veut étudier par caste et par opération, comment varie les heures de travail par acre (Hr/acre), en se concentrant sur les opérations n'ayant pas été mécanisées dans la saison. 
+
+Je considère le travail relatifs aux boeufs comme un travail masculin. Je filtre pour la culture du riz en Kharif.
+
+```{r table_without_mecha}
+# Enlever les opérations qui utilisent un outil et/ou un produit
+without_mecha <- mecanisation_oper |>
+   filter(!if_any(c(mechanized, use_pesticide, use_fertilizer, use_weedicide), ~ .x == TRUE),
+          SEASON == "KHARIF", CROP == "PADDY",
+          CROP_AREA != 0) |>
+
+# Catégoriser le travail (femme, homme, enfant, bullocks)
+  mutate(
+    WORK_HR_F = WORK_HR_HF + WORK_HR_FF + WORK_HR_EF,
+    HACRE_F = WORK_HR_F/CROP_AREA,
+    WORK_HR_M = WORK_HR_HM + WORK_HR_FM + WORK_HR_EM + WORK_HR_OB + WORK_HR_HB + WORK_HR_EB,
+    HACRE_M = WORK_HR_M/CROP_AREA,
+    WORK_HR_C = WORK_HR_HC + WORK_HR_FC + WORK_HR_RS,
+    HACRE_C = WORK_HR_C/CROP_AREA,
+  )
+```
+
+```{r verif_without_mecha}
+# Vérifier le nombre de champs avec zéro heures pour une opération, par caste
+without_mecha |>
+  filter(WORK_HR_F == 0, WORK_HR_M == 0) |>
+  count(CASTE_GROUP, name = "zero_hrs")
+```
+
+
+#### Par opération
+
+Les graphiques suivants représentent la relation entre Hr/acre par opération et caste selon le type de travail. Ils filtrent pour les opérations n'ayant pas nécessité d'outils et/ou de produits pour cultiver du riz sur toute la saison (Kharif). 
+
+```{r func_hacre_without_mecha}
+# Fonction pour calculer la moyenne de Hr/acre selon la caste
+mean_hacre_labor <- function(data, operation = NULL) {
+  data_filtered <- data
+  
+  # Si une opération est spécifiée, on filtre
+  if (!is.null(operation)) {
+    data_filtered <- dplyr::filter(data, OPERATION == operation)
+  }
+
+  result <- data_filtered |>
+    dplyr::group_by(CASTE_GROUP) |>
+    dplyr::summarise(
+      nb_obs = dplyr::n(),
+      MEAN_HACRE1 = mean(HACRE_C, na.rm = TRUE),
+      MEAN_HACRE2 = mean(HACRE_M, na.rm = TRUE),
+      MEAN_HACRE3 = mean(HACRE_F, na.rm = TRUE),
+      MEAN_HACRE4 = mean(HACRE_T, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    pivot_longer(
+    cols = c(MEAN_HACRE1, MEAN_HACRE2, MEAN_HACRE3, MEAN_HACRE4),
+    names_to = "Lab_type",
+    values_to = "Mean_hours"
+  ) 
+  
+  return(result)
+}
+```
+
+```{r func_plot_hacre}
+# Fonction pour le graphique : Non-mechanized operation : Labor time per acre, by caste
+plot_hacre <- function(df, title, y_lab, name,
+                              title_hacre1, title_hacre2, title_hacre3, title_hacre4 = NULL) {
+
+  fill_values <- c(
+    "MEAN_HACRE1" = "lightblue4",
+    "MEAN_HACRE2" = "lightblue2",
+    "MEAN_HACRE3" = "lightsteelblue3"
+  )
+  
+  fill_labels <- c(
+    "MEAN_HACRE1" = title_hacre1,
+    "MEAN_HACRE2" = title_hacre2,
+    "MEAN_HACRE3" = title_hacre3
+  )
+
+  # Si hacre4 est indiqué
+  if (!is.null(title_hacre4) && "MEAN_HACRE4" %in% df$Lab_type) {
+    fill_values["MEAN_HACRE4"] <- "violet"
+    fill_labels["MEAN_HACRE4"] <- title_hacre4
+  }
+
+  # Labels pour le nombre d'observations par caste
+  caste_obs <- df |> 
+    dplyr::filter(Lab_type == "MEAN_HACRE1") |> 
+    dplyr::select(CASTE_GROUP, nb_obs) |> 
+    dplyr::distinct()
+
+  ggplot(df, aes(x = reorder(CASTE_GROUP, Mean_hours), y = Mean_hours, fill = Lab_type)) +
+    geom_col(position = "dodge") +
+    
+  # Texte pour le nombre d'observations
+    geom_text(
+      data = caste_obs,
+      aes(x = CASTE_GROUP, y = 0, label = paste0("n = ", nb_obs)),
+      inherit.aes = FALSE,
+      hjust = -0.2,
+      size = 3.5
+    ) +
+
+    coord_flip() +
+    labs(
+      title = title,
+      x = "",
+      y = y_lab,
+      fill = ""
+    ) +
+    scale_fill_manual(
+      values = fill_values,
+      labels = fill_labels,
+      name = name
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16),
+      axis.text = element_text(size = 11, color = "gray20"),
+      axis.title = element_text(size = 12, color = "gray20"),
+      legend.title = element_text(size = 12),
+      legend.text = element_text(size = 11)
+    )
+}
+```
+
+*Harvesting & Threshing*
+
+```{r harvest_hacre_without_mecha}
+harvest_mean <- mean_hacre_labor(without_mecha, operation = "HARVESTING & THRESHING")
+
+plot_hacre(harvest_mean, 
+                 title = "Non-mechanized harvesting: Labor time per acre, by caste",
+                 y_lab = "Average working hours for non-mechanized harvesting per season",
+                 title_hacre1 = "Other",
+                 title_hacre2 = "Male",
+                 title_hacre3 = "Female",
+                 title_hacre4 = "Total",
+                 name = "Labor type")
+```
+
+*Weeding*
+
+```{r weeding_hacre_without_mecha}
+weeding_mean <- mean_hacre_labor(without_mecha, operation = "WEEDING")
+
+plot_hacre(weeding_mean, 
+           title = "Hand weeding: Labor time per acre, by caste",
+           y_lab = "Average working hours for hand weeding per season",
+           title_hacre1 = "Other",
+           title_hacre2 = "Male",
+           title_hacre3 = "Female",
+           title_hacre4 = "Total",
+           name = "Labor type")
+```
+
+*Transplanting*
+
+```{r trans_hacre_without_mecha}
+transplanting_mean <- mean_hacre_labor(without_mecha, operation = "TRANSPLANTING")
+
+plot_hacre(transplanting_mean, 
+           title = "Non-mechanized transplanting: Labor time per acre, by caste",
+           y_lab = "Average working hours for non-mechanized transplanting per season",
+           title_hacre1 = "Other",
+           title_hacre2 = "Male",
+           title_hacre3 = "Female",
+           title_hacre4 = "Total",
+           name = "Labor type")
+```
+
+#### Avec la superficie
+
+On regarde les heures de travail (pout tout type de main d'oeuvre) par opération selon la superficie du champ (CROP_AREA), en filtrant pour les opérations n'ayant pas été mécanisées dans la saison. 
+
+*Harvesting & Threshing*
+
+```{r func_plot_hacre_size}
+# Fonction pour le graphique : Non-mechanized operation: Total labor per acre and plot size
+plot_hacre_size <- function(data, operation = NULL, title, y, y_lab, y_max) {
+  data_filtered <- data
+  
+  # Si une opération est spécifiée, on filtre
+  if (!is.null(operation)) {
+    data_filtered <- dplyr::filter(data, OPERATION == operation)
+  }
+
+ data_filtered |>
+  ggplot(aes(x = CROP_AREA, y = {{ y }}, color = CASTE_GROUP)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 1.2) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, y_max)) +
+  labs(
+    title = title,
+    x = "Plot size (in acres)",
+    y = y_lab,
+    color = "Caste"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11)
+    )
+}
+```
+
+```{r harvest_plot_hacre_size, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "HARVESTING & THRESHING",
+  title = "Non-mechanized harvesting: Total labor per acre and plot size, by caste",
+  y = HACRE_T,
+  y_lab = "Total labor hours per acre for non-mechanized harvesting in the season",
+  y_max = 400
+)
+```
+
+*Weeding*
+
+```{r weeding_plot_hacre_size, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "WEEDING",
+  title = "Hand weeding: Total labor per acre and plot size, by caste",
+  y = HACRE_T,
+  y_lab = "Total labor hours per acre for hand weeding in the season",
+  y_max = 200
+)
+```
+
+*Transplanting*
+
+```{r trans_plot_hacre_size, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "TRANSPLANTING",
+  title = "Non-mechanized transplanting: Total labor per acre and plot size, by caste",
+  y = HACRE_T,
+  y_lab = "Total labor hours per acre for non-mechanized transplanting in the season",
+  y_max = 200
+)
+```
+
+*Land preparation*
+
+```{r tilling_plot_hacre_size, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "LAND PREPARATION",
+  title = "Non-mechanized tilling: Total labor per acre and plot size, by caste",
+  y = HACRE_T,
+  y_lab = "Total labor hours per acre for non-mechanized tilling in the season",
+  y_max = 400
+)
+```
+
+
+********************************************************************************
+
+### Hr/acre par genre
+
+Je me compare ensuite par genre les Hr/acre entre travail employé et travail familial. 
+
+L'objectif est d'étudier le lien entre travail féminin employé et travail féminin familial selon la caste, en contrôlant pour la méchanisation. 
+Les FC embauchent moins de travail féminin (notamment familial) mais ont également plus d'opérations méchanisées. Il faut contrôler pour la méchanisation par caste et par opération, car celle-ci est substituable avec entre autres le travail féminin familial. 
+
+
+#### Travail féminin, par opération
+
+```{r}
+# Fonction pour calculer la moyenne de Hr/acre par genre selon la caste
+mean_hacre_gender <- function(data, operation = NULL, hacre1, hacre2, hacre3, hacre4 = NULL) {
+  data_filtered <- data
+  
+  # Si une opération est spécifiée, on filtre
+  if (!is.null(operation)) {
+    data_filtered <- dplyr::filter(data, OPERATION == operation)
+  }
+
+  result <- data_filtered |>
+    dplyr::group_by(CASTE_GROUP) |>
+    dplyr::summarise(
+      nb_obs = dplyr::n(),
+      MEAN_HACRE1 = mean({{ hacre1 }}, na.rm = TRUE),
+      MEAN_HACRE2 = mean({{ hacre2 }}, na.rm = TRUE),
+      MEAN_HACRE3 = mean({{ hacre3 }}, na.rm = TRUE),
+      MEAN_HACRE4 = if (!is.null(hacre4)) mean({{ hacre4 }}, na.rm = TRUE) else NA_real_,
+      .groups = "drop"
+    ) 
+  
+  cols_to_keep <- c("MEAN_HACRE1", "MEAN_HACRE2", "MEAN_HACRE3")
+  if (!is.null(hacre4)) cols_to_keep <- c(cols_to_keep, "MEAN_HACRE4")
+
+  result <- result |>
+    tidyr::pivot_longer(
+      cols = tidyselect::all_of(cols_to_keep),
+      names_to = "Lab_type",
+      values_to = "Mean_hours"
+    )
+
+  return(result)
+}
+```
+
+*Harvesting & Threshing*
+
+```{r}
+harvest_mean_F <- mean_hacre_gender(without_mecha, 
+                                    operation = "HARVESTING & THRESHING", 
+                                    hacre1 = HACRE_F, 
+                                    hacre2 = HACRE_FF, 
+                                    hacre3 = HACRE_HF)
+plot_hacre(harvest_mean_F, 
+           title = "Non-mechanized harvesting: Female labor time per acre, by caste",
+           y_lab = "Average working hours for non-mechanized harvesting per season",
+           name = "Female labor",
+           title_hacre1 = "Total labor",
+           title_hacre2 = "Family labor",
+           title_hacre3 = "Hired labor")
+```
+
+*Weeding*
+
+```{r}
+weeding_mean_F <- mean_hacre_gender(without_mecha, 
+                                    operation = "WEEDING", 
+                                    hacre1 = HACRE_F, 
+                                    hacre2 = HACRE_FF, 
+                                    hacre3 = HACRE_HF)
+plot_hacre(weeding_mean_F, 
+           title = "NHand weeding: Female labor time per acre, by caste",
+           y_lab = "Average working hours for hand weeding per season",
+           name = "Female labor",
+           title_hacre1 = "Total labor",
+           title_hacre2 = "Family labor",
+           title_hacre3 = "Hired labor")
+```
+
+*Transplanting*
+
+```{r}
+trans_mean_F <- mean_hacre_gender(without_mecha, 
+                                    operation = "TRANSPLANTING", 
+                                    hacre1 = HACRE_F, 
+                                    hacre2 = HACRE_FF, 
+                                    hacre3 = HACRE_HF)
+plot_hacre(trans_mean_F, 
+           title = "Non-mechanized transplanting: Female labor time per acre, by caste",
+           y_lab = "Average working hours for non-mechanized transplanting per season",
+           name = "Female labor",
+           title_hacre1 = "Total labor",
+           title_hacre2 = "Family labor",
+           title_hacre3 = "Hired labor")
+```
+
+
+##### Avec la superficie
+
+On regarde le travail familial féminin selon la superficie par opération, en filtrant pour les opérations n'ayant pas été mécanisées dans la saison. 
+
+*Harvesting & Threshing*
+
+```{r harvest_plot_hacre_FF, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "HARVESTING & THRESHING",
+  title = "Non-mechanized harvesting: Family female labor per acre and plot size, by caste",
+  y = HACRE_FF,
+  y_lab = "Family female labor hours per acre for non-mechanized harvesting",
+  y_max = 150
+)             
+```
+
+*Weeding*
+
+```{r weeding_plot_hacre_FF, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "WEEDING",
+  title = "Hand weeding: Family female labor per acre and plot size, by caste",
+  y = HACRE_FF,
+  y_lab = "Family female labor hours per acre for hand weeding",
+  y_max = 80
+)             
+```
+
+*Transplanting*
+
+```{r trans_plot_hacre_FF, message=FALSE}
+plot_hacre_size(
+  without_mecha, 
+  operation = "TRANSPLANTING",
+  title = "Non-mechanized transplanting: Family female labor per acre and plot size, by caste",
+  y = HACRE_FF,
+  y_lab = "Family female labor hours per acre for non-mechanized transplanting",
+  y_max = 100
+)             
+```
+
+
+********************************************************************************
+
+#### Travail masculin, par opération
+
+*Harvesting & Threshing*
+
+```{r}
+harvest_mean_M <- mean_hacre_gender(without_mecha, 
+                                    operation = "HARVESTING & THRESHING", 
+                                    hacre1 = HACRE_M, 
+                                    hacre2 = HACRE_FM, 
+                                    hacre3 = HACRE_HM)
+plot_hacre(harvest_mean_F, 
+           title = "Non-mechanized harvesting: Male labor time per acre, by caste",
+           y_lab = "Average working hours for non-mechanized harvesting per season",
+           name = "Male labor",
+           title_hacre1 = "Total labor",
+           title_hacre2 = "Family labor",
+           title_hacre3 = "Hired labor")
+```
+
+*Land preparation*
+
+```{r}
+harvest_mean_M <- mean_hacre_gender(without_mecha, 
+                                    operation = "LAND PREPARATION", 
+                                    hacre1 = HACRE_M, 
+                                    hacre2 = HACRE_FM, 
+                                    hacre3 = HACRE_HM)
+plot_hacre(harvest_mean_F, 
+           title = "Non-mechanized tilling: Male labor time per acre, by caste",
+           y_lab = "Average working hours for non-mechanized tilling per season",
+           name = "Male labor",
+           title_hacre1 = "Total labor",
+           title_hacre2 = "Family labor",
+           title_hacre3 = "Hired labor")
+```
+
+
+********************************************************************************
+
+## Utilisation des outils
+
+### Outils utilisés par opération ? 
+
+On souhaite regarder dans quelles opérations précisement chaque outil est utilisé.
+Je me concentre sur les principaux outils : tractor (TR), thresher (TH), electric motor (ET), sprayer (SP). 
+
+Je regarde pour la culture du riz en Kharif.
+
+
+
+
+### Boeufs par caste
+
+Je regarde les heures de travail des boeufs selon la caste, pour toutes les opérations et pour land preparation spécifiquement, sans prendre en compte la mécanisation. 
+
+```{r}
+bullocks_hrs <- mecanisation |>
+  mutate(WORK_HR_B = WORK_HR_HB + WORK_HR_OB + WORK_HR_EB,
+         HACRE_B = WORK_HR_B/CROP_AREA) |>
+  group_by(CASTE_GROUP) |>
+  summarise(mean_hacre = mean(HACRE_B, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+bullocks_hrs |>
+  filter(!is.na(CASTE_GROUP)) |>
+  ggplot(aes(x = CASTE_GROUP, y = mean_hacre)) +
+  geom_col(position = "dodge", fill = "pink2", color = "hotpink4") +
+  coord_flip() +
+  labs(
+    title = "Boeufs : Heures de travail par acre, selon la caste",
+    x = "",
+    y = "Hr/acre"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20")
+  )
+```
+
+
+********************************************************************************
+
+## Superficie minimale pour mécaniser
+
+Foster (2022) fonde son modèle avec l'hypothèse d'une superficie minimale de la ferme en-dessous de laquelle il n'y a pas de mécanisation. 
+
+On regarde la lien entre mécanisation et taille du champ et/ou de la ferme, pour estimer cette superficie minimale. 
+
+
+### Utilisation des outils
+
+#### Toutes opérations
+
+Pour chaque champ, une opération est considérée mécanisée si au moins un outil a été utilisé pour cette opération, à n'importe quel moment de la saison. 
+
+J'utilise la base Cultivation_oper_all qui a une ligne par opération pour chaque champ et la variable mechanized qui indique si un outil a été pour cette opération. 
+
+```{r}
+mecha_by_area <- mecanisation_oper |>
+  filter(!is.na(CASTE_GROUP),
+         CROP_AREA != 0,
+         CROP == "PADDY", 
+         SEASON == "KHARIF"
+         ) |>
+  
+  # Créer des catgéories de la superficie
+  mutate(bin_size = cut(
+      CROP_AREA,
+      breaks = c(seq(0, 5, by = 0.5), Inf),
+      right = TRUE,
+      include.lowest = TRUE)) |>
+  filter(!is.na(bin_size))
+```
+
+```{r}
+# Function pour calculer par catégorie le pourcentage d'opérations utilisant un outil/produit
+summarise_tools <- function(data, operation = NULL, tool) {
+  data_filtered <- data
+  
+  # Si une opération est spécifiée, on filtre
+  if (!is.null(operation)) {
+    data_filtered <- dplyr::filter(data, OPERATION == operation)
+  }
+
+  result <- data_filtered |>
+    dplyr::group_by(bin_size) |>
+    dplyr::summarise(
+      total = dplyr::n(),
+      in_size = unique(bin_size),
+      used_tool = sum(.data[[tool]] == "TRUE", na.rm = TRUE),
+      share = used_tool / total,
+      .groups = "drop"
+    )
+  
+  return(result)
+}
+
+mecha_all <- summarise_tools(mecha_by_area, tool = "mechanized")
+
+mecha_all |>
+  ggplot(aes(x = bin_size, y = share)) +
+  geom_col(fill = "plum3") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of mechanized operations by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of operations mechanized"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Le nombre d'observations indique la totalité des opérations (mécanisées ou non) pour chaque catégorie de plot size. 
+
+
+#### Par opération
+
+*Harvesting*
+
+```{r}
+mecha_harvest <- summarise_tools(mecha_by_area, operation = "HARVESTING & THRESHING", tool = "mechanized")
+
+mecha_harvest |>
+  ggplot(aes(x = bin_size, y = share)) +
+  geom_col(fill = "palegreen3") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of mechanized harvesting by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized harvesting"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+*Land preparation*
+
+```{r}
+mecha_land <- summarise_tools(mecha_by_area, operation = "LAND PREPARATION", tool = "mechanized")
+
+mecha_land |>
+  ggplot(aes(x = bin_size, y = share)) +
+  geom_col(fill = "hotpink2") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of mechanized land preparation by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized land preparation"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+*Transport*
+
+```{r}
+mecha_transport <- summarise_tools(mecha_by_area, operation = "TRANSPORT", tool = "mechanized")
+
+mecha_transport |>
+  ggplot(aes(x = bin_size, y = share)) +
+  geom_col(fill = "goldenrod2") +
+  geom_text(aes(label = total), vjust = -0.3, size = 3.5, color = "gray30") +
+  labs(
+    title = "Share of mechanized transport by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of mechanized transport"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+#### Seulement les tracteurs ? 
+
+
+
+
+
+### Utilisation de chemicals
+
+Depuis la base Cultivation_oper_all, j'utilise les variables use_products qui indiquent pour chaque opération si un produit a été utilisé (fertilizer, pesticide et weedicide).
+
+*Fertilizer*
+
+```{r}
+fertilizer_all <- summarise_tools(mecha_by_area, tool = "use_fertilizer")
+
+fertilizer_all |>
+  ggplot(aes(x = bin_size, y = share)) +
+  geom_col(fill = "plum4") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of operations using fertilizer by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of operations using fertilizer"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+*Weedicide*
+
+```{r}
+weedicide_all <- summarise_tools(mecha_by_area, operation = "WEEDING", tool = "use_weedicide")
+
+weedicide_all |>
+  ggplot(aes(x = bin_size, y = share)) +
+  geom_col(fill = "plum4") +
+  geom_text(aes(label = total), vjust = 1.5, size = 3.5, color = "white") +
+  labs(
+    title = "Share of operations using weedicide by plot size",
+    x = "Plot size (in acres)",
+    y = "Proportion of operations using weedicide"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+********************************************************************************
+
+## Mécanisation de labour
+
+La mécanisation (ou non) du labour a un impact sur la demande pour d'autres opérations, notamment hand weeding (Afridi, 2023). 
+
+Dans cette partie, on étudie la proportion de champs pour lesquels le labourage est mécanisé, selon la caste, puis comment la mécanisation du labourage impacte le temps de travail total et par opération. 
+
+```{r}
+# Pourcentage de champs dont le labour est mécanisé par caste 
+mecanisation_plot |>
+  count(CASTE_GROUP, mechanized_tilling) |>
+  group_by(CASTE_GROUP) |>
+  mutate(proportion = round(100 * n / sum(n), 0)) |>
+  select(CASTE_GROUP, mechanized_tilling, proportion) |>
+  pivot_wider(
+    names_from = mechanized_tilling,
+    values_from = proportion,
+    values_fill = 0
+  )
+```
+
+
+### Hr/acre en fonction de la mécanisation du labour
+
+```{r}
+# Calculer les heures de travail totales (toutes opérations sauf land preparation)
+hacre_tilling <- mecanisation_oper |>
+  filter(OPERATION != "LAND PREPARATION", CROP_AREA != 0, !is.na(CASTE_GROUP)) |>
+  group_by(YEAR, VDS_ID, CASTE_GROUP, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
+  mutate(hrs_expect_tilling = sum(WORK_HR_T, na.rm = TRUE), 
+         hacre_except_tilling = hrs_expect_tilling/CROP_AREA) |>
+  ungroup() |>
+
+# Enlever les opérations mécanisées
+  filter(mechanized == FALSE) |>
+  
+# Ajouter le nombre d'observations par opération et caste
+  group_by(CASTE_GROUP, mechanized_tilling) |>
+  mutate(nb_obs = n()) |>
+  ungroup()
+```
+
+
+### Toutes opérations
+
+On regarde le ratio Hr/acre du champ selon la mécanisation ou non du labour, par caste, en ne conservant que les opérations non mécanisées. 
+
+```{r}
+# Function pour calculer la moyenne de Hr/acre pour toutes les opérations selon la caste et la mécanisation de land preparation
+mean_hacre_tilling <- function(data, operation = NULL) {
+  data_filtered <- data
+  
+  # Si une opération est spécifiée, on filtre
+  if (!is.null(operation)) {
+    data_filtered <- dplyr::filter(data, OPERATION == operation)
+  }
+
+  result <- data_filtered |>
+    dplyr::group_by(CASTE_GROUP, mechanized_tilling) |>
+    dplyr::summarise(
+      nb_obs = dplyr::n(),
+      mean_hacre = mean(hacre_except_tilling, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  return(result)
+}
+
+# Fonction pour le graphique : Hr/acre for non_mechanized operations depending on tilling
+plot_mech_graph <- function(df, title, y_lab) {
+  ggplot(df, aes(x = reorder(CASTE_GROUP, mean_hacre), y = mean_hacre, fill = mechanized_tilling)) +
+    geom_col(position = "dodge") +
+    coord_flip() +
+    geom_text(
+      aes(label = nb_obs, y = mean_hacre / 2),
+      position = position_dodge(width = 0.9),
+      size = 3.5,
+      color = "white"
+    ) +
+    scale_fill_manual(
+      values = c("TRUE" = "seagreen2", "FALSE" = "cornflowerblue"),
+      labels = c("TRUE" = "Mechanized", "FALSE" = "Non-mechanized"),
+      name = "Land preparation"
+    ) +
+    labs(
+      title = title,
+      x = "",
+      y = y_lab
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16),
+      axis.text = element_text(size = 11, color = "gray20"),
+      axis.title = element_text(size = 12, color = "gray20"),
+      legend.title = element_text(size = 12),
+      legend.text = element_text(size = 11)
+    )
+}
+```
+
+```{r}
+all_oper_mean <- mean_hacre_tilling(hacre_tilling)
+
+plot_mech_graph(
+  all_oper_mean,
+  title = "Hr/acre for non-mechanized operations depending on tilling, by caste",
+  y_lab = "Average working hours for non-mechanized operations except land preparation"
+)
+```
+
+### Par opération
+
+*Weeding*
+
+```{r}
+weeding_with_land <- mean_hacre_tilling(hacre_tilling, operation = "WEEDING")
+
+plot_mech_graph(
+  weeding_with_land,
+  title = "Hr/acre for weeding depending on tilling, by caste",
+  y_lab = "Average working hours for weeding"
+)
+```
+
+*Transplanting*
+
+```{r}
+transplanting_with_land <- mean_hacre_tilling(hacre_tilling, operation = "TRANSPLANTING")
+
+plot_mech_graph(
+  transplanting_with_land,
+  title = "Hr/acre for transplanting depending on tilling, by caste",
+  y_lab = "Average working hours for transplanting"
+)
+```
+
+*Harvesting & Threshing*
+
+```{r}
+harvesting_with_land <- mean_hacre_tilling(hacre_tilling, operation = "HARVESTING & THRESHING")
+
+plot_mech_graph(
+  harvesting_with_land,
+  title = "Hr/acre for harvesting depending on tilling, by caste",
+  y_lab = "Average working hours for harvesting"
+)
+```
+
+
+
