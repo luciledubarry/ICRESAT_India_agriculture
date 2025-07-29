@@ -1,0 +1,49 @@
+---
+title: "Partie 3 (V2) : Analyse de la production de la base Cultivation 2014"
+format:
+  html:
+    toc: true
+    theme: cosmo
+editor: source
+params:
+  annee: 2011  # par défautformat: html
+editor: source
+---
+
+```{r, message=FALSE, warning=FALSE}
+rm(list = setdiff(ls(), "params"))
+graphics.off()
+cat("\014")
+```
+
+```{r, message=FALSE, warning=FALSE}
+here::i_am("ICRESAT_database_analysis/Analyse_production_V2.qmd")
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(tibble)
+library(tidyverse)
+library(gt)
+```
+
+```{r import_data}
+Cultivation_expand_all <- readRDS(here::here("Base de données générées", "Cultivation_expand", "Cultivation_expand_all.rds"))
+
+Cultivation_oper_all <- readRDS(here::here("Base de données générées", "Cultivation_oper", "Cultivation_oper_all.rds"))
+
+Cultivation_plot_all <- readRDS(here::here("Base de données générées", "Cultivation_plot", "Cultivation_plot_all.rds"))
+
+Cultivation_hh_all <- readRDS(here::here("Base de données générées", "Cultivation_hh", "Cultivation_hh_all.rds"))
+```
+
+********************************************************************************
+
+
+
+
+
+
+
