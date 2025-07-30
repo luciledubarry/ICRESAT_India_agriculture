@@ -6,8 +6,7 @@ format:
     theme: cosmo
 editor: source
 params:
-  annee: 2011  # par défautformat: html
-editor: source
+  annee: 2011  # par défaut
 ---
 
 ```{r, message=FALSE, warning=FALSE}
@@ -40,6 +39,33 @@ Cultivation_hh_all <- readRDS(here::here("Base de données générées", "Cultiv
 ```
 
 ********************************************************************************
+
+Analyse de la base Cultivation_expand, pour l'année 2014
+
+Cette base inclut les opérations non complétées (c’est-à-dire celles avec un temps de travail égal à 0), pour lesquelles on a ajouté des lignes, et les variables Caste et Caste_group. 
+
+## Principales cultures
+
+```{r Nombre de ménages, champs et cultures distincts}
+n_menages <- Cultivation_hh_all |>
+  distinct(VDS_ID) |>
+  summarise(nb = n()) |>
+  pull(nb)
+
+n_champs <- Cultivation_plot_hh |>
+  distinct(VDS_ID, SUB_PLOT_CODE) |>
+  summarise(nb = n()) |>
+  pull(nb)
+
+n_crops <- Cultivation_plot_hh |>
+  distinct(CROP) |>
+  summarise(nb = n()) |>
+  pull(nb)
+
+cat("Nombre total de ménages :", n_menages, "\n")
+cat("Nombre total de champs distincts :", n_champs, "\n")
+cat("Nombre total de cultures :", n_crops, "\n")
+```
 
 
 
