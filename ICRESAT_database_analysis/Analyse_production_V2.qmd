@@ -393,7 +393,7 @@ Cultivation_hh_all |>
 
 ********************************************************************************
 
-# Heures par acre moyen
+# Hr/acre moyen par culture
 
 Les heures de travail par acre (Hr/acre) est notre variable principale pour estimer le temps de travail dédié à chaque culture par saison. J'utilise la table Cultivation_plot_all, donc cela inclue les opérations non complétées (heures de travail nulles).
 
@@ -405,6 +405,7 @@ Pour calculer la moyenne de Hr/acre, il faut distinguer par champ avant d'additi
 ```{r mean_hacre_crop}
 # Moyenne de Hr/acre pour les 20 principales cultures, toute main d'oeuvre confondue
 mean_hacre_crop <- Cultivation_plot_all |>
+  filter(CROP_AREA != 0) |>
   group_by(CROP) |>
   summarise(
     MEAN_HACRE = mean(HACRE_T, na.rm = TRUE),
@@ -508,6 +509,571 @@ boxplot_hr_per_acre
 
 ```{r}
 ggsave("figures/Labor_time_boxplot.png", plot = boxplot_hr_per_acre, width = 8, height = 6, dpi = 300)
+```
+
+
+*********************************************************************************
+
+# Décomposition du travail par opération
+
+## Hr/acre par opération
+
+Pour cette partie, je me base sur Cultivation_oper_all pour avoir des informations au niveua de l'opération. 
+
+```{r mean_hacre_oper, message=FALSE, warning=FALSE}
+# Calculer la moyenne de Hr/acre par opération et par culture
+mean_hacre_oper <- Cultivation_oper_all |>
+  filter(CROP_AREA != 0) |>
+  group_by(OPERATION, CROP) |>
+  summarise(MEAN_HACRE = mean(HACRE_T, na.rm = TRUE), 
+            n_plots = n(),
+            .groups = "drop")
+```
+
+
+### Par culture
+
+Les graphiques suivants montent la moyenne de Hr/acre par opération. 
+
+*Seulement le riz*
+
+```{r}
+mean_hacre_oper |>
+  filter(CROP == "PADDY",
+         MEAN_HACRE > 0.5) |>
+  ggplot(aes(x = reorder(OPERATION, MEAN_HACRE), y = MEAN_HACRE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7, fill = "pink2", color = "hotpink4", alpha = 0.7) +
+  geom_text(aes(label = round(MEAN_HACRE, 0)), 
+            hjust = -0.2, 
+            size = 3.5) +
+  ylim(0, 150) +
+  coord_flip() +
+  labs(
+    title = "     Paddy: Hr/acre moyen par opération",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+*3 principales cultures*
+
+```{r}
+mean_hacre_oper |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE"),
+         MEAN_HACRE > 1) |>
+  ggplot(aes(x = reorder(OPERATION, MEAN_HACRE), y = MEAN_HACRE, fill = CROP)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  facet_wrap(~ CROP, scales = "free_x") +
+  geom_text(aes(label = round(MEAN_HACRE, 0)), 
+            hjust = -0.2, 
+            size = 3) +
+  coord_flip(clip = "off") +
+  labs(
+    title = "Labor time per acre, by operation",
+    x = "",
+    y = "Hours worked per acre"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.x = element_text(size = 12, color = "gray20"),
+    legend.position = "none",  
+    plot.margin = margin(5, 20, 5, 5)
+  )
+```
+
+```{r}
+plot_3_crops_oper <- mean_hacre_oper |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE"),
+         !OPERATION %in% c("SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS", "PLANT PROTECTION MEASURES")) |>
+  ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = CROP)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.6) +
+  labs(
+    title = "Average working hours per acre, by operation",
+    x = "",
+    y = "",
+    fill = "Main crops"
+  ) +
+  scale_fill_manual(values = c(
+    "PADDY" = "yellowgreen",
+    "WHEAT" = "darkgoldenrod2",
+    "MAIZE" = "indianred2"
+  )) +
+  theme_minimal() +
+    theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+
+plot_3_crops_oper
+```
+
+```{r}
+ggsave("figures/Labor_3_crops_operations.png", plot = plot_3_crops_oper, width = 8, height = 6, dpi = 300)
+```
+
+
+### Toutes cultures confondues
+
+Je calcule la moyenne des ratios Hr/acre toute cultures confondues. 
+
+```{r mean_hacre_oper_all_crops}
+all_mean_hacre_oper <- Cultivation_oper_all |>
+  filter(CROP_AREA != 0) |>
+  group_by(OPERATION) |>
+  summarise(MEAN_HACRE = mean(HACRE_T, na.rm = TRUE), .groups = "drop")
+```
+
+```{r plot_hacre_oper_all_crops}
+plot_all_mean <- all_mean_hacre_oper |>
+  filter(MEAN_HACRE > 1) |>
+  ggplot(aes(x = reorder(OPERATION, MEAN_HACRE), y = MEAN_HACRE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.8, fill = "darkolivegreen3") +
+  geom_text(aes(label = round(MEAN_HACRE, 0)), 
+            hjust = -0.2, 
+            size = 4) +
+  ylim(0, 140) +
+  coord_flip() +
+  labs(
+    title = "  Average working hours per acre, by operation",
+    x = "",
+    y = "Average working hours per acre per season"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 11.5),
+    axis.title.x = element_text(size = 12, color = "gray20")
+  )
+
+plot_all_mean
+```
+
+```{r}
+ggsave("figures/Labor_time_all_operations.png", plot = plot_all_mean, width = 8, height = 6, dpi = 300)
+```
+
+
+#### Comparer Hr/acre moyen par culture
+
+Les graphiques suivants comparent la moyenne de Hr/acre par culture pour les principales opérations. 
+
+```{r mean_hacre_harvest}
+mean_hacre_oper |>
+  filter(OPERATION == "HARVESTING & THRESHING",
+         CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  ggplot(aes(x = reorder(CROP, n_plots), y = MEAN_HACRE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7, fill = "hotpink2") +
+  geom_text(aes(label = round(MEAN_HACRE, 0)), 
+            hjust = -0.2, 
+            size = 3.5) +
+  coord_flip() +
+  labs(
+    title = "Hr/acre moyen pour Harvesting/Threshing par culture",
+    x = "",
+    y = "Heures de travail par acre"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+```{r mean_hacre_weeding}
+mean_hacre_oper |>
+  filter(OPERATION == "WEEDING",
+         CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  ggplot(aes(x = reorder(CROP, n_plots), y = MEAN_HACRE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7, fill = "hotpink3") +
+  geom_text(aes(label = round(MEAN_HACRE, 0)), 
+            hjust = -0.2, 
+            size = 3.5) +
+  coord_flip() +
+  labs(
+    title = "Hr/acre moyen pour Weeding par culture",
+    x = "",
+    y = "Heures de travail par acre"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+```{r mean_hacre_tilling}
+mean_hacre_oper |>
+  filter(OPERATION == "LAND PREPARATION",
+         CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  ggplot(aes(x = reorder(CROP, n_plots), y = MEAN_HACRE)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7, fill = "hotpink4") +
+  geom_text(aes(label = round(MEAN_HACRE, 0)), 
+            hjust = -0.2, 
+            size = 3.5) +
+  coord_flip() +
+  labs(
+    title = "Hr/acre moyen pour Land Preparation par culture",
+    x = "",
+    y = "Heures de travail par acre"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+
+#### Verif: Egalité des moyennes
+
+Je me concentre sur Paddy pour comparer la moyenne de Hr/acre (toutes opérations confondues) et Hr/acre moyen par opération. Le but est de vérifier que : 
+
+Moyenne de Hr/acre (toutes opérations) = somme de Hr/acre moyen par opération
+
+Pour vérifier cela, j'additionne les moyennes de Hr/acre par opération pour le riz.
+
+```{r}
+paddy_mean_hacre_oper <- mean_hacre_oper |>
+  filter(CROP == "PADDY") |>
+  summarise(TOTAL_MEAN = sum(MEAN_HACRE, na.rm = TRUE)) |>
+  mutate(TOTAL_MEAN = round(TOTAL_MEAN, 0)) |> 
+  pull(TOTAL_MEAN)
+
+mean_paddy <- mean_hacre_crop |> 
+  filter(CROP == "PADDY") |>
+  summarise(MEAN_HACRE = round(MEAN_HACRE, 0)) |> 
+  pull(MEAN_HACRE)
+```
+
+```{r} 
+cat("Moyenne du Hr/ratio (toutes opérations confondues):", mean_paddy, "\n")
+cat("Somme des moyennes de Hr/ratio par opération:", paddy_mean_hacre_oper, "\n")
+```
+
+********************************************************************************
+
+## Répartition du temps de travail par opération (en %)
+
+On veut savoir comment se décompose le travail en fonction des opérations pour les principales cultures. Pour cela, je calcule la répartition du temps de travail par opération (en %). 
+
+Les graphiques suivants se basent donc sur le total d'heures de travail (WORK_HR) et non sur la productivité par acre (HACRE).
+
+```{r}
+# Sélectionner les 25 principales cultures
+Cultivation_top_25 <- Cultivation_oper_all |>
+  inner_join(mean_hacre_crop |> 
+              arrange(desc(n_plots)) |>
+              slice_head(n = 25),
+            by = "CROP")
+```
+
+```{r}
+prct_oper <- Cultivation_top_25 |>
+  inner_join(mean_hacre_crop |> 
+              arrange(desc(n_plots)) |>
+              slice_head(n = 25),
+            by = "CROP") |>
+  
+# Calculer les heures par opération et par culture
+  group_by(CROP, OPERATION) |>
+  summarise(HR_PER_OPER = sum(WORK_HR_T, na.rm = TRUE), .groups = "drop") |>
+  group_by(CROP) |>
+  mutate(HR_PER_CROP = sum(HR_PER_OPER, na.rm = TRUE)) |>
+  ungroup() |>
+  arrange(desc(HR_PER_CROP)) |>
+  
+# Calculer le pourcentage du temps de travail
+  group_by(CROP, OPERATION) |>
+  mutate(proportion = round(100 * HR_PER_OPER/HR_PER_CROP, 1)) |>
+  arrange(CROP, desc(proportion))
+```
+
+
+### Paddy
+
+```{r}
+prct_oper |>
+  filter(CROP == "PADDY") |>
+  filter(proportion != 0.0) |>
+  ggplot(aes(x = reorder(OPERATION, proportion), y = proportion)) +
+  geom_bar(stat = "identity", position = "dodge", fill = "sandybrown", width = 0.7) +
+  geom_text(aes(label = paste0(proportion, "%")), 
+          hjust = -0.1, size = 3.5) +
+  ylim(0, 32) +
+  coord_flip() +
+  labs(
+    title = "Paddy- Répartition du temps de travail par opération (en %)",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+
+### Principales cultures
+
+```{r}
+plot_prct_labor_time <- prct_oper |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE"),
+         proportion > 1) |>
+  ggplot(aes(x = CROP, y = HR_PER_OPER, fill = reorder(OPERATION, proportion))) +
+  geom_bar(stat = "identity", position = "fill", width = 0.6, color = "white", linewidth = 0.3) +
+  geom_text(aes(label = paste0(round(proportion, 0), "%")),
+            position = position_fill(vjust = 0.5),
+            size = 3.5) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Distribution of working hours by operation (in %)",
+    x = "",
+    y = "",
+    fill = "Operation"
+  ) +
+  theme_minimal() +
+    theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 12),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11),
+  )
+
+plot_prct_labor_time
+```
+```{r}
+ggsave("figures/prct_labor_time.png", plot = plot_prct_labor_time, width = 8, height = 6, dpi = 300)
+```
+
+
+```{r, message = False}
+# Créer sa propre palette de couleurs
+couleurs1 <- viridis(15, option = "C")[2:15]
+```
+
+```{r}
+prct_oper |>
+  filter(
+    proportion > 1,
+    CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  filter(proportion > 1) |>
+  ggplot(aes(x = CROP, y = HR_PER_OPER, fill = reorder(OPERATION, proportion))) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8, color = "white", linewidth = 0.3) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Top 10: Répartition du temps de travail par opération (en %)",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  scale_fill_manual(values = couleurs1) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    legend.text = element_text(size = 8)
+  )
+```
+
+********************************************************************************
+
+## Total d'heures par opération
+
+Je regarde comment se décompose le travail par opération, en prennant en compte le total d'heures par opération (en valeur absolue plutôt que pourcentage).
+
+On compare pour les principales opérations le nombre d'heures de travail par saison et par culture. 
+
+```{r}
+# Calculer la somme d'heures par opération et par saison en différenciant par la saison et l'année
+total_hours <- Cultivation_top_25 |>
+  group_by(YEAR, SEASON, CROP, OPERATION) |>
+  summarise(HR_PER_OPER = sum(WORK_HR_T, na.rm = TRUE), .groups = "drop") |>
+  group_by(CROP, SEASON) |>
+  mutate(HR_PER_CROP = sum(HR_PER_OPER, na.rm = TRUE)) |>
+  ungroup() |>
+  arrange(desc(HR_PER_CROP)) |>
+  
+# Faire la moyenne des heures travaillées par saison pour chaque année
+  group_by(CROP, SEASON, OPERATION) |>
+  mutate(MEAN_YEARS = mean(HR_PER_OPER, na.rm = TRUE)) |>
+  ungroup()
+```
+
+```{r plot_hours_worked_crops}
+total_hours |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION"),
+         SEASON %in% c("KHARIF", "RABI")) |>
+  ggplot(aes(x = reorder(CROP, MEAN_YEARS), y = MEAN_YEARS, fill = SEASON)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Heures de travail totales par culture et par saison",
+    x = "",
+    y = "",
+    fill = "Saison"
+  ) +
+  scale_fill_manual(
+    values = c("KHARIF" = "steelblue3", "RABI" = "springgreen2")
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+********************************************************************************
+A refaire 
+********************************************************************************
+
+# ? Comprendre les différences dans Hr/acre moyen par culture
+
+Je souhaite comprendre les différences en productivité par acre observées entre les cultures. 
+
+Pour cela, je compare les cultures les moins productives et les plus productives par rapport à d'autres variables : répartition du temps de travail par opération (OPERATION), total de travail total (WORK_HR), taille moyenne des champs (PLOT_AREA).
+
+
+## ? Comparer les cultures plus ou moins productives
+
+Je regarde comment se décompose la répartition des opérations dans le temps de travail entre les cultures les plus productives (faible Hr/acre) et les moins productives (haut Hr/acre). 
+
+Le but est de comprendre pourquoi de telles disparités existent selon les cultures. Est-ce que ces différences de productivité sont dûes à des opérations sur-représentées ?
+
+```{r}
+CROPS_ORDER <- c("CHILLIES", "PEAS", "POTATO", "SESAMUM", "PIGEONPEA",  "SOYBEAN")
+
+prct_oper |>
+  filter(proportion > 1) |>
+  filter(CROP %in% CROPS_ORDER) |>
+  ggplot(aes(x = factor(CROP, levels = CROPS_ORDER), y = HR_PER_OPER, fill = reorder(OPERATION, proportion))) +
+  geom_bar(stat = "identity", position = "fill", width = 0.8, color = "white", linewidth = 0.3) +
+  geom_vline(xintercept = 3.5, linetype = "dashed", color = "gray20") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(limits = CROPS_ORDER) +
+  labs(
+    title = "Comparaison: Répartition du temps de travail par opération (en %)",
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    legend.text = element_text(size = 8) 
+    ) +
+  annotate("text", x = 2, y = 1.06, label = "Moins productives", hjust = 0.5, size = 3.5, fontface = "bold") +
+  annotate("text", x = 5, y = 1.06, label = "Plus productives", hjust = 0.5, size = 3.5, fontface = "bold") 
+```
+
+
+Visiblement les différences de Hr/acre ne sont pas liées à des opérations particulièrement présentes dans les cultures les moins productives. Il ne semble pas avoir de lien entre la proportion de chaque opération et le Hr/acre moyen. 
+
+```{r}
+# Comparer la part de chaque opération pour les cultures les plus et les moins productives
+prct_oper |>
+  filter(CROP %in% CROPS_ORDER, proportion > 1) |>
+  mutate(PRODUCTIVITY_GROUP = case_when(
+    CROP %in% c("CHILLIES", "PEAS", "POTATO") ~ "Moins productives",
+    CROP %in% c("SESAMUM", "PIGEONPEA", "SOYBEAN") ~ "Plus productives"
+  )) |>
+  group_by(PRODUCTIVITY_GROUP, OPERATION) |>
+  summarise(mean_prop = mean(proportion, na.rm = TRUE), .groups = "drop") |>
+  mutate(mean_prop = round(mean_prop, 0)) |>
+  pivot_wider(names_from = PRODUCTIVITY_GROUP, values_from = mean_prop)
+```
+
+
+## ? Comparer la taille moyenne des parcelles par culture
+
+On regarde si les différences de Hr/acre moyen observées entre les cultures sont à la taille des parcelles. Est-ce que les cultures les moins productives (moyenne de Hr/acre plus haute) sont celles avec les plus petites parcelles
+
+par culture, notamment pour CHILLIES
+
+```{r}
+area_per_crop <- Cultivation_top_25 |>
+  group_by(VDS_ID, PLOT_CODE, SEASON, CROP) |>
+  slice(1) |>  # Une seule ligne par champ
+  ungroup() |>
+  group_by(CROP) |>
+  summarise(mean_area = mean(AREA_CROP, na.rm = TRUE))
+
+area_per_crop |>
+  filter(CROP %in% c("CHILLIES", "CHRYSANTHEMUM", "CLUSTER BEAN", "PADDY", "SESAMUM", "LATHYRUS", "PIGEONPEA")) |>
+  mutate(mean_area = round(mean_area, 2)) |>
+  knitr::kable(
+    caption = "Taille moyenne des parcelles pour les cultures les plus/moins productives",
+    col.names = c("Culture", "Superficie moyenne (acres)")
+  )
+```
+
+La taille de la parcelle ne semble pas expliquer les différence dans la moyenne de  Hr/acre, puisque CHILLIES (la culture de loin la moins productive) a une superficie moyenne proche de SESAMUM (l'une des plus productives). 
+
+
+*********************************************************************************
+
+# Mécanisation
+
+## Part par opération
+
+On regarde à partir de la variable mechanized quelle est la part de mécanisation pour chaque opération.
+
+```{r nb_mechanized_oper}
+Cultivation_top_25 |>
+  filter(! OPERATION %in% c("MARKETING", "SUPERVISION", "OTHERS", "NURSERY RAISING")) |>
+  group_by(OPERATION, mechanized) |>
+  summarise(nb = n(), .groups = "drop") |>
+  ggplot(aes(x = reorder(OPERATION, nb), y = nb, fill = mechanized)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+      title = "Opérations méchanisées / non méchanisées",
+    x = "",
+    y = "Nombre d'opérations",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10)
+  )
+```
+
+```{r prct_mechanized_oper}
+prct_mecha <- Cultivation_top_25 |>
+  group_by(OPERATION, mechanized) |>
+  summarise(oper_mecha = n(), .groups = "drop") |>
+  group_by(OPERATION) |>
+  mutate(
+    total_oper = sum(oper_mecha), 
+    proportion = round(100 * oper_mecha/total_oper, 1)
+    ) |>
+  ungroup() 
+
+prct_mecha |>
+  filter(mechanized == TRUE) |>
+  select(OPERATION, proportion) |>
+  ggplot(aes(x = reorder(OPERATION, proportion), y = proportion)) +
+  geom_bar(stat = "identity", width = 0.7, fill = "lightsteelblue3") +
+  coord_flip() +
+  labs(
+    title = "Proportion de mécanisation par opération (en %)",
+    x = "",
+    y = ""
+  ) +
+  theme_minimal()
+
+prct_mecha |>
+  filter(mechanized == TRUE) |>
+  select(OPERATION, proportion) |>
+  kable(
+    caption = "Proportion de mécanisation par opération (en %)",
+    col.names = c("Opération", "% Opérations mécanisées")
+  ) 
 ```
 
 
