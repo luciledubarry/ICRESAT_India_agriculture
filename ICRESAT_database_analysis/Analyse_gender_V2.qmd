@@ -54,7 +54,7 @@ cols_labor <- c(
 )
 
 table_labor <- Cultivation_expand_all |>
-  select(YEAR, VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, MONTH, OPERATION, all_of(cols_labor))
+  select(YEAR, VDS_ID, CASTE_GROUP, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, IRRIGATION, MONTH, OPERATION, all_of(cols_labor), REGION, STATE)
 
 # Additionner en fonction de l'opération et du mois
 sum_cols_labor <- function(df, groups_vars, cols_to_sum) {
@@ -63,7 +63,7 @@ sum_cols_labor <- function(df, groups_vars, cols_to_sum) {
     summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
 }
 
-groups_vars <- c("YEAR", "VDS_ID", "SEASON", "CROP", "SUB_PLOT_CODE", "CROP_AREA", "MONTH", "OPERATION")
+groups_vars <- c("YEAR", "VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "SUB_PLOT_CODE", "CROP_AREA", "IRRIGATION", "MONTH", "REGION", "STATE", "OPERATION")
 
 table_labor <- sum_cols_labor(table_labor, groups_vars, cols_labor)
 ```
@@ -147,7 +147,7 @@ plot_gender_hours_month <- hr_per_gender |>
     title = "Hours worked per month, by gender",
     x = "",
     y = "",
-    fill = "Gender"
+    fill = "Genre"
     ) +
   scale_y_continuous(labels = comma) +
   theme_minimal() +
@@ -242,7 +242,7 @@ plot_hired_month <- hired_work_month |>
     title = "Hired work: Hours worked by gender, by month",
     x = "",
     y = "",
-    fill = "Gender"
+    fill = "Genre"
   ) +
   scale_y_continuous(labels = scales::comma) +
   theme_minimal() +
@@ -270,7 +270,7 @@ plot_family_month <- hired_work_month |>
     title = "Family work: Hours worked by gender, by month",
     x = "",
     y = "",
-    fill = "Gender"
+    fill = "Genre"
   ) +
   scale_y_continuous(labels = scales::comma) +
   theme_minimal() +
@@ -319,7 +319,7 @@ oper_per_month |>
 
 # Travail par opération
 
-## Toutes cultures: total d'heures travaillées et moyenne de Hr/acre
+## Toutes cultures
 
 On regarde sur quelles opérations les femmes travaillent le plus. 
 
@@ -334,13 +334,13 @@ oper_per_gender <- table_labor |>
 Gender_labor_operation <- oper_per_gender |>
   filter(OPERATION != "OTHERS" & OPERATION != "NURSERY RAISING" & OPERATION != "MARKETING") |>
   mutate(OPERATION = recode(OPERATION, `PLANT PROTECTION MEASURES` = "PLANT PROTECTION")) |>
-  ggplot(aes(x = OPERATION, y = Work_hours, fill = GENDER)) +
+  ggplot(aes(x = OPERATION, y = Work_hours, fill = Gender)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
   labs(
     title = "Hours worked per operation, by gender",
     x = "",
     y = "",
-    fill = "Gender"
+    fill = "Genre"
   ) +
   scale_y_continuous(labels = scales::comma) +
   theme_minimal() +
@@ -362,6 +362,538 @@ ggsave("figures/Gender_labor_operation.png", plot = Gender_labor_operation, widt
 Les femmes travaillent le plus lors du Hand weeding et du Harvesting/Threshing, et dans une proportion bien plus importante que les hommes. 
 
 Je regarde la moyenne de Hr/acre par opération en fonction du genre. 
+
+```{r}
+# Calculer la moyenne de Hr/acre par genre en considérant OPERATION
+oper_hacre <- table_labor |>
+  filter(!is.na(Gender)) |>
+  group_by(Gender, OPERATION) |>
+  summarise(MEAN_HACRE = mean(Hours_per_acre, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+oper_hacre |>
+  filter(!OPERATION %in% c("MARKETING", "NURSERY RAISING", "OTHERS")) |>
+  ggplot(aes(x = OPERATION, y = MEAN_HACRE, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Moyenne de Hr/acre par opération en fonction du genre",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+
+#### 3 principales cultures
+
+```{r}
+# Calculer la part (en %) des heures de travail réalisées par genre pour chaque couple (opération, culture)
+
+# Refaire le groupe pour calculer le pourcentage par genre 
+oper_gender_prct <- table_labor |>
+  group_by(CROP, OPERATION, Gender) |>
+  summarise(HR_GENDER = sum(Work_hours, na.rm = TRUE), .groups = "drop") |>
+  group_by(CROP, OPERATION) |>
+  mutate(HR_ALL = sum(HR_GENDER, na.rm = TRUE)) |>
+  ungroup() |>
+  mutate(PRCT_HR = 100 * HR_GENDER / HR_ALL,
+         OPERATION = fct_reorder(OPERATION, HR_ALL, .desc = TRUE))
+```
+
+```{r}
+plot_prct_oper_gender <- oper_gender_prct |>
+  filter(!(is.na(Gender)),
+        CROP %in% c("PADDY", "MAIZE", "WHEAT"),
+        !OPERATION %in% c("SUPERVISION", "NURSERY RAISING", "MARKETING", "OTHERS", 
+                           "PLANT PROTECTION MEASURES", "TRANSPLANTING", "TRANSPORT", "SEED SOWING")) |>
+  ggplot(aes(x = CROP, y = PRCT_HR, fill = Gender)) +
+  geom_bar(stat = "identity", position = "fill", width = 0.6) +
+  facet_wrap(~OPERATION) +
+  labs(
+    title = "Distribution of labor by gender, for the 6 main operations",
+    x = "",
+    y = "Share of hours worked",
+    fill = "Gender"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.title.y = element_text(size = 12, color = "gray20"),
+    axis.text.x = element_text(size = 10),
+    legend.text = element_text(size = 11),
+    legend.title = element_text(size = 12)
+  )
+plot_prct_oper_gender
+```
+
+```{r}
+ggsave("figures/Prct_gender_oper.png", plot = plot_prct_oper_gender, width = 8, height = 6, dpi = 300)
+```
+
+
+********************************************************************************
+
+# Heures travaillées
+
+## Par culture
+
+Est-ce qu'on observe si les femmes travaillent plus pour certains cultures ? 
+
+```{r}
+hr_gender_crop <- table_labor |>
+  group_by(Gender, CROP) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop") 
+```
+
+```{r}
+hr_gender_crop |>
+  filter(!is.na(Gender),
+    CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION", "POTATO")) |>
+  ggplot(aes(x = CROP, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Heures travaillées par culture selon le genre",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+   theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+
+## Par région / Etat
+
+Je regarde si le travail des femmes varie selon la région (SAT ou EAST) et l'Etat. 
+
+*Selon la région*
+
+```{r}
+hr_gender_region <- table_labor |>
+  group_by(Gender, REGION) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop") 
+```
+
+```{r}
+hr_gender_region |>
+  filter(!is.na(Gender)) |>
+  ggplot(aes(x = REGION, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Heures travaillées par genre selon la région",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+C'est dans les Etats dits Semi-Arid Tropics qu'on observe une différence d'heures travaillées en les hommes et les femmes. Cette différence n'est pas présente dans les Etats de l'est.
+
+
+*Selon l'Etat*
+
+```{r}
+hr_gender_state <- table_labor |>
+  group_by(Gender, REGION, STATE) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop") 
+```
+
+```{r}
+hr_gender_state |>
+  filter(!is.na(Gender)) |>
+  ggplot(aes(x = STATE, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  facet_wrap(~ REGION, scales = "free_x") +
+  labs(
+    title = "Heures travaillées par genre selon l'Etat (groupé par région)",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+
+## Superficie des champs
+
+L'idée est de voir si le travail des femmes varie selon la superficie du champ. 
+
+```{r}
+hr_gender_area <- table_labor |>
+  
+  # Créer des catégories de la superficie
+  mutate(bin_size = cut(
+      CROP_AREA,
+      breaks = c(seq(0, 5, by = 0.5), Inf),
+      right = TRUE,
+      include.lowest = TRUE)) |>
+  filter(!is.na(bin_size)) |>
+  
+  group_by(Gender, bin_size, .keep_all = TRUE) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+hr_gender_area |>
+  filter(!is.na(Gender)) |>
+  ggplot(aes(x = bin_size, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Heures travaillées par genre la superficie du champ",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+*Pour le travail employé*
+
+```{r}
+hr_hired_area <- table_labor |>
+  filter(Employment == "Hired") |>
+  
+  # Créer des catégories de la superficie
+  mutate(bin_size = cut(
+      CROP_AREA,
+      breaks = c(seq(0, 5, by = 0.5), Inf),
+      right = TRUE,
+      include.lowest = TRUE)) |>
+  filter(!is.na(bin_size)) |>
+  
+  group_by(Gender, bin_size, .keep_all = TRUE) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop")
+```
+
+```{r}
+hr_hired_area |>
+  filter(!is.na(Gender)) |>
+  ggplot(aes(x = bin_size, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Heures employées par genre la superficie du champ",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+
+Le travail fait par les membres de la famille (homme et femme) ne semble pas augmenter avec la superficie des parcelles. C'est légèrement le cas pour le travail employé (homme et femme).
+
+
+## Utilisation d'outils
+
+### Mécanisation
+
+J'étudie la participation des femmes selon que l'opération soit mécanisée ou non. L'hypothèse est que les femmes réalisent peu d'opérations mécanisées. 
+
+```{r}
+mecanisation_oper <- Cultivation_oper_all |>
+  mutate(
+    use_pesticide = PESTICIDE_KG > 0 | PESTICIDE_LT > 0,
+    use_fertilizer = FERTILIZER_KG > 0 | FERTILIZER_LT > 0,
+    use_weedicide = WEEDICIDE_KG > 0 | WEEDICIDE_LT > 0
+  ) |>
+  distinct(YEAR, VDS_ID, SEASON, CROP, SUB_PLOT_CODE, CROP_AREA, OPERATION, use_pesticide, use_fertilizer, use_weedicide, mechanized)
+  
+table_labor <- table_labor |>
+  left_join(mecanisation_oper, by = c("YEAR", "VDS_ID", "SEASON", "CROP", "SUB_PLOT_CODE", "CROP_AREA", "OPERATION"))
+
+hr_gender_meca <- table_labor |>
+  group_by(Gender, mechanized) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop") 
+```
+
+```{r}
+hr_gender_meca |>
+  filter(!is.na(Gender)) |>
+  ggplot(aes(x = mechanized, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Heures travaillées par genre selon la mécanisation des opérations",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+L'hypothèse semble vérifiée (à regarder plus en détails) : les femmes travaillent plus sur les opérations non mécanisées. 
+
+
+### Irrigation
+
+Je regarde si le travail des femmes varie selon l'irrigation du champ. 
+
+```{r}
+hr_gender_irri <- table_labor |>
+  group_by(Gender, IRRIGATION) |>
+  summarise(Work_hours = sum(Work_hours, na.rm = TRUE), .groups = "drop") 
+```
+
+```{r}
+hr_gender_irri |>
+  filter(!is.na(Gender), !is.na(IRRIGATION)) |>
+  ggplot(aes(x = IRRIGATION, y = Work_hours, fill = Gender)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  labs(
+    title = "Heures travaillées par genre selon l'irrigation",
+    x = "",
+    y = "",
+    fill = "Genre"
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12)
+  )
+```
+
+
+********************************************************************************
+
+# Relation travail féminin familial et employé
+
+On veut représenter le temps de travail féminin familial par rapport au temps de travail féminin total ou employé. On se concentre sur la culture de riz en Kharif. 
+
+```{r}
+female_work_hours <- table_labor |>
+  filter(CROP == "PADDY", SEASON == "KHARIF") |>
+  group_by(YEAR, VDS_ID, CASTE_GROUP, SUB_PLOT_CODE, CROP_AREA) |>
+  summarise(
+    WORK_HF = sum(Work_hours[type == "HF"], na.rm = TRUE),
+    WORK_FF = sum(Work_hours[type == "FF"], na.rm = TRUE),
+    WORK_F = WORK_HF + WORK_FF,
+    .groups = "drop"
+  )
+```
+
+## Scatter point
+
+Graphique avec nuage de points + courbe de régression locale : loess (locally estimated scatterplot smoothing)
+
+Ce graphique montre l'effet de substitution entre le travail féminin employé et celui familial champ par champ, avec chaque point représentant une observation individuelle. 
+
+```{r, message=FALSE}
+# 1ère méthode avec le travail employé en abscisse 
+point_female_work_hr <- female_work_hours |>
+  ggplot(aes(x = WORK_HF, y = WORK_FF)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  coord_cartesian(xlim = c(0, 300), ylim = c(0, 300)) +
+  labs(
+    title = "Relation champ par champ entre travail féminin employé et familial",
+    x = "Heures de travail employé",
+    y = "Heures de travail familial",
+    caption = "Chaque point représente un champ ; la courbe montre la tendance locale (loess) entre les deux types de travail"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+
+point_female_work_hr
+```
+
+```{r, message=FALSE}
+# 2ème méthode avec le travail total en abscisse 
+female_work_hours |>
+  ggplot(aes(x = WORK_F, y = WORK_FF)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  coord_cartesian(xlim = c(0, 200), ylim = c(0, 200)) +
+  labs(
+    title = "Relation champ par champ entre travail féminin total et familial",
+    x = "Heures de travail total",
+    y = "Heures de travail familial",
+    caption = "Chaque point représente un champ ; la courbe montre la tendance locale (loess) entre les deux types de travail"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+```
+
+```{r}
+ggsave("figures/Point_female_work_hr.png", 
+       plot = point_female_work_hr, 
+       width = 8, height = 6, dpi = 300,
+       create.dir = TRUE)
+```
+
+
+### Par caste
+
+Refaire le graphique précédent en fonction de la caste. 
+
+Graphique avec nuage de points + courbe de régression locale : loess (locally estimated scatterplot smoothing)
+
+Ce graphique montre l'effet de substitution entre le travail féminin employé et celui familial champ par champ, avec chaque point représentant une observation individuelle. 
+
+```{r, message=FALSE}
+# 1ère méthode avec le travail employé en abscisse 
+point_female_work_caste <- female_work_hours |>
+  filter(!is.na(CASTE_GROUP)) |>
+  ggplot(aes(x = WORK_HF, y = WORK_FF)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  facet_wrap(~ CASTE_GROUP, scales = "free_x") +
+  coord_cartesian(xlim = c(0, 150), ylim = c(0, 150)) +
+  labs(
+    title = "Relation entre travail féminin employé et familial, selon la caste",
+    x = "Heures de travail employé",
+    y = "Heures de travail familial",
+    caption = "Chaque point représente un champ ; la courbe montre la tendance locale (loess) entre les deux types de travail"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+
+point_female_work_caste
+```
+
+
+## Histogram
+
+Graphique par catégories agrégées du travail employé
+
+```{r}
+# Créer des catégories pour le travail des femmes employées
+female_work_hours <- female_work_hours |>
+  mutate(HF_cat = cut(WORK_HF,
+                      breaks = c(-1, 0, 10, 20, 50, 100, 200, 300, 400, 500, Inf),
+                      labels = c("0", "1–10", "11–20", "21–50", "51–100", "101–200", "201–300", "301–400", "401–500", "500+"))
+  )
+
+# Pour ce graphique, je calcule la moyenne des heures de travail familial pour chaque catégorie de travail employé. 
+resume_cat <- female_work_hours |>
+  group_by(YEAR, VDS_ID, SUB_PLOT_CODE, CROP_AREA, HF_cat) |>
+  summarise(
+    MEAN_FF = mean(WORK_FF, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+On regarde comment le travail familial varie avec la quantité de travail employé par champ. 
+
+La moyenne des heures de travail familial est calculée pour chaque tranche d’heures de travail employé. La somme des heures de travail féminin correspond au résultat du fichier CultData3_analysis, une fois qu'on filtre pour le riz et Kahrif. 
+
+```{r}
+histogram_female_work_hr <- ggplot(resume_cat, aes(x = HF_cat, y = MEAN_FF)) +
+  geom_col(fill = "yellowgreen") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Travail féminin familial moyenne selon les niveaux de travail employé",
+    x = "Tranches d'heures de travail employé",
+    y = "Moyenne d'heures de travail familial",
+    caption = "La moyenne des heures de travail familial est calculée pour chaque tranche d’heures de travail employé."
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 10, color = "gray20"),
+    axis.title = element_text(size = 12, color = "gray20"),
+    plot.caption = element_text(
+      face = "italic",
+      size = 10,
+      color = "gray20"
+    )
+  )
+
+histogram_female_work_hr
+```
+
+```{r}
+ggsave("figures/Histogram_female_work_hr.png", plot = histogram_female_work_hr, width = 8, height = 6, dpi = 300)
+```
+
 
 
 
