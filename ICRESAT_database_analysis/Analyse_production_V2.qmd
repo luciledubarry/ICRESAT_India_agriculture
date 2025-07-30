@@ -1076,6 +1076,30 @@ prct_mecha |>
   ) 
 ```
 
+## Part par culture
+
+Je regarde la part d'opérations mécanisées par culture.
+
+```{r}
+Cultivation_top_25 |>
+  filter(CROP %in% c("PADDY", "WHEAT", "MAIZE", "COTTON", "SOYBEAN", "SORGHUM", "CHICKPEA", "BLACK GRAM", "GROUNDNUT", "ONION")) |>
+  mutate(IRRIGATION = recode(mechanized,
+                             `Mécanisé` = TRUE,
+                             `Non mécanisé` = FALSE)) |>
+  group_by(CROP, mechanized) |>
+  summarise(nb = n(), .groups = "drop") |>
+  group_by(CROP) |>
+  mutate(
+    total = sum(nb),
+    proportion = round(100 * nb / total, 0)
+  ) |>
+  select(CROP, mechanized, proportion) |>
+  pivot_wider(
+    names_from = mechanized,
+    values_from = proportion,
+    values_fill = 0
+  )
+```
 
 
 
