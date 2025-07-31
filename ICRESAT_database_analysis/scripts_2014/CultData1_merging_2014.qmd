@@ -13,7 +13,7 @@ cat("\014")
 
 ```{r}
 #| message: false
-here::i_am("ICRESAT_database_analysis/CultData1_merging.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_2014/CultData1_merging_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(knitr)
@@ -32,14 +32,14 @@ library(here)
 ## Importer les données
 
 ```{r Importer les données, message=FALSE, warning=FALSE}
-EAST_CultInput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Input_2014.xlsx"))
-SAT_CultInput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Input_2014.xlsx"))
-EAST_CultOutput_2014 <- read_excel(here::here("raw_data", "EAST_Cultivation_Output_2014.xlsx"))
-SAT_CultOutput_2014  <- read_excel(here::here("raw_data", "SAT_Cultivation_Output_2014.xlsx"))
-EAST_PlotList_2014 <- read_excel(here::here("raw_data", "EAST_Plot_List_2014.xlsx"))
-SAT_PlotList_2014 <- read_excel(here::here("raw_data", "SAT_Plot_List_2014.xlsx"))
-EAST_Landholding_2014 <- read_excel(here::here("raw_data", "EAST_Landholding_det.xlsx"))
-SAT_Landholding_2014 <- read_excel(here::here("raw_data", "SAT_Landholding_det.xlsx"))
+EAST_CultInput_2014 <- read_excel(here::here("raw_data", "EAST_CultInput_2014.xlsx"))
+SAT_CultInput_2014  <- read_excel(here::here("raw_data", "SAT_CultInput_2014.xlsx"))
+EAST_CultOutput_2014 <- read_excel(here::here("raw_data", "EAST_CultOutput_2014.xlsx"))
+SAT_CultOutput_2014  <- read_excel(here::here("raw_data", "SAT_CultOutput_2014.xlsx"))
+EAST_PlotList_2014 <- read_excel(here::here("raw_data", "EAST_PlotList_2014.xlsx"))
+SAT_PlotList_2014 <- read_excel(here::here("raw_data", "SAT_PlotList_2014.xlsx"))
+EAST_Landholding_2014 <- read_excel(here::here("raw_data", "EAST_Landholding_2014.xlsx"))
+SAT_Landholding_2014 <- read_excel(here::here("raw_data", "SAT_Landholding_2014.xlsx"))
 ```
 
 
@@ -56,11 +56,8 @@ EAST_CultInput_2014 <- EAST_CultInput_2014 |>
 ```
 
 ```{r Harmoniser les noms des variables}
-SAT_PlotList_2014 <- SAT_PlotList_2014 |>
-  rename(VDS_ID = PL_ID)
-
 EAST_CultOutput_2014 <- EAST_CultOutput_2014 |>
-  rename(CROP_AREA = PLO_AREA)
+  rename(CROP_AREA = PLOT_AREA)
 SAT_CultOutput_2014 <- SAT_CultOutput_2014 |>
   rename(CROP_AREA = PLOT_AREA)
 
@@ -105,8 +102,10 @@ for (col in common_cols_landholding) {
 ```
 
 ```{r}
-CultInput_2014 <- bind_rows(EAST_CultInput_2014, SAT_CultInput_2014)
-CultOutput_2014 <- bind_rows(EAST_CultOutput_2014, EAST_CultOutput_2014)
+CultInput_2014 <- bind_rows(EAST_CultInput_2014, SAT_CultInput_2014) |>
+  mutate(SUR_YEAR = 2014)
+CultOutput_2014 <- bind_rows(EAST_CultOutput_2014, EAST_CultOutput_2014)|>
+  mutate(SUR_YEAR = 2014)
 PlotList_2014 <- bind_rows(EAST_PlotList_2014, SAT_PlotList_2014)
 Landholding_2014 <- bind_rows(EAST_Landholding_2014, SAT_Landholding_2014)
 ```

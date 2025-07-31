@@ -1,5 +1,5 @@
 ---
-title: "Régression (partie 1) : Analyse du travail total par acre selon la caste"
+title: "Régression : Analyse du travail total par acre selon la caste"
 format: html
 editor: source
 ---
@@ -11,7 +11,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/scripts_2014/Analyse_caste.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_2014/Regression_labor_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)
@@ -61,21 +61,6 @@ dup_plots_paddy <- Cultivation_expand |>
 ```
 
 Il y a des champs en double dans la table Cultivation_expand à cause de OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.
-
-
-CODE A REVOIR: Supprimer les doublons causés par OP
-test_cultivation_expand <- Cultivation_expand |>
-  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
-  summarise(
-    OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY), default = NA),
-    OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT), default = NA),
-    .groups = "drop"
-  ) |>
-  distinct()
-
-test_cultivation_expand |>
-  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
-  filter(n() > 1)
 
 ```{r}
 # Supprimer les doublons causés par OP

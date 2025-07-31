@@ -1,5 +1,5 @@
 ---
-title: "Partie 3 : Analyse de la production de la base Cultivation 2014"
+title: "Analyse de la production de la base Cultivation 2014"
 format: html
 editor: source
 ---
@@ -11,7 +11,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_production.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_2014/Analyse_production_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(ggplot2)
