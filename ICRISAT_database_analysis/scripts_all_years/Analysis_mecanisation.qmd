@@ -16,7 +16,7 @@ cat("\014")
 ```
 
 ```{r library, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/scripts_all_years/Analysis_mecanisation.qmd")
+here::i_am("ICRISAT_database_analysis/scripts_all_years/Analysis_mecanisation.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)

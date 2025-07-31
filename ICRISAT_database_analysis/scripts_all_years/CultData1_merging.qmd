@@ -36,7 +36,7 @@ library(here)
 ```{r params_annee}
 #| message: false
 #| warning: false
-here::i_am("ICRESAT_database_analysis/scripts_all_years/CultData1_merging.qmd")
+here::i_am("ICRISAT_database_analysis/scripts_all_years/CultData1_merging.qmd")
 
 # Récupérer l'année depuis les paramètres
 annee <- params$annee
