@@ -4,31 +4,32 @@
 .RData
 .Rproj.user
 .Ruserdata
-# Données
-raw_data/
-*.csv
-*.xlsx
-# renv (ne pas versionner la bibliothèque locale)
-renv/library/
-# Fichiers reproductibles ggplot
-**/figures/
-**/outputs_html/
-**/tables_reg/
-*.tex
-# Dossiers liés à la création des HTML
-**/*_files/
-# Bases de travail intermédiaires
-Base de données générées/
-*.rds
-*.csv
-<<<<<<< HEAD
 
-# Fichiers intermédiaires
-ICRESAT_database_analysis/
-*.rmarkdown
-
-=======
->>>>>>> main-Leny
 # Fichiers système
 .DS_Store
 Thumbs.db
+
+# Données (brutes ou générées)
+raw_data/
+Base de données générées/
+*.xlsx
+*.rds
+*.csv
+*.dta
+
+# renv (ne pas versionner la bibliothèque locale)
+renv/library/
+
+# Fichiers reproductibles
+**/figures/
+**/outputs_html/
+**/tables_reg/
+**/*.tex
+
+# Dossiers liés à la création des HTML
+**/*_files/
+
+# Fichiers intermédiaires
+**/*.rmarkdown
+
+
