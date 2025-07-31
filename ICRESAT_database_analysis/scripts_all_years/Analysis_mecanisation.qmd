@@ -1,5 +1,5 @@
 ---
-title: "Contrôle pour la méchanisation (V2) : Analyse du travail féminin familial par caste"
+title: "Contrôler pour la mécanisation : Analyse du travail par caste"
 format:
   html:
     toc: true
@@ -16,7 +16,7 @@ cat("\014")
 ```
 
 ```{r library, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_all_years/Analysis_mecanisation.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)
@@ -537,7 +537,7 @@ Je regarde pour la culture du riz en Kharif.
 Je regarde les heures de travail des boeufs selon la caste, pour toutes les opérations et pour land preparation spécifiquement, sans prendre en compte la mécanisation. 
 
 ```{r}
-bullocks_hrs <- mecanisation |>
+bullocks_hrs <- mecanisation_plot |>
   mutate(WORK_HR_B = WORK_HR_HB + WORK_HR_OB + WORK_HR_EB,
          HACRE_B = WORK_HR_B/CROP_AREA) |>
   group_by(CASTE_GROUP) |>
@@ -548,7 +548,7 @@ bullocks_hrs <- mecanisation |>
 bullocks_hrs |>
   filter(!is.na(CASTE_GROUP)) |>
   ggplot(aes(x = CASTE_GROUP, y = mean_hacre)) +
-  geom_col(position = "dodge", fill = "pink2", color = "hotpink4") +
+  geom_col(position = "dodge", fill = "pink2", color = "hotpink4", alpha = 0.7) +
   coord_flip() +
   labs(
     title = "Boeufs : Heures de travail par acre, selon la caste",
