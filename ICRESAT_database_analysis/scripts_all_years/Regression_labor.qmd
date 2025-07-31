@@ -1,5 +1,5 @@
 ---
-title: "Régression (partie 1) V2 : Analyse du travail total par acre selon la caste"
+title: "Régression : Analyse du travail total par acre selon la caste"
 format:
   html:
     toc: true
@@ -14,7 +14,7 @@ cat("\014")
 ```
 
 ```{r library, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_all_years/Regression_labor.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)

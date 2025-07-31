@@ -1,5 +1,5 @@
 ---
-title: "Fichier 2 (V3) : Création des tables"
+title: "Fichier 2 : Création des tables"
 format:
   html:
     toc: true
@@ -17,7 +17,7 @@ cat("\014")
 
 ```{r library}
 #| message: false
-here::i_am("ICRESAT_database_analysis/CultData2_cleaning.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_all_years/CultData2_cleaning.qmd")
 library(dplyr)
 library(tidyr)
 library(knitr)

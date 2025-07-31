@@ -1,5 +1,5 @@
 ---
-title: "Fichier 1 (V2) : Créer la base Cultivation"
+title: "Fichier 1 : Créer la base Cultivation"
 format:
   html:
     toc: true
@@ -36,7 +36,7 @@ library(here)
 ```{r params_annee}
 #| message: false
 #| warning: false
-here::i_am("ICRESAT_database_analysis/CultData1_merging_V2.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_all_years/CultData1_merging.qmd")
 
 # Récupérer l'année depuis les paramètres
 annee <- params$annee

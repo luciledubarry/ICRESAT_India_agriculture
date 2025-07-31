@@ -1,5 +1,5 @@
 ---
-title: "Partie 3 (V2) : Analyse par caste de la base Cultivation 2014"
+title: "Analyse par caste de la base Cultivation"
 format:
   html:
     toc: true
@@ -16,7 +16,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_all_years//Analyse_caste.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)
