@@ -1,0 +1,691 @@
+---
+title: "Fichier 2 : Création des tables"
+format:
+  html:
+    toc: true
+    theme: cosmo
+editor: source
+params:
+  annee: 2011  # par défaut
+---
+
+```{r cleaning, message=FALSE, warning=FALSE}
+rm(list = setdiff(ls(), "params"))
+graphics.off()
+cat("\014")
+```
+
+```{r library}
+#| message: false
+here::i_am("ICRESAT_database_analysis/scripts_all_years/CultData2_cleaning.qmd")
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(readxl)
+library(ggplot2)
+library(scales)
+library(stringr)    
+library(gt)
+library(here)
+```
+
+```{r import_data}
+annee <- params$annee
+cat("Année :", annee, "\n")
+
+data_to_import <- paste0("Cultivation_wide_", annee, ".rds")
+Cultivation_wide <- readRDS(here::here("Base de données générées", "Cultivation_wide", data_to_import))
+```
+
+********************************************************************************
+
+# Modifier la base
+
+## Diviser par sous-champ : pivoter en long la table Cultivation
+
+Les subplots, avec différentes cultures, sont pour certains sous-divisés en fonction de la variable PRCT. Je recalcule les variables associées au subplot suivant ce pourcentage.
+
+```{r func_numerique}
+# Convertir les variables en numérique
+convertir_num <- function(df, cols) {
+  df[cols] <- lapply(df[cols], function(x) as.numeric(as.character(x)))
+  return(df)
+}
+
+Cultivation_wide <- convertir_num(Cultivation_wide, c("PRCT_AREA_1", "PRCT_AREA_2", "PRCT_AREA_3", "PRCT_AREA_4"))
+```
+
+```{r pivot_longer}
+# Variables à faire pivoter en long
+cols_to_pivot <- paste0("^(", paste(
+  c("CROP", "PRCT_AREA", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "VAR_NAME", "VAR_TYPE"),
+  collapse = "|"
+), ")_[1-4]$")
+
+Cultivation_long <- Cultivation_wide |>
+  pivot_longer(
+    cols = matches(cols_to_pivot),
+    names_to = c(".value", "NB"),
+    names_pattern = "(.*)_(\\d)"
+  ) |>
+
+# Supprimer les lignes qui n'ont pas de sous-division
+  filter(!is.na(PRCT_AREA))
+```
+
+```{r apply_prct}
+# Variables auxquelles appliquer PRCT_AREA
+var_prct <- c(
+  "CROP_AREA", "IRRI_AREA",
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("WAGE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
+)
+
+# Appliquer PRCT_AREA aux colonnes existantes
+Cultivation_long <- Cultivation_long |>
+  mutate(across(
+    all_of(var_prct),
+    ~ ifelse(is.na(PRCT_AREA) | PRCT_AREA == 0, NA_real_, .x * PRCT_AREA / 100)
+  )) |>
+  
+  select(-NB) |>
+  relocate(CROP_AREA, .after = PLOT_AREA) |>
+  relocate(IRRI_AREA, .after = CROP_AREA) |>
+  relocate(VAR_TYPE, .before = VAR_NAME)
+```
+
+
+********************************************************************************
+
+## Expand : Créer les lignes pour les opérations non complétées
+
+On estime que si une opération n'est pas complétée pour un mois et un champ donnés, alors son temps de travail est égal à 0. Le but est de créer une base qui indique WORK_HR = 0 pour toutes les opérations pas complétées pour un mois (MONTH) et un champ donnée (VDS_ID, PLOT_CODE, SEASON)
+
+La base full_operation regroupe tous les couples existants VDS_ID / SUB_PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.
+
+J'ajoute d'autres variables qui ne servent pas à identifier le champ mais que je souhaite indiquer dans tous les lignes d'un même champ. 
+
+```{r table_expand_oper}
+plots_by_household <- Cultivation_long |>
+  distinct(
+    VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, PLOT_AREA, 
+    CROP_AREA, IRRI_AREA, VAR_TYPE, VAR_NAME, REGION, STATE, SOIL_TYPE, SOIL_TYPE_OT,
+    SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR, RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, 
+    OP_MAIN_PROD_UNIT
+    )
+
+full_operation <- expand_grid(
+  plots_by_household,
+  OPERATION = unique(Cultivation_long$OPERATION)
+)
+```
+
+Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliquées dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).
+
+```{r apply_expand_oper, message=FALSE, warning=FALSE}
+pattern_vars <- c("WORK_HR_", "WAGE_", "HACRE_", "TYPE_MAT_", "NAME_MAT_", 
+                  "UNIT_MAT_", "QTY_MAT_", "VAL_MAT_", "RATE_MAT_", "SOURCE_MAT_")
+
+# Extraire toutes les colonnes qui correspondent à l’un des motifs
+cols_expand <- names(Cultivation_long)[
+  sapply(pattern_vars, function(p) grepl(p, names(Cultivation_long))) |>
+    apply(1, any)
+]
+
+base_to_join <- Cultivation_long |>
+  select(
+    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION, DT_OPER, SUR_MON_YR, 
+    cols_expand
+  )
+
+# Jointure sans conflit de colonnes
+Cultivation_expand <- full_operation |>
+  left_join(base_to_join, by = c("VDS_ID", "SUB_PLOT_CODE", "PLOT_CODE", "SEASON", "CROP", "OPERATION"))
+```
+
+```{r convertir_num_labor}
+cols_labor <- c(
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB"))
+)
+
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    across(
+    all_of(cols_labor),
+    ~ if_else(is.na(DT_OPER), 0, .),
+    .names = "{.col}"
+    )
+  )
+
+Cultivation_expand <- convertir_num(Cultivation_expand, cols_labor)
+```
+
+********************************************************************************
+
+## Ajouter des variables
+
+### Sur le ménage
+
+*Village*
+
+```{r add_village}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(VILLAGE = str_c(str_sub(VDS_ID, 2, 2), 
+                         str_sub(VDS_ID, 3, 3), 
+                         str_sub(VDS_ID, 6, 6)))
+```
+
+
+*Culture dominante par village*
+
+Je détermine quelle est la culture la plus répandue (en Kharif) par village.
+L'objectif est d'identifier les villages dont la culture dominante en Kharif est le riz.
+
+```{r add_village_crop}
+first_crop_village <- Cultivation_expand |>
+  filter(CROP != "SEASONAL FALLOW") |>
+  distinct(VDS_ID, SUB_PLOT_CODE, VILLAGE, CROP, SEASON) |>
+  count(VILLAGE, SEASON, CROP, name = "n") |>
+  group_by(VILLAGE, SEASON) |>
+  arrange(desc(n)) |>
+  mutate(rank = row_number()) |>
+  ungroup() |>
+  filter(rank == 1) |>
+  rename(VILLAGE_CROP = CROP)
+
+# Ajouter la culture dominante par village à la base principale
+Cultivation_expand <- Cultivation_expand |>
+  left_join(first_crop_village |> select(-c(n, rank)), by = c("VILLAGE", "SEASON"))
+```
+
+
+*Ménages cultivant du riz*
+
+J'identifie les ménages ayant au moins un champ de riz par saison (peu importe la superficie). 
+
+```{r add_with_paddy}
+households_with_paddy <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) |>
+  group_by(VDS_ID, SEASON) |>
+  mutate(with_paddy = any(CROP == "PADDY")) |>
+  ungroup() |>
+  distinct(VDS_ID, SEASON, with_paddy)
+
+# Ajouter la variable à la base principale par ménage et saison
+Cultivation_expand <- Cultivation_expand |>
+  left_join(households_with_paddy, by = c("VDS_ID", "SEASON"))
+```
+
+
+*Pourcentage de la terre dédié au riz*
+
+Je définie maintenant la part de la terre du ménage (somme de tous ses champs) dédiée à la culture du riz par saison. 
+
+```{r add_prct_paddy}
+# Superficie et part de la terre dédiée au riz, par saison
+paddy_area <- Cultivation_expand |>
+  distinct(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, CROP_AREA, SEASON) |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(
+    AREA_HH = sum(CROP_AREA, na.rm = TRUE),
+    paddy_area = sum(CROP_AREA[CROP == "PADDY"], na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(paddy_prct = round(100 * paddy_area / AREA_HH, 0))
+
+# Joindre prct_paddy à la base principale
+Cultivation_expand <- Cultivation_expand |>
+  left_join(paddy_area, by = c("VDS_ID", "SEASON"))
+```
+
+
+### Sur le champ
+
+*Irrigation*
+
+```{r add_irrigation}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(PER_IRRI = round(100 * IRRI_AREA / CROP_AREA, 2),
+         PER_IRRI = if_else(PER_IRRI>100, 100, PER_IRRI),
+         IRRIGATION = case_when(
+           PER_IRRI>49 ~ "Irrigué",
+           PER_IRRI<50 ~ "Non irrigué"
+           )
+         ) |>
+  select(-PER_IRRI)
+```
+
+*Superficie au carré*
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(CROP_AREA_SQ = CROP_AREA^2,
+         PLOT_AREA_SQ = PLOT_AREA^2,
+         AREA_HH_SQ = AREA_HH^2)
+```
+
+
+### Sur l'opération
+
+*Travail total (tout type de travail confondu)*
+
+```{r add_work_t}
+cols_work_hr <- c(paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB")))
+
+Cultivation_expand[cols_work_hr] <- lapply(Cultivation_expand[cols_work_hr], function(x) ifelse(is.na(x), 0, x))
+
+Cultivation_expand <- Cultivation_expand |>
+  mutate(WORK_HR_T = rowSums(across(all_of(cols_work_hr))),
+         HACRE_T = WORK_HR_T/CROP_AREA)
+```
+
+
+*Travail féminin et masculin*
+
+```{r}
+fem_cols <- c("WORK_HR_HF", "WORK_HR_FF", "WORK_HR_EF")
+masc_cols <- c(paste0("WORK_HR_", c("HM", "FM", "OB", "HB", "EM", "EB")))
+
+# Additionner les heures par ligne en fonction du genre
+Cultivation_expand <- Cultivation_expand |>
+  mutate(
+    fem_work = rowSums(select(Cultivation_expand, all_of(fem_cols)), na.rm = TRUE),
+    masc_work = rowSums(select(Cultivation_expand, all_of(masc_cols)), na.rm = TRUE),
+    fem_work_hacre = fem_work/CROP_AREA,
+    masc_work_hacre = masc_work/CROP_AREA
+  )
+```
+
+
+*Month*
+
+```{r add_month}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(MONTH = substr(SUR_MON_YR, 1, 2)) |>
+  mutate(
+    MONTH = recode(MONTH,
+                      `01` = "janv",
+                      `02` = "feb",
+                      `03` = "march",
+                      `04` = "april",
+                      `05` = "may",
+                      `06` = "june",
+                      `07` = "july",
+                      `08` = "aug",
+                      `09` = "sept",
+                      `10` = "oct",
+                      `11` = "nov",
+                      `12` = "dec")
+  )
+```
+
+
+*Utilisation de machines*
+
+Je créé des variables binaires qui indiquent pour chaque opération si un produit/machine a été utilisé. 
+
+```{r add_mecanisation}
+use_typemat <- function(df, type_mat, nom_var) {
+  df |>
+    mutate(is_type = rowSums(across(contains("TYPE_MAT"), ~ .x == type_mat), na.rm = TRUE) > 0) |>
+    group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, OPERATION) |>
+    summarise("{nom_var}" := any(is_type), .groups = "drop") |>
+    left_join(df, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "OPERATION"))
+}
+
+Cultivation_expand <- Cultivation_expand |>
+  use_typemat("MACHINERY", "mechanized")
+```
+
+*Labour mécanisé par saison*
+
+```{r add_mechanized_tilling}
+mechanized_tilling <- Cultivation_expand |> 
+  filter(OPERATION == "LAND PREPARATION") |>
+
+# Identifier les champs mécanisant land preparation 
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON) |>
+  summarise(mechanized_tilling = any(mechanized), .groups = "drop")
+
+# Ajouter la variable à la base
+Cultivation_expand <- Cultivation_expand |>
+  left_join(mechanized_tilling, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON"))
+```
+
+
+### Utilisation de chemicals
+
+La table suivante indique au niveau de l'opération, quels produits ont été utilisés dans la saison et en quelle quantité (avec l'unité).   
+
+*Pivoter en long les catégories de matériel*
+
+```{r pivot_longer_mat}
+# Sélectionner les variables
+table_mat <- Cultivation_expand |>
+  select(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, OPERATION, contains(c("TYPE_MAT", "UNIT_MAT", "QTY_MAT")))
+
+# Pivoter la table en long : variables _MAT
+pattern_vars <- c("TYPE_MAT_", "UNIT_MAT_", "QTY_MAT_")
+
+cols_mat <- names(table_mat)[
+  sapply(pattern_vars, function(p) grepl(p, names(table_mat))) |>
+    apply(1, any)
+]
+
+table_mat <- table_mat |>
+  pivot_longer(
+    cols = matches(cols_mat),
+    names_to = c(".value", "mat_index"),
+    names_pattern = "(.*)_(\\d)"
+  )
+
+table_mat <- convertir_num(table_mat, "QTY_MAT")
+```
+
+*Harmoniser les quantités*
+
+```{r qty_mat}
+table_mat <- table_mat |>
+  filter(TYPE_MAT %in% c("WEEDICIDE", "PESTICIDE", "FERTILIZER"),
+         !is.na(UNIT_MAT), 
+         UNIT_MAT != "HR") |>
+   mutate(
+    # Convertir grammes en kg
+    QTY_MAT = if_else(UNIT_MAT %in% c("GM", "GRAM"), QTY_MAT / 1000, QTY_MAT),
+    UNIT_MAT = if_else(UNIT_MAT %in% c("GM", "GRAM"), "KG", UNIT_MAT),
+    
+    # Convertir millilitres en litres
+    QTY_MAT = if_else(UNIT_MAT == "ML", QTY_MAT / 1000, QTY_MAT),
+    UNIT_MAT = if_else(UNIT_MAT == "ML", "LT", UNIT_MAT),
+    
+    # Convertir tonnes en kg
+    QTY_MAT = if_else(UNIT_MAT == "TON", QTY_MAT * 1000, QTY_MAT),
+    UNIT_MAT = if_else(UNIT_MAT == "TON", "KG", UNIT_MAT),
+    
+    # Convertir quintaux en kg (1 QT = 100 kg) ?
+    QTY_MAT = if_else(UNIT_MAT == "QT" & TYPE_MAT == "FERTILIZER", QTY_MAT * 100, QTY_MAT),
+    UNIT_MAT = if_else(UNIT_MAT == "QT" & TYPE_MAT == "FERTILIZER", "KG", UNIT_MAT)
+  ) |>
+
+# Additionner les quantités par champ pour le même produit
+  group_by(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, OPERATION, TYPE_MAT, UNIT_MAT) |>
+  summarise(QTY_MAT = sum(QTY_MAT, na.rm = TRUE), .groups = "drop")
+```
+
+*Mettre les catégories en colonnes*
+
+```{r pivot_wider_mat}
+# Pivoter en large pour créer une colonne par produit
+table_mat <- table_mat |>
+  mutate(var_name = paste0(TYPE_MAT, "_", UNIT_MAT)) |>
+  pivot_wider(
+    names_from = var_name,
+    values_from = QTY_MAT,
+    values_fill = 0
+  ) |>
+  select(-TYPE_MAT, -UNIT_MAT) |>
+  distinct()
+```
+
+*Ajouter les colonnes sur les produits à la base principale*
+
+```{r add_cols_mat, warning=FALSE, message=FALSE}
+Cultivation_expand <- Cultivation_expand |>
+  left_join(table_mat, by = c("VDS_ID", "SUB_PLOT_CODE", "PLOT_CODE", "SEASON", "CROP", "OPERATION", "CROP_AREA")) |>
+  mutate(across(matches("FERTILIZER|WEEDICIDE|PESTICIDE"), ~ replace_na(.x, 0)))
+```
+
+
+*Weeding : hand and chemical weeding*
+
+Je crée la variable hand weeding pour identifier ayant fait du weeding sans utiliser de machine ni produit, et la variable chemical weeding pour ceux ayant utilisé du weedicide (impliquant généralement un sprayer).
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(chemical_weeding = OPERATION == "WEEDING" &
+           WORK_HR_T > 0 &
+           rowSums(across(matches("WEEDICIDE|PESTICIDE"), ~ .x > 0), na.rm = TRUE) > 0,
+
+         hand_weeding = OPERATION == "WEEDING" &
+           WORK_HR_T > 0 &
+           rowSums(across(matches("WEEDICIDE|PESTICIDE"), ~ .x > 0), na.rm = TRUE) == 0
+  )
+```
+
+*Ménages / champs faisant du hand weeding par saison*
+
+```{r}
+# Au niveau du champ : identifier ceux faisant seulement du hand weeding
+hand_weeding_plot <- Cultivation_expand |>
+  filter(OPERATION == "WEEDING") |>
+  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) |>
+  summarise(hand_weeding_plot = all(hand_weeding & (chemical_weeding == FALSE | is.na(chemical_weeding))), .groups = "drop")
+
+# Identifier les ménages qui ont au moins un champ en hand weeding
+hand_weeding_hh <- hand_weeding_plot |>
+  group_by(VDS_ID, SEASON) |>
+  summarise(hand_weeding_hh = any(hand_weeding_plot), .groups = "drop")
+
+# Ajouter la variable à la base
+Cultivation_expand <- Cultivation_expand |>
+  left_join(hand_weeding_plot, by = c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "CROP_AREA", "CROP", "SEASON", "VAR_NAME", "VAR_TYPE", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT")) |>
+  left_join(hand_weeding_hh, by = c("VDS_ID", "SEASON"))
+```
+
+
+### Modifier VDS_ID
+
+VDS_ID indique initiallement l'année (4e et 5e caractètres). Je supprime ces caractères pour pouvoir identifier un ménage chaque année.
+
+```{r}
+Cultivation_expand <- Cultivation_expand |>
+  mutate(VDS_ID = paste0(substr(VDS_ID, 1, 3), substr(VDS_ID, 6, nchar(VDS_ID))))
+```
+
+
+### Ordre des variables
+
+```{r reorder_vars}
+Cultivation_expand <- Cultivation_expand |>
+  select(
+    SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, REGION, STATE, VILLAGE, VILLAGE_CROP, everything()  
+    # place les colonnes restantes à la fin
+  )
+
+# Convertir les variables en numérique
+Cultivation_expand <- convertir_num(Cultivation_expand, c("SOIL_DEPTH", "SOIL_FERT", "SLOPE"))
+```
+
+
+********************************************************************************
+
+# Construire les bases
+
+## Au niveau des opérations
+
+J'additionne les heures de travail par opération et saison pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts.
+
+Pour ce faire, je construis la base séparement entre labor et machinery. 
+
+```{r cultivation_oper}
+cols_labor <- c(
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  "fem_work", "masc_work", "fem_work_hacre", "masc_work_hacre"
+)
+Cultivation_oper <- Cultivation_expand
+
+sum_cols_labor <- function(df, group_vars, cols_to_sum) {
+  df |>
+    group_by(across(all_of(group_vars))) |>
+    summarise(across(all_of(cols_to_sum), ~ sum(.x, na.rm = TRUE)), .groups = "drop")
+}
+
+group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
+                "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
+                "IRRIGATION", "OPERATION", "mechanized_tilling", "mechanized", "REGION",
+                "STATE", "VILLAGE", "VILLAGE_CROP", "with_paddy", "paddy_prct", 
+                "VAR_TYPE", "VAR_NAME", "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT",
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE", 
+                "hand_weeding_plot","hand_weeding_hh", "FERTILIZER_KG", "FERTILIZER_LT",
+                "PESTICIDE_KG", "PESTICIDE_LT", "WEEDICIDE_KG", "WEEDICIDE_LT", "AREA_HH_SQ", 
+                "hand_weeding", "chemical_weeding", "PLOT_AREA_SQ", "CROP_AREA_SQ")
+
+vars_existantes <- intersect(group_vars, colnames(Cultivation_oper))
+
+Cultivation_oper <- sum_cols_labor(Cultivation_oper, vars_existantes, cols_labor)
+```
+
+
+## Au niveau du champ
+
+J'additionne les heures de travail (toutes opérations confondues) et les quantités de prouits (pesticide, fertilizer, weedicide) par champ et saison. 
+
+```{r cultivation_plot}
+cols_sum_plot <- c(
+  "FERTILIZER_KG", "FERTILIZER_LT", 
+  "PESTICIDE_KG", "PESTICIDE_LT", 
+  "WEEDICIDE_KG", "WEEDICIDE_LT",
+  paste0("WORK_HR_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  paste0("HACRE_", c("HM", "FM", "FF", "HF", "HC", "OB", "RS", "EF", "HB", "EM", "FC", "EB", "T")),
+  "fem_work", "masc_work", "fem_work_hacre", "masc_work_hacre"
+)
+
+group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "CROP", "PLOT_CODE", 
+                "SUB_PLOT_CODE", "AREA_HH", "PLOT_AREA", "CROP_AREA", "IRRI_AREA",
+                "IRRIGATION", "mechanized_tilling", "REGION", "STATE", "VILLAGE", 
+                "VILLAGE_CROP", "with_paddy", "paddy_prct", "VAR_TYPE", "VAR_NAME", 
+                "OP_MAIN_PROD_QTY", "OP_MAIN_PROD_UNIT", "hand_weeding_plot", 
+                "hand_weeding_hh", "AREA_HH_SQ", "PLOT_AREA_SQ", "CROP_AREA_SQ",
+                "SOIL_TYPE", "SOIL_DEPTH", "SOIL_FERT", "SOIL_DEGR", "SLOPE")
+
+# Regrouper l'utilisation de machines (variable mechanized) au niveau du champ
+Cultivation_plot <- Cultivation_expand |>
+  group_by(across(all_of(group_vars))) |>
+  mutate(mechanized = any(mechanized), .groups = "drop")
+
+cols_existantes <- intersect(cols_sum_plot, colnames(Cultivation_plot))
+
+Cultivation_plot <- sum_cols_labor(Cultivation_plot, c(group_vars, "mechanized"), cols_existantes)
+```
+
+
+## Au niveau du ménage
+
+```{r}
+Cultivation_hh <- Cultivation_expand
+  
+group_vars <- c("VDS_ID", "CASTE_GROUP", "SEASON", "AREA_HH", "REGION", "STATE", "VILLAGE", 
+                "VILLAGE_CROP", "with_paddy", "paddy_prct", "AREA_HH_SQ", "hand_weeding_hh")
+
+Cultivation_hh <- sum_cols_labor(Cultivation_hh, group_vars, cols_existantes)
+```
+
+
+********************************************************************************
+
+# Liens extérieurs
+
+## Enregistrer la base Cultivation_expand
+
+```{r save_cultivation_expand}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "Cultivation_expand")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Ajouter l'année au nom de fichier
+fichier_base <- paste0("Cultivation_expand_", annee)
+
+# Enregistrer Cultivation_expand
+write.csv(
+  Cultivation_expand,
+  file = file.path(folder_path, paste0(fichier_base, ".csv")),
+  row.names = FALSE
+)
+saveRDS(
+  Cultivation_expand,
+  file = file.path(folder_path, paste0(fichier_base, ".rds"))
+)
+```
+
+
+## Enregistrer les bases par niveau
+
+*Cultivation_oper*
+
+```{r save_cultivation_oper}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "Cultivation_oper")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer Cultivation_oper
+name_table <- paste0("Cultivation_oper_", annee)
+write.csv(
+  Cultivation_oper,
+  file = file.path(folder_path, paste0(name_table, ".csv")),
+  row.names = FALSE
+)
+saveRDS(
+  Cultivation_oper,
+  file = file.path(folder_path, paste0(name_table, ".rds"))
+)
+```
+
+*Cultivation_plot*
+
+```{r save_cultivation_plot}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "Cultivation_plot")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer Cultivation_plot
+name_table <- paste0("Cultivation_plot_", annee)
+write.csv(
+  Cultivation_plot,
+  file = file.path(folder_path, paste0(name_table, ".csv")),
+  row.names = FALSE
+)
+saveRDS(
+  Cultivation_plot,
+  file = file.path(folder_path, paste0(name_table, ".rds"))
+)
+```
+
+*Cultivation_hh*
+
+```{r save_cultivation_hh}
+# Définir le chemin du dossier
+folder_path <- here("Base de données générées", "Cultivation_hh")
+
+# Créer le dossier s'il n'existe pas
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+}
+
+# Enregistrer Cultivation_hh
+name_table <- paste0("Cultivation_hh_", annee)
+write.csv(
+  Cultivation_hh,
+  file = file.path(folder_path, paste0(name_table, ".csv")),
+  row.names = FALSE
+)
+saveRDS(
+  Cultivation_hh,
+  file = file.path(folder_path, paste0(name_table, ".rds"))
+)
+```
+

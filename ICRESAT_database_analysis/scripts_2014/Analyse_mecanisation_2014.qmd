@@ -1,5 +1,5 @@
 ---
-title: "Contrôle pour la méchanisation : Analyse du travail féminin familial par caste"
+title: "Contrôler pour la méchanisation : Analyse du travail féminin familial par caste"
 format: html
 editor: source
 ---
@@ -11,7 +11,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+here::i_am("ICRESAT_database_analysis/Analyse_mecanisation_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)

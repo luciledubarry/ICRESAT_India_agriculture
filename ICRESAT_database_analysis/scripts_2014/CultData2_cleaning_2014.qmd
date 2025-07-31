@@ -12,7 +12,7 @@ cat("\014")
 
 ```{r}
 #| message: false
-here::i_am("ICRESAT_database_analysis/CultData2_cleaning.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_2014/CultData2_cleaning_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(knitr)
@@ -730,8 +730,8 @@ Cultivation_expand <- full_operation |>
 J'importe les tables Household_info des deux régions (EAST et SAT) pour l'année 2014, pour intégrer la variable CASTE à chaque ménage. 
 
 ```{r, message=FALSE, warning=FALSE}
-EAST_Household_info <- read_excel(here::here("raw_data", "EAST_Household_info_2014.xlsx"))
-SAT_Household_info <- read_excel(here::here("raw_data", "SAT_Household_info_2014.xlsx"))
+EAST_Household_info <- read_excel(here::here("raw_data", "EAST_Household_2014.xlsx"))
+SAT_Household_info <- read_excel(here::here("raw_data", "SAT_Household_2014.xlsx"))
 ```
 
 ```{r}
@@ -740,8 +740,7 @@ EAST_Household_info <- EAST_Household_info |>
   select(VDS_ID, CASTE, CASTE_GROUP)
 
 SAT_Household_info <- SAT_Household_info |>
-  select(VDS_ID, CASTE, CASTE_CATEGORY) |>
-  rename(CASTE_GROUP = CASTE_CATEGORY)
+  select(VDS_ID, CASTE, CASTE_GROUP)
 
 # Joindre les deux régions
 Household_info <- bind_rows(EAST_Household_info, SAT_Household_info)
@@ -1171,8 +1170,6 @@ test_cultivation_expand <- Cultivation_expand |>
 
 ## Liens extérieurs
 
-### Enregistrer Cultivation_cult_distinctes dans le document partagé
-
 ```{r}
 # Test final des doublons avant d'enregistrer
 dup_plots <- Cultivation_expand |>
@@ -1196,29 +1193,6 @@ dup_plots_paddy <- Cultivation_expand |>
   ungroup()
 ```
 
-
-```{r}
-# Définir le chemin du dossier
-folder_path <- here("Base de données générées", "Cultivation_cult_distinctes")
-
-# Créer le dossier s'il n'existe pas
-if (!dir.exists(folder_path)) {
-  dir.create(folder_path, recursive = TRUE)
-}
-
-# Enregistrer le fichier CSV
-write.csv(
-  Cultivation_cult_distinctes,
-  file = file.path(folder_path, "Cultivation_cult_distinctes.csv"),
-  row.names = FALSE
-)
-
-# Enregistrer le fichier RDS
-saveRDS(
-  Cultivation_cult_distinctes,
-  file = file.path(folder_path, "Cultivation_cult_distinctes.rds"),
-)
-```
 
 ### Enregistrer Cultivation_expand dans le document partagé
 

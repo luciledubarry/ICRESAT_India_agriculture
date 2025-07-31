@@ -1,5 +1,5 @@
 ---
-title: "Fichier 3 : Analyse par genre de la base Cultivation 2014"
+title: "Analyse par genre de la base Cultivation 2014"
 format: html
 editor: source
 ---
@@ -11,7 +11,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_gender.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_2014/Analyse_gender_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -101,16 +101,6 @@ hired_work_all <- Cultivation_expand |>
   group_by(GENDER, EMPLOYMENT) |>
   summarise(TOTAL_HR = sum(WORK_HR, na.rm = TRUE), .groups = "drop") 
 ```
-
-#### En nombre de ménages
-
-Quelle est la proportion de ménages qui embauchent du travail employé, féminin et/ou masculin ? 
-
-
-proportion_hh <- hired_work_all |>
-
-
-
 
 #### Sur toute l'année
 
@@ -792,21 +782,5 @@ histogram_female_work_hr
 ```{r}
 ggsave("figures/Histogram_female_work_hr.png", plot = histogram_female_work_hr, width = 8, height = 6, dpi = 300)
 ```
-
-
-********************************************************************************
-
-### Salaire horaire par genre et type d'emploi
-
-On regarde le salaire horaire par type d'emploi (familial ou salarié) et par genre. 
-Le but est de notamment regarder si le travail féminin familial est effectivement moins coûteux que le travail féminin employé. 
-
-
-AJOUTER LA VARIABLE WAGE! à Cultivation_cult_distinctes
-
-Calcul du salaire horaire
-wage_gender <- Cultivation_expand |>
-  mutate(WAGE_PER_HR = WAGE / WORK_HR)
-wage_gender$WAGE_PER_HR <- round(wage_gender$WAGE_PER_HR, 2) 
 
 

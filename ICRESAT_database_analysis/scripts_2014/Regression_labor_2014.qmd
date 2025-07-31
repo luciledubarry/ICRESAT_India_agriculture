@@ -1,5 +1,5 @@
 ---
-title: "Régression (partie 1) : Analyse du travail total par acre selon la caste"
+title: "Régression : Analyse du travail total par acre selon la caste"
 format: html
 editor: source
 ---
@@ -11,7 +11,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/Analyse_caste.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_2014/Regression_labor_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)
@@ -61,21 +61,6 @@ dup_plots_paddy <- Cultivation_expand |>
 ```
 
 Il y a des champs en double dans la table Cultivation_expand à cause de OP_MAIN_PROD_QTY et OP_MAIN_PROD_UNIT. Une fois ces variables enlevées, il faut distinct la table.
-
-
-CODE A REVOIR: Supprimer les doublons causés par OP
-test_cultivation_expand <- Cultivation_expand |>
-  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
-  summarise(
-    OP_MAIN_PROD_QTY = first(na.omit(OP_MAIN_PROD_QTY), default = NA),
-    OP_MAIN_PROD_UNIT = first(na.omit(OP_MAIN_PROD_UNIT), default = NA),
-    .groups = "drop"
-  ) |>
-  distinct()
-
-test_cultivation_expand |>
-  group_by(across(-c(OP_MAIN_PROD_UNIT, OP_MAIN_PROD_QTY))) |>
-  filter(n() > 1)
 
 ```{r}
 # Supprimer les doublons causés par OP
@@ -143,33 +128,16 @@ Cultivation_expand <- Cultivation_expand |>
 J'additionne les heures de travail par opération et par type de travail pour un même champ, pour n'avoir qu'une seule ligne par champ pour chaque opération et type de travail distincts. 
 
 ```{r}
-test_dups <- Cultivation_expand |>
-  select(-c(NAME_MAT, TYPE_MAT)) |>
-  distinct()
-  
-any(duplicated(test_dups[, c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "SEASON", "CROP", "OPERATION", "LAB_TYPE", "WORK_HR", "DT_OPER", "MONTH", "SUR_MON_YR")]))
+any(duplicated(Cultivation_expand[, c("VDS_ID", "PLOT_CODE", "SUB_PLOT_CODE", "AREA_CROP", "SEASON", "CROP", "OPERATION", "LAB_TYPE", "WORK_HR", "DT_OPER", "MONTH", "SUR_MON_YR")]))
 
 # Vérifier les doublons avant le calcul de WORK_HR
-dup_Cultivation_expand <- test_dups |>
+dup_Cultivation_expand <- Cultivation_expand |>
   distinct() |>
   mutate(DT_OPER = ifelse(is.na(DT_OPER), "Missing", DT_OPER)) |>
   group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, AREA_CROP, CROP, SEASON, LAB_TYPE, OPERATION, WORK_HR, DT_OPER) |>
   filter(n() > 1) |>
   ungroup()
 ```
-
-ATTENTION : Il y a des doublons dans Cultivation_expand à cause de NAME_MAT, TYPE_MAT et peut_etre VAR_TYPE 
-
-
-```{r}
-Cultivation_test <- Cultivation_expand |>
-  mutate(LAB_TYPE = ifelse(is.na(LAB_TYPE), "Missing", LAB_TYPE)) |>
-  # Modifier LAB_TYPE permet de conserver dans le group_by suivant les lignes LAB_TYPE = n/a donc de conserver les opérations pour lesquelles WORK_HR = 0
-  filter(LAB_TYPE != "6") |>
-  group_by(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, LAB_TYPE, OPERATION, .keep = "all") |>
-  summarise(WORK_HR = sum(WORK_HR), .groups = "drop")
-```
-
 
 ********************************************************************************
 
@@ -245,11 +213,9 @@ Je définie les catégories de référence pour STATE et VILLAGE.
 ```{r}
 # State
 Cultivation_expand$STATE <- factor(Cultivation_expand$STATE)
-Cultivation_expand$STATE <- relevel(Cultivation_expand$STATE, ref = "AP")
 
 # Village
 Cultivation_expand$VILLAGE <- factor(Cultivation_expand$VILLAGE)
-Cultivation_expand$VILLAGE <- relevel(Cultivation_expand$VILLAGE, ref = "AP14C")
 
 # Caste
 Cultivation_expand$CASTE_GROUP <- factor(Cultivation_expand$CASTE_GROUP)
