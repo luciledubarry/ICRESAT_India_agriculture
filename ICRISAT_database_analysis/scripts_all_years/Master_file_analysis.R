@@ -8,11 +8,11 @@ rm(list = ls())
 graphics.off()
 cat("\014")
 
-here::i_am("ICRESAT_database_analysis/scripts_all_years/Master_file_analysis.R")
+here::i_am("ICRISAT_database_analysis/scripts_all_years/Master_file_analysis.R")
 
 
 # Sous-dossier pour les sorties html
-output_dir <- here("ICRESAT_database_analysis/scripts_all_years", "outputs_html")
+output_dir <- here("ICRISAT_database_analysis/scripts_all_years", "outputs_html")
 
 
 # Lancer les fichiers d'analyse

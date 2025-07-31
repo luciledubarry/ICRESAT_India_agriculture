@@ -12,7 +12,7 @@ cat("\014")
 
 ```{r}
 #| message: false
-here::i_am("ICRESAT_database_analysis/scripts_2014/CultData2_cleaning_2014.qmd")
+here::i_am("ICRISAT_database_analysis/scripts_2014/CultData2_cleaning_2014.qmd")
 library(dplyr)
 library(tidyr)
 library(knitr)

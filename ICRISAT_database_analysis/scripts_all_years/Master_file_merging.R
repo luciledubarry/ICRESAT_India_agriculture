@@ -8,7 +8,7 @@ rm(list = ls())
 graphics.off()
 cat("\014")
 
-here::i_am("ICRESAT_database_analysis/scripts_all_years/Master_file_merging.R")
+here::i_am("ICRISAT_database_analysis/scripts_all_years/Master_file_merging.R")
 
 
 # Sélectionner les années
@@ -16,7 +16,7 @@ annees <- 2011:2014
 
 
 # Sous-dossier pour les sorties html
-output_dir <- here("ICRESAT_database_analysis/scripts_all_years", "outputs_html")
+output_dir <- here("ICRISAT_database_analysis/scripts_all_years", "outputs_html")
 
 
 # Lancer les fichiers CultData1 et CultData2 pour chaque année

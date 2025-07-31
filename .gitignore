@@ -4,23 +4,22 @@
 .RData
 .Rproj.user
 .Ruserdata
-
 # Données
 raw_data/
 *.csv
 *.xlsx
-
 # renv (ne pas versionner la bibliothèque locale)
 renv/library/
-
-# Figures reproductibles ggplot
-figures/
-
-# Ignorer les bases de travail intermédiaires
+# Fichiers reproductibles ggplot
+**/figures/
+**/outputs_hmtl/
+**/tables_reg/
+# Dossiers liés à la création des HTML
+**/*_files/
+# Bases de travail intermédiaires
 Base de données générées/
 *.rds
 *.csv
-
 # Fichiers système
 .DS_Store
 Thumbs.db
