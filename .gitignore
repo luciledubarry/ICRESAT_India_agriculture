@@ -12,8 +12,9 @@ raw_data/
 renv/library/
 # Fichiers reproductibles ggplot
 **/figures/
-**/outputs_hmtl/
+**/outputs_html/
 **/tables_reg/
+*.tex
 # Dossiers liés à la création des HTML
 **/*_files/
 # Bases de travail intermédiaires
