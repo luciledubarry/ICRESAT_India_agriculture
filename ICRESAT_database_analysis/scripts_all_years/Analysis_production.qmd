@@ -16,7 +16,7 @@ cat("\014")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-here::i_am("ICRESAT_database_analysis/scripts_all_years/Analyse_production.qmd")
+here::i_am("ICRESAT_database_analysis/scripts_all_years/Analysis_production.qmd")
 library(dplyr)
 library(tidyr)
 library(readxl)
@@ -26,6 +26,7 @@ library(knitr)
 library(tibble)
 library(tidyverse)
 library(gt)
+library(viridis)
 ```
 
 ```{r import_data}
@@ -855,7 +856,7 @@ ggsave("figures/prct_labor_time.png", plot = plot_prct_labor_time, width = 8, he
 ```
 
 
-```{r, message = False}
+```{r, message=FALSE}
 # Créer sa propre palette de couleurs
 couleurs1 <- viridis(15, option = "C")[2:15]
 ```
@@ -922,87 +923,6 @@ mean_hacre_season |>
 A refaire 
 ********************************************************************************
 
-# ? Comprendre les différences dans Hr/acre moyen par culture
-
-Je souhaite comprendre les différences en productivité par acre observées entre les cultures. 
-
-Pour cela, je compare les cultures les moins productives et les plus productives par rapport à d'autres variables : répartition du temps de travail par opération (OPERATION), total de travail total (WORK_HR), taille moyenne des champs (PLOT_AREA).
-
-
-## ? Comparer les cultures plus ou moins productives
-
-Je regarde comment se décompose la répartition des opérations dans le temps de travail entre les cultures les plus productives (faible Hr/acre) et les moins productives (haut Hr/acre). 
-
-Le but est de comprendre pourquoi de telles disparités existent selon les cultures. Est-ce que ces différences de productivité sont dûes à des opérations sur-représentées ?
-
-```{r}
-CROPS_ORDER <- c("CHILLIES", "PEAS", "POTATO", "SESAMUM", "PIGEONPEA",  "SOYBEAN")
-
-prct_oper |>
-  filter(proportion > 1) |>
-  filter(CROP %in% CROPS_ORDER) |>
-  ggplot(aes(x = factor(CROP, levels = CROPS_ORDER), y = HR_PER_OPER, fill = reorder(OPERATION, proportion))) +
-  geom_bar(stat = "identity", position = "fill", width = 0.8, color = "white", linewidth = 0.3) +
-  geom_vline(xintercept = 3.5, linetype = "dashed", color = "gray20") +
-  scale_y_continuous(labels = scales::percent) +
-  scale_x_discrete(limits = CROPS_ORDER) +
-  labs(
-    title = "Comparaison: Répartition du temps de travail par opération (en %)",
-    x = "",
-    y = "",
-    fill = ""
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-    legend.text = element_text(size = 8) 
-    ) +
-  annotate("text", x = 2, y = 1.06, label = "Moins productives", hjust = 0.5, size = 3.5, fontface = "bold") +
-  annotate("text", x = 5, y = 1.06, label = "Plus productives", hjust = 0.5, size = 3.5, fontface = "bold") 
-```
-
-
-Visiblement les différences de Hr/acre ne sont pas liées à des opérations particulièrement présentes dans les cultures les moins productives. Il ne semble pas avoir de lien entre la proportion de chaque opération et le Hr/acre moyen. 
-
-```{r}
-# Comparer la part de chaque opération pour les cultures les plus et les moins productives
-prct_oper |>
-  filter(CROP %in% CROPS_ORDER, proportion > 1) |>
-  mutate(PRODUCTIVITY_GROUP = case_when(
-    CROP %in% c("CHILLIES", "PEAS", "POTATO") ~ "Moins productives",
-    CROP %in% c("SESAMUM", "PIGEONPEA", "SOYBEAN") ~ "Plus productives"
-  )) |>
-  group_by(PRODUCTIVITY_GROUP, OPERATION) |>
-  summarise(mean_prop = mean(proportion, na.rm = TRUE), .groups = "drop") |>
-  mutate(mean_prop = round(mean_prop, 0)) |>
-  pivot_wider(names_from = PRODUCTIVITY_GROUP, values_from = mean_prop)
-```
-
-
-## ? Comparer la taille moyenne des parcelles par culture
-
-On regarde si les différences de Hr/acre moyen observées entre les cultures sont à la taille des parcelles. Est-ce que les cultures les moins productives (moyenne de Hr/acre plus haute) sont celles avec les plus petites parcelles
-
-par culture, notamment pour CHILLIES
-
-```{r}
-area_per_crop <- Cultivation_top_25 |>
-  group_by(VDS_ID, PLOT_CODE, SEASON, CROP) |>
-  slice(1) |>  # Une seule ligne par champ
-  ungroup() |>
-  group_by(CROP) |>
-  summarise(mean_area = mean(AREA_CROP, na.rm = TRUE))
-
-area_per_crop |>
-  filter(CROP %in% c("CHILLIES", "CHRYSANTHEMUM", "CLUSTER BEAN", "PADDY", "SESAMUM", "LATHYRUS", "PIGEONPEA")) |>
-  mutate(mean_area = round(mean_area, 2)) |>
-  knitr::kable(
-    caption = "Taille moyenne des parcelles pour les cultures les plus/moins productives",
-    col.names = c("Culture", "Superficie moyenne (acres)")
-  )
-```
-
-La taille de la parcelle ne semble pas expliquer les différence dans la moyenne de  Hr/acre, puisque CHILLIES (la culture de loin la moins productive) a une superficie moyenne proche de SESAMUM (l'une des plus productives). 
 
 
 *********************************************************************************
