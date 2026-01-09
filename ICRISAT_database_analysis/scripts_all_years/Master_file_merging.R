@@ -8,6 +8,7 @@ rm(list = ls())
 graphics.off()
 cat("\014")
 
+# Déclare le fichier "ancre" pour here()
 here::i_am("ICRISAT_database_analysis/scripts_all_years/Master_file_merging.R")
 
 
@@ -16,32 +17,48 @@ annees <- 2011:2014
 
 
 # Sous-dossier pour les sorties html
-output_dir <- here("ICRISAT_database_analysis/scripts_all_years", "outputs_html")
+output_dir <- here("ICRISAT_database_analysis", "scripts_all_years", "outputs_html")
+fs::dir_create(output_dir)
 
+# Chemins des .qmd (orthographe corrigée : ICRISAT)
+qmd1 <- here("ICRISAT_database_analysis", "scripts_all_years", "CultData1_merging.qmd")
+qmd2 <- here("ICRISAT_database_analysis", "scripts_all_years", "CultData2_cleaning.qmd")
+
+# Vérifications rapides
+stopifnot(fs::file_exists(qmd1), fs::file_exists(qmd2))
 
 # Lancer les fichiers CultData1 et CultData2 pour chaque année
 for (annee in annees) {
-  cat("Traitement de l'année", annee, "\n")
+  cat("\n=== Traitement de l'année", annee, "===\n")
   
   # CultData1
   output_file1 <- paste0("CultData1_merging_", annee, ".html")
+  tryCatch({
   quarto::quarto_render(
-    input = here::here("ICRESAT_database_analysis/scripts_all_years", "CultData1_merging.qmd"),
+    input = qmd1,
     execute_params = list(annee = annee),
-    output_file = output_file1
+    output_file = output_file1,
+    quiet = FALSE
   )
-  file_move(output_file1, path(output_dir, output_file1))
+  cat("OK ->", fs::path(output_dir, output_file1), "\n")
+}, error = function(e) {
+  cat("ERREUR CultData1 (", annee, "): ", conditionMessage(e), "\n", sep = "")
+})
   
-  # CultData2
-  output_file2 <- paste0("CultData2_cleaning_", annee, ".html")
+# CultData2
+output_file2 <- paste0("CultData2_cleaning_", annee, ".html")
+tryCatch({
   quarto::quarto_render(
-    input = here::here("ICRESAT_database_analysis/scripts_all_years", "CultData2_cleaning.qmd"),
+    input         = qmd2,
     execute_params = list(annee = annee),
-    output_file = output_file2
+    output_file   = output_file2,
+    quiet         = FALSE
   )
-  file_move(output_file2, path(output_dir, output_file2))
+  cat("OK ->", fs::path(output_dir, output_file2), "\n")
+}, error = function(e) {
+  cat("ERREUR CultData2 (", annee, "): ", conditionMessage(e), "\n", sep = "")
+})
 }
-
 
 # Fonction pour joindre les années et enregistrer
 merge_save_files <- function(name_file) {

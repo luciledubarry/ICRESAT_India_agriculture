@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.353">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Fichier 2 : Création des tables</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="CultData2_cleaning_files/libs/clipboard/clipboard.min.js"></script>
+<script src="CultData2_cleaning_files/libs/quarto-html/quarto.js"></script>
+<script src="CultData2_cleaning_files/libs/quarto-html/popper.min.js"></script>
+<script src="CultData2_cleaning_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="CultData2_cleaning_files/libs/quarto-html/anchor.min.js"></script>
+<link href="CultData2_cleaning_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="CultData2_cleaning_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="CultData2_cleaning_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="CultData2_cleaning_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="CultData2_cleaning_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#modifier-la-base" id="toc-modifier-la-base" class="nav-link active" data-scroll-target="#modifier-la-base">Modifier la base</a>
+  <ul class="collapse">
+  <li><a href="#diviser-par-sous-champ-pivoter-en-long-la-table-cultivation" id="toc-diviser-par-sous-champ-pivoter-en-long-la-table-cultivation" class="nav-link" data-scroll-target="#diviser-par-sous-champ-pivoter-en-long-la-table-cultivation">Diviser par sous-champ : pivoter en long la table Cultivation</a></li>
+  <li><a href="#expand-créer-les-lignes-pour-les-opérations-non-complétées" id="toc-expand-créer-les-lignes-pour-les-opérations-non-complétées" class="nav-link" data-scroll-target="#expand-créer-les-lignes-pour-les-opérations-non-complétées">Expand : Créer les lignes pour les opérations non complétées</a></li>
+  <li><a href="#ajouter-des-variables" id="toc-ajouter-des-variables" class="nav-link" data-scroll-target="#ajouter-des-variables">Ajouter des variables</a>
+  <ul class="collapse">
+  <li><a href="#sur-le-ménage" id="toc-sur-le-ménage" class="nav-link" data-scroll-target="#sur-le-ménage">Sur le ménage</a></li>
+  <li><a href="#sur-le-champ" id="toc-sur-le-champ" class="nav-link" data-scroll-target="#sur-le-champ">Sur le champ</a></li>
+  <li><a href="#sur-lopération" id="toc-sur-lopération" class="nav-link" data-scroll-target="#sur-lopération">Sur l’opération</a></li>
+  <li><a href="#utilisation-de-chemicals" id="toc-utilisation-de-chemicals" class="nav-link" data-scroll-target="#utilisation-de-chemicals">Utilisation de chemicals</a></li>
+  <li><a href="#modifier-vds_id" id="toc-modifier-vds_id" class="nav-link" data-scroll-target="#modifier-vds_id">Modifier VDS_ID</a></li>
+  <li><a href="#ordre-des-variables" id="toc-ordre-des-variables" class="nav-link" data-scroll-target="#ordre-des-variables">Ordre des variables</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#construire-les-bases" id="toc-construire-les-bases" class="nav-link" data-scroll-target="#construire-les-bases">Construire les bases</a>
+  <ul class="collapse">
+  <li><a href="#au-niveau-des-opérations" id="toc-au-niveau-des-opérations" class="nav-link" data-scroll-target="#au-niveau-des-opérations">Au niveau des opérations</a></li>
+  <li><a href="#au-niveau-du-champ" id="toc-au-niveau-du-champ" class="nav-link" data-scroll-target="#au-niveau-du-champ">Au niveau du champ</a></li>
+  <li><a href="#au-niveau-du-ménage" id="toc-au-niveau-du-ménage" class="nav-link" data-scroll-target="#au-niveau-du-ménage">Au niveau du ménage</a></li>
+  </ul></li>
+  <li><a href="#liens-extérieurs" id="toc-liens-extérieurs" class="nav-link" data-scroll-target="#liens-extérieurs">Liens extérieurs</a>
+  <ul class="collapse">
+  <li><a href="#enregistrer-la-base-cultivation_expand" id="toc-enregistrer-la-base-cultivation_expand" class="nav-link" data-scroll-target="#enregistrer-la-base-cultivation_expand">Enregistrer la base Cultivation_expand</a></li>
+  <li><a href="#enregistrer-les-bases-par-niveau" id="toc-enregistrer-les-bases-par-niveau" class="nav-link" data-scroll-target="#enregistrer-les-bases-par-niveau">Enregistrer les bases par niveau</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Fichier 2 : Création des tables</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span>(<span class="at">list =</span> <span class="fu">setdiff</span>(<span class="fu">ls</span>(), <span class="st">"params"</span>))</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">graphics.off</span>()</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\014</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div style="page-break-after: always;"></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>here<span class="sc">::</span><span class="fu">i_am</span>(<span class="st">"ICRISAT_database_analysis/scripts_all_years/CultData2_cleaning.qmd"</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(knitr)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readxl)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(scales)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(stringr)    </span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(gt)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(here)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>annee <span class="ot">&lt;-</span> params<span class="sc">$</span>annee</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Année :"</span>, annee, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Année : 2012 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>data_to_import <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"Cultivation_wide_"</span>, annee, <span class="st">".rds"</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>Cultivation_wide <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"Base de données générées"</span>, <span class="st">"Cultivation_wide"</span>, data_to_import))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+<section id="modifier-la-base" class="level1">
+<h1>Modifier la base</h1>
+<section id="diviser-par-sous-champ-pivoter-en-long-la-table-cultivation" class="level2">
+<h2 class="anchored" data-anchor-id="diviser-par-sous-champ-pivoter-en-long-la-table-cultivation">Diviser par sous-champ : pivoter en long la table Cultivation</h2>
+<p>Les subplots, avec différentes cultures, sont pour certains sous-divisés en fonction de la variable PRCT. Je recalcule les variables associées au subplot suivant ce pourcentage.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convertir les variables en numérique</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>convertir_num <span class="ot">&lt;-</span> <span class="cf">function</span>(df, cols) {</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  df[cols] <span class="ot">&lt;-</span> <span class="fu">lapply</span>(df[cols], <span class="cf">function</span>(x) <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(x)))</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(df)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>Cultivation_wide <span class="ot">&lt;-</span> <span class="fu">convertir_num</span>(Cultivation_wide, <span class="fu">c</span>(<span class="st">"PRCT_AREA_1"</span>, <span class="st">"PRCT_AREA_2"</span>, <span class="st">"PRCT_AREA_3"</span>, <span class="st">"PRCT_AREA_4"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Variables à faire pivoter en long</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>cols_to_pivot <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"^("</span>, <span class="fu">paste</span>(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(<span class="st">"CROP"</span>, <span class="st">"PRCT_AREA"</span>, <span class="st">"OP_MAIN_PROD_QTY"</span>, <span class="st">"OP_MAIN_PROD_UNIT"</span>, <span class="st">"VAR_NAME"</span>, <span class="st">"VAR_TYPE"</span>),</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">collapse =</span> <span class="st">"|"</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>), <span class="st">")_[1-4]$"</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>Cultivation_long <span class="ot">&lt;-</span> Cultivation_wide <span class="sc">|&gt;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">cols =</span> <span class="fu">matches</span>(cols_to_pivot),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_to =</span> <span class="fu">c</span>(<span class="st">".value"</span>, <span class="st">"NB"</span>),</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_pattern =</span> <span class="st">"(.*)_(</span><span class="sc">\\</span><span class="st">d)"</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Supprimer les lignes qui n'ont pas de sous-division</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(PRCT_AREA))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Variables auxquelles appliquer PRCT_AREA</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>var_prct <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"CROP_AREA"</span>, <span class="st">"IRRI_AREA"</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"WORK_HR_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>)),</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"WAGE_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>)),</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"HACRE_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>))</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Appliquer PRCT_AREA aux colonnes existantes</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>Cultivation_long <span class="ot">&lt;-</span> Cultivation_long <span class="sc">|&gt;</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">all_of</span>(var_prct),</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="sc">~</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(PRCT_AREA) <span class="sc">|</span> PRCT_AREA <span class="sc">==</span> <span class="dv">0</span>, <span class="cn">NA_real_</span>, .x <span class="sc">*</span> PRCT_AREA <span class="sc">/</span> <span class="dv">100</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  )) <span class="sc">|&gt;</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>NB) <span class="sc">|&gt;</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(CROP_AREA, <span class="at">.after =</span> PLOT_AREA) <span class="sc">|&gt;</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(IRRI_AREA, <span class="at">.after =</span> CROP_AREA) <span class="sc">|&gt;</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">relocate</span>(VAR_TYPE, <span class="at">.before =</span> VAR_NAME)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+<section id="expand-créer-les-lignes-pour-les-opérations-non-complétées" class="level2">
+<h2 class="anchored" data-anchor-id="expand-créer-les-lignes-pour-les-opérations-non-complétées">Expand : Créer les lignes pour les opérations non complétées</h2>
+<p>On estime que si une opération n’est pas complétée pour un mois et un champ donnés, alors son temps de travail est égal à 0. Le but est de créer une base qui indique WORK_HR = 0 pour toutes les opérations pas complétées pour un mois (MONTH) et un champ donnée (VDS_ID, PLOT_CODE, SEASON)</p>
+<p>La base full_operation regroupe tous les couples existants VDS_ID / SUB_PLOT_CODE / CROP / SEASON (pour identifier de façon unique un champ) en ajoutant les combinaisons possibles de OPERATION.</p>
+<p>J’ajoute d’autres variables qui ne servent pas à identifier le champ mais que je souhaite indiquer dans tous les lignes d’un même champ.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>plots_by_household <span class="ot">&lt;-</span> Cultivation_long <span class="sc">|&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, PLOT_AREA, </span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    CROP_AREA, IRRI_AREA, VAR_TYPE, VAR_NAME, REGION, STATE, SOIL_TYPE, SOIL_TYPE_OT,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    SOIL_DEPTH, SOIL_FERT, SLOPE, SOIL_DEGR, RENT_FOR, OW_STAT, OP_MAIN_PROD_QTY, </span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    OP_MAIN_PROD_UNIT</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>full_operation <span class="ot">&lt;-</span> <span class="fu">expand_grid</span>(</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  plots_by_household,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">OPERATION =</span> <span class="fu">unique</span>(Cultivation_long<span class="sc">$</span>OPERATION)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Avec le code suivant, les doublons sont bien conservés puisque toutes les lignes sont repliquées dans le cas de doublons avec le couple (VDS_ID, PLOT_CODE, CROP, SEASON, OPERATION).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pattern_vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"WORK_HR_"</span>, <span class="st">"WAGE_"</span>, <span class="st">"HACRE_"</span>, <span class="st">"TYPE_MAT_"</span>, <span class="st">"NAME_MAT_"</span>, </span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>                  <span class="st">"UNIT_MAT_"</span>, <span class="st">"QTY_MAT_"</span>, <span class="st">"VAL_MAT_"</span>, <span class="st">"RATE_MAT_"</span>, <span class="st">"SOURCE_MAT_"</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Extraire toutes les colonnes qui correspondent à l’un des motifs</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>cols_expand <span class="ot">&lt;-</span> <span class="fu">names</span>(Cultivation_long)[</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sapply</span>(pattern_vars, <span class="cf">function</span>(p) <span class="fu">grepl</span>(p, <span class="fu">names</span>(Cultivation_long))) <span class="sc">|&gt;</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">apply</span>(<span class="dv">1</span>, any)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>base_to_join <span class="ot">&lt;-</span> Cultivation_long <span class="sc">|&gt;</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    VDS_ID, PLOT_CODE, SUB_PLOT_CODE, SEASON, CROP, OPERATION, DT_OPER, SUR_MON_YR, </span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    cols_expand</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Jointure sans conflit de colonnes</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> full_operation <span class="sc">|&gt;</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(base_to_join, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"PLOT_CODE"</span>, <span class="st">"SEASON"</span>, <span class="st">"CROP"</span>, <span class="st">"OPERATION"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>cols_labor <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"WORK_HR_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>)),</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"HACRE_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>))</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">across</span>(</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">all_of</span>(cols_labor),</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="sc">~</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(DT_OPER), <span class="dv">0</span>, .),</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">.names =</span> <span class="st">"{.col}"</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> <span class="fu">convertir_num</span>(Cultivation_expand, cols_labor)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+<section id="ajouter-des-variables" class="level2">
+<h2 class="anchored" data-anchor-id="ajouter-des-variables">Ajouter des variables</h2>
+<section id="sur-le-ménage" class="level3">
+<h3 class="anchored" data-anchor-id="sur-le-ménage">Sur le ménage</h3>
+<p><em>Village</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">VILLAGE =</span> <span class="fu">str_c</span>(<span class="fu">str_sub</span>(VDS_ID, <span class="dv">2</span>, <span class="dv">2</span>), </span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>                         <span class="fu">str_sub</span>(VDS_ID, <span class="dv">3</span>, <span class="dv">3</span>), </span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>                         <span class="fu">str_sub</span>(VDS_ID, <span class="dv">6</span>, <span class="dv">6</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Culture dominante par village</em></p>
+<p>Je détermine quelle est la culture la plus répandue (en Kharif) par village. L’objectif est d’identifier les villages dont la culture dominante en Kharif est le riz.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>first_crop_village <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(CROP <span class="sc">!=</span> <span class="st">"SEASONAL FALLOW"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(VDS_ID, SUB_PLOT_CODE, VILLAGE, CROP, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(VILLAGE, SEASON, CROP, <span class="at">name =</span> <span class="st">"n"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VILLAGE, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(n)) <span class="sc">|&gt;</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">rank =</span> <span class="fu">row_number</span>()) <span class="sc">|&gt;</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">|&gt;</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(rank <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">|&gt;</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">VILLAGE_CROP =</span> CROP)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Ajouter la culture dominante par village à la base principale</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(first_crop_village <span class="sc">|&gt;</span> <span class="fu">select</span>(<span class="sc">-</span><span class="fu">c</span>(n, rank)), <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VILLAGE"</span>, <span class="st">"SEASON"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Ménages cultivant du riz</em></p>
+<p>J’identifie les ménages ayant au moins un champ de riz par saison (peu importe la superficie).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>households_with_paddy <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VDS_ID, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">with_paddy =</span> <span class="fu">any</span>(CROP <span class="sc">==</span> <span class="st">"PADDY"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">|&gt;</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(VDS_ID, SEASON, with_paddy)</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Ajouter la variable à la base principale par ménage et saison</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(households_with_paddy, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"SEASON"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Pourcentage de la terre dédié au riz</em></p>
+<p>Je définie maintenant la part de la terre du ménage (somme de tous ses champs) dédiée à la culture du riz par saison.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Superficie et part de la terre dédiée au riz, par saison</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>paddy_area <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP, CROP_AREA, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VDS_ID, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">AREA_HH =</span> <span class="fu">sum</span>(CROP_AREA, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">paddy_area =</span> <span class="fu">sum</span>(CROP_AREA[CROP <span class="sc">==</span> <span class="st">"PADDY"</span>], <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">"drop"</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">paddy_prct =</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> paddy_area <span class="sc">/</span> AREA_HH, <span class="dv">0</span>))</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Joindre prct_paddy à la base principale</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(paddy_area, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"SEASON"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="sur-le-champ" class="level3">
+<h3 class="anchored" data-anchor-id="sur-le-champ">Sur le champ</h3>
+<p><em>Irrigation</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">PER_IRRI =</span> <span class="fu">round</span>(<span class="dv">100</span> <span class="sc">*</span> IRRI_AREA <span class="sc">/</span> CROP_AREA, <span class="dv">2</span>),</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>         <span class="at">PER_IRRI =</span> <span class="fu">if_else</span>(PER_IRRI<span class="sc">&gt;</span><span class="dv">100</span>, <span class="dv">100</span>, PER_IRRI),</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>         <span class="at">IRRIGATION =</span> <span class="fu">case_when</span>(</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>           PER_IRRI<span class="sc">&gt;</span><span class="dv">49</span> <span class="sc">~</span> <span class="st">"Irrigué"</span>,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>           PER_IRRI<span class="sc">&lt;</span><span class="dv">50</span> <span class="sc">~</span> <span class="st">"Non irrigué"</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>           )</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>         ) <span class="sc">|&gt;</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>PER_IRRI)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Superficie au carré</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">CROP_AREA_SQ =</span> CROP_AREA<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>         <span class="at">PLOT_AREA_SQ =</span> PLOT_AREA<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>         <span class="at">AREA_HH_SQ =</span> AREA_HH<span class="sc">^</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="sur-lopération" class="level3">
+<h3 class="anchored" data-anchor-id="sur-lopération">Sur l’opération</h3>
+<p><em>Travail total (tout type de travail confondu)</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>cols_work_hr <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">paste0</span>(<span class="st">"WORK_HR_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>)))</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>Cultivation_expand[cols_work_hr] <span class="ot">&lt;-</span> <span class="fu">lapply</span>(Cultivation_expand[cols_work_hr], <span class="cf">function</span>(x) <span class="fu">ifelse</span>(<span class="fu">is.na</span>(x), <span class="dv">0</span>, x))</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">WORK_HR_T =</span> <span class="fu">rowSums</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(cols_work_hr))),</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">HACRE_T =</span> WORK_HR_T<span class="sc">/</span>CROP_AREA)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Travail féminin et masculin</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>fem_cols <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"WORK_HR_HF"</span>, <span class="st">"WORK_HR_FF"</span>, <span class="st">"WORK_HR_EF"</span>)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>masc_cols <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">paste0</span>(<span class="st">"WORK_HR_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"OB"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"EB"</span>)))</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Additionner les heures par ligne en fonction du genre</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">fem_work =</span> <span class="fu">rowSums</span>(<span class="fu">select</span>(Cultivation_expand, <span class="fu">all_of</span>(fem_cols)), <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">masc_work =</span> <span class="fu">rowSums</span>(<span class="fu">select</span>(Cultivation_expand, <span class="fu">all_of</span>(masc_cols)), <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">fem_work_hacre =</span> fem_work<span class="sc">/</span>CROP_AREA,</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">masc_work_hacre =</span> masc_work<span class="sc">/</span>CROP_AREA</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Month</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">MONTH =</span> <span class="fu">substr</span>(SUR_MON_YR, <span class="dv">1</span>, <span class="dv">2</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">MONTH =</span> <span class="fu">recode</span>(MONTH,</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">01</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"janv"</span>,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">02</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"feb"</span>,</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">03</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"march"</span>,</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">04</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"april"</span>,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">05</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"may"</span>,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">06</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"june"</span>,</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">07</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"july"</span>,</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">08</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"aug"</span>,</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">09</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"sept"</span>,</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">10</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"oct"</span>,</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">11</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"nov"</span>,</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>                      <span class="st">`</span><span class="at">12</span><span class="st">`</span> <span class="ot">=</span> <span class="st">"dec"</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Utilisation de machines</em></p>
+<p>Je créé des variables binaires qui indiquent pour chaque opération si un produit/machine a été utilisé.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>use_typemat <span class="ot">&lt;-</span> <span class="cf">function</span>(df, type_mat, nom_var) {</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  df <span class="sc">|&gt;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">is_type =</span> <span class="fu">rowSums</span>(<span class="fu">across</span>(<span class="fu">contains</span>(<span class="st">"TYPE_MAT"</span>), <span class="sc">~</span> .x <span class="sc">==</span> type_mat), <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">|&gt;</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, OPERATION) <span class="sc">|&gt;</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="st">"{nom_var}"</span> <span class="sc">:</span><span class="er">=</span> <span class="fu">any</span>(is_type), <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">left_join</span>(df, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"PLOT_CODE"</span>, <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"CROP_AREA"</span>, <span class="st">"CROP"</span>, <span class="st">"SEASON"</span>, <span class="st">"OPERATION"</span>))</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">use_typemat</span>(<span class="st">"MACHINERY"</span>, <span class="st">"mechanized"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Labour mécanisé par saison</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>mechanized_tilling <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span> </span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(OPERATION <span class="sc">==</span> <span class="st">"LAND PREPARATION"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Identifier les champs mécanisant land preparation </span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">mechanized_tilling =</span> <span class="fu">any</span>(mechanized), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Ajouter la variable à la base</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(mechanized_tilling, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"PLOT_CODE"</span>, <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"CROP_AREA"</span>, <span class="st">"CROP"</span>, <span class="st">"SEASON"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="utilisation-de-chemicals" class="level3">
+<h3 class="anchored" data-anchor-id="utilisation-de-chemicals">Utilisation de chemicals</h3>
+<p>La table suivante indique au niveau de l’opération, quels produits ont été utilisés dans la saison et en quelle quantité (avec l’unité).</p>
+<p><em>Pivoter en long les catégories de matériel</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sélectionner les variables</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>table_mat <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, OPERATION, <span class="fu">contains</span>(<span class="fu">c</span>(<span class="st">"TYPE_MAT"</span>, <span class="st">"UNIT_MAT"</span>, <span class="st">"QTY_MAT"</span>)))</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Pivoter la table en long : variables _MAT</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>pattern_vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"TYPE_MAT_"</span>, <span class="st">"UNIT_MAT_"</span>, <span class="st">"QTY_MAT_"</span>)</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>cols_mat <span class="ot">&lt;-</span> <span class="fu">names</span>(table_mat)[</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sapply</span>(pattern_vars, <span class="cf">function</span>(p) <span class="fu">grepl</span>(p, <span class="fu">names</span>(table_mat))) <span class="sc">|&gt;</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">apply</span>(<span class="dv">1</span>, any)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>table_mat <span class="ot">&lt;-</span> table_mat <span class="sc">|&gt;</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">cols =</span> <span class="fu">matches</span>(cols_mat),</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_to =</span> <span class="fu">c</span>(<span class="st">".value"</span>, <span class="st">"mat_index"</span>),</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_pattern =</span> <span class="st">"(.*)_(</span><span class="sc">\\</span><span class="st">d)"</span></span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>table_mat <span class="ot">&lt;-</span> <span class="fu">convertir_num</span>(table_mat, <span class="st">"QTY_MAT"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Harmoniser les quantités</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>table_mat <span class="ot">&lt;-</span> table_mat <span class="sc">|&gt;</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(TYPE_MAT <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"WEEDICIDE"</span>, <span class="st">"PESTICIDE"</span>, <span class="st">"FERTILIZER"</span>),</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>         <span class="sc">!</span><span class="fu">is.na</span>(UNIT_MAT), </span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>         UNIT_MAT <span class="sc">!=</span> <span class="st">"HR"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>   <span class="fu">mutate</span>(</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Convertir grammes en kg</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">QTY_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"GM"</span>, <span class="st">"GRAM"</span>), QTY_MAT <span class="sc">/</span> <span class="dv">1000</span>, QTY_MAT),</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">UNIT_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"GM"</span>, <span class="st">"GRAM"</span>), <span class="st">"KG"</span>, UNIT_MAT),</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Convertir millilitres en litres</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">QTY_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">==</span> <span class="st">"ML"</span>, QTY_MAT <span class="sc">/</span> <span class="dv">1000</span>, QTY_MAT),</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">UNIT_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">==</span> <span class="st">"ML"</span>, <span class="st">"LT"</span>, UNIT_MAT),</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Convertir tonnes en kg</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">QTY_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">==</span> <span class="st">"TON"</span>, QTY_MAT <span class="sc">*</span> <span class="dv">1000</span>, QTY_MAT),</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">UNIT_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">==</span> <span class="st">"TON"</span>, <span class="st">"KG"</span>, UNIT_MAT),</span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Convertir quintaux en kg (1 QT = 100 kg) ?</span></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">QTY_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">==</span> <span class="st">"QT"</span> <span class="sc">&amp;</span> TYPE_MAT <span class="sc">==</span> <span class="st">"FERTILIZER"</span>, QTY_MAT <span class="sc">*</span> <span class="dv">100</span>, QTY_MAT),</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">UNIT_MAT =</span> <span class="fu">if_else</span>(UNIT_MAT <span class="sc">==</span> <span class="st">"QT"</span> <span class="sc">&amp;</span> TYPE_MAT <span class="sc">==</span> <span class="st">"FERTILIZER"</span>, <span class="st">"KG"</span>, UNIT_MAT)</span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Additionner les quantités par champ pour le même produit</span></span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VDS_ID, SEASON, CROP, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, OPERATION, TYPE_MAT, UNIT_MAT) <span class="sc">|&gt;</span></span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">QTY_MAT =</span> <span class="fu">sum</span>(QTY_MAT, <span class="at">na.rm =</span> <span class="cn">TRUE</span>), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Mettre les catégories en colonnes</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Pivoter en large pour créer une colonne par produit</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>table_mat <span class="ot">&lt;-</span> table_mat <span class="sc">|&gt;</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">var_name =</span> <span class="fu">paste0</span>(TYPE_MAT, <span class="st">"_"</span>, UNIT_MAT)) <span class="sc">|&gt;</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_wider</span>(</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">names_from =</span> var_name,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">values_from =</span> QTY_MAT,</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">values_fill =</span> <span class="dv">0</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>TYPE_MAT, <span class="sc">-</span>UNIT_MAT) <span class="sc">|&gt;</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Ajouter les colonnes sur les produits à la base principale</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(table_mat, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"PLOT_CODE"</span>, <span class="st">"SEASON"</span>, <span class="st">"CROP"</span>, <span class="st">"OPERATION"</span>, <span class="st">"CROP_AREA"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(<span class="fu">matches</span>(<span class="st">"FERTILIZER|WEEDICIDE|PESTICIDE"</span>), <span class="sc">~</span> <span class="fu">replace_na</span>(.x, <span class="dv">0</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Weeding : hand and chemical weeding</em></p>
+<p>Je crée la variable hand weeding pour identifier ayant fait du weeding sans utiliser de machine ni produit, et la variable chemical weeding pour ceux ayant utilisé du weedicide (impliquant généralement un sprayer).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">chemical_weeding =</span> OPERATION <span class="sc">==</span> <span class="st">"WEEDING"</span> <span class="sc">&amp;</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>           WORK_HR_T <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>           <span class="fu">rowSums</span>(<span class="fu">across</span>(<span class="fu">matches</span>(<span class="st">"WEEDICIDE|PESTICIDE"</span>), <span class="sc">~</span> .x <span class="sc">&gt;</span> <span class="dv">0</span>), <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="sc">&gt;</span> <span class="dv">0</span>,</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">hand_weeding =</span> OPERATION <span class="sc">==</span> <span class="st">"WEEDING"</span> <span class="sc">&amp;</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>           WORK_HR_T <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>           <span class="fu">rowSums</span>(<span class="fu">across</span>(<span class="fu">matches</span>(<span class="st">"WEEDICIDE|PESTICIDE"</span>), <span class="sc">~</span> .x <span class="sc">&gt;</span> <span class="dv">0</span>), <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="sc">==</span> <span class="dv">0</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Ménages / champs faisant du hand weeding par saison</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Au niveau du champ : identifier ceux faisant seulement du hand weeding</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>hand_weeding_plot <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(OPERATION <span class="sc">==</span> <span class="st">"WEEDING"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VDS_ID, PLOT_CODE, SUB_PLOT_CODE, CROP_AREA, CROP, SEASON, VAR_NAME, VAR_TYPE, OP_MAIN_PROD_QTY, OP_MAIN_PROD_UNIT) <span class="sc">|&gt;</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">hand_weeding_plot =</span> <span class="fu">all</span>(hand_weeding <span class="sc">&amp;</span> (chemical_weeding <span class="sc">==</span> <span class="cn">FALSE</span> <span class="sc">|</span> <span class="fu">is.na</span>(chemical_weeding))), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Identifier les ménages qui ont au moins un champ en hand weeding</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>hand_weeding_hh <span class="ot">&lt;-</span> hand_weeding_plot <span class="sc">|&gt;</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(VDS_ID, SEASON) <span class="sc">|&gt;</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">hand_weeding_hh =</span> <span class="fu">any</span>(hand_weeding_plot), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Ajouter la variable à la base</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(hand_weeding_plot, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"PLOT_CODE"</span>, <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"CROP_AREA"</span>, <span class="st">"CROP"</span>, <span class="st">"SEASON"</span>, <span class="st">"VAR_NAME"</span>, <span class="st">"VAR_TYPE"</span>, <span class="st">"OP_MAIN_PROD_QTY"</span>, <span class="st">"OP_MAIN_PROD_UNIT"</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(hand_weeding_hh, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"SEASON"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="modifier-vds_id" class="level3">
+<h3 class="anchored" data-anchor-id="modifier-vds_id">Modifier VDS_ID</h3>
+<p>VDS_ID indique initiallement l’année (4e et 5e caractètres). Je supprime ces caractères pour pouvoir identifier un ménage chaque année.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">VDS_ID =</span> <span class="fu">paste0</span>(<span class="fu">substr</span>(VDS_ID, <span class="dv">1</span>, <span class="dv">3</span>), <span class="fu">substr</span>(VDS_ID, <span class="dv">6</span>, <span class="fu">nchar</span>(VDS_ID))))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="ordre-des-variables" class="level3">
+<h3 class="anchored" data-anchor-id="ordre-des-variables">Ordre des variables</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    SEASON, SUR_MON_YR, MONTH, VDS_ID, CASTE, CASTE_GROUP, PLOT_CODE, SUB_PLOT_CODE, CROP, AREA_HH, PLOT_AREA, CROP_AREA, IRRI_AREA, IRRIGATION, DT_OPER, OPERATION, REGION, STATE, VILLAGE, VILLAGE_CROP, <span class="fu">everything</span>()  </span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># place les colonnes restantes à la fin</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Convertir les variables en numérique</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>Cultivation_expand <span class="ot">&lt;-</span> <span class="fu">convertir_num</span>(Cultivation_expand, <span class="fu">c</span>(<span class="st">"SOIL_DEPTH"</span>, <span class="st">"SOIL_FERT"</span>, <span class="st">"SLOPE"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+</section>
+<section id="construire-les-bases" class="level1">
+<h1>Construire les bases</h1>
+<section id="au-niveau-des-opérations" class="level2">
+<h2 class="anchored" data-anchor-id="au-niveau-des-opérations">Au niveau des opérations</h2>
+<p>J’additionne les heures de travail par opération et saison pour un même champ, pour n’avoir qu’une seule ligne par champ pour chaque opération et type de travail distincts.</p>
+<p>Pour ce faire, je construis la base séparement entre labor et machinery.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>cols_labor <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"WORK_HR_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>, <span class="st">"T"</span>)),</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"HACRE_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>, <span class="st">"T"</span>)),</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">"fem_work"</span>, <span class="st">"masc_work"</span>, <span class="st">"fem_work_hacre"</span>, <span class="st">"masc_work_hacre"</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>Cultivation_oper <span class="ot">&lt;-</span> Cultivation_expand</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>sum_cols_labor <span class="ot">&lt;-</span> <span class="cf">function</span>(df, group_vars, cols_to_sum) {</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>  df <span class="sc">|&gt;</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(group_vars))) <span class="sc">|&gt;</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">summarise</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(cols_to_sum), <span class="sc">~</span> <span class="fu">sum</span>(.x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>group_vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"CASTE_GROUP"</span>, <span class="st">"SEASON"</span>, <span class="st">"CROP"</span>, <span class="st">"PLOT_CODE"</span>, </span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>                <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"AREA_HH"</span>, <span class="st">"PLOT_AREA"</span>, <span class="st">"CROP_AREA"</span>, <span class="st">"IRRI_AREA"</span>,</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>                <span class="st">"IRRIGATION"</span>, <span class="st">"OPERATION"</span>, <span class="st">"mechanized_tilling"</span>, <span class="st">"mechanized"</span>, <span class="st">"REGION"</span>,</span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>                <span class="st">"STATE"</span>, <span class="st">"VILLAGE"</span>, <span class="st">"VILLAGE_CROP"</span>, <span class="st">"with_paddy"</span>, <span class="st">"paddy_prct"</span>, </span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>                <span class="st">"VAR_TYPE"</span>, <span class="st">"VAR_NAME"</span>, <span class="st">"OP_MAIN_PROD_QTY"</span>, <span class="st">"OP_MAIN_PROD_UNIT"</span>,</span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>                <span class="st">"SOIL_TYPE"</span>, <span class="st">"SOIL_DEPTH"</span>, <span class="st">"SOIL_FERT"</span>, <span class="st">"SOIL_DEGR"</span>, <span class="st">"SLOPE"</span>, </span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>                <span class="st">"hand_weeding_plot"</span>,<span class="st">"hand_weeding_hh"</span>, <span class="st">"FERTILIZER_KG"</span>, <span class="st">"FERTILIZER_LT"</span>,</span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a>                <span class="st">"PESTICIDE_KG"</span>, <span class="st">"PESTICIDE_LT"</span>, <span class="st">"WEEDICIDE_KG"</span>, <span class="st">"WEEDICIDE_LT"</span>, <span class="st">"AREA_HH_SQ"</span>, </span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>                <span class="st">"hand_weeding"</span>, <span class="st">"chemical_weeding"</span>, <span class="st">"PLOT_AREA_SQ"</span>, <span class="st">"CROP_AREA_SQ"</span>)</span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a>vars_existantes <span class="ot">&lt;-</span> <span class="fu">intersect</span>(group_vars, <span class="fu">colnames</span>(Cultivation_oper))</span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a>Cultivation_oper <span class="ot">&lt;-</span> <span class="fu">sum_cols_labor</span>(Cultivation_oper, vars_existantes, cols_labor)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="au-niveau-du-champ" class="level2">
+<h2 class="anchored" data-anchor-id="au-niveau-du-champ">Au niveau du champ</h2>
+<p>J’additionne les heures de travail (toutes opérations confondues) et les quantités de prouits (pesticide, fertilizer, weedicide) par champ et saison.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>cols_sum_plot <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"FERTILIZER_KG"</span>, <span class="st">"FERTILIZER_LT"</span>, </span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"PESTICIDE_KG"</span>, <span class="st">"PESTICIDE_LT"</span>, </span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">"WEEDICIDE_KG"</span>, <span class="st">"WEEDICIDE_LT"</span>,</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"WORK_HR_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>, <span class="st">"T"</span>)),</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="st">"HACRE_"</span>, <span class="fu">c</span>(<span class="st">"HM"</span>, <span class="st">"FM"</span>, <span class="st">"FF"</span>, <span class="st">"HF"</span>, <span class="st">"HC"</span>, <span class="st">"OB"</span>, <span class="st">"RS"</span>, <span class="st">"EF"</span>, <span class="st">"HB"</span>, <span class="st">"EM"</span>, <span class="st">"FC"</span>, <span class="st">"EB"</span>, <span class="st">"T"</span>)),</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">"fem_work"</span>, <span class="st">"masc_work"</span>, <span class="st">"fem_work_hacre"</span>, <span class="st">"masc_work_hacre"</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>group_vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"CASTE_GROUP"</span>, <span class="st">"SEASON"</span>, <span class="st">"CROP"</span>, <span class="st">"PLOT_CODE"</span>, </span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>                <span class="st">"SUB_PLOT_CODE"</span>, <span class="st">"AREA_HH"</span>, <span class="st">"PLOT_AREA"</span>, <span class="st">"CROP_AREA"</span>, <span class="st">"IRRI_AREA"</span>,</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>                <span class="st">"IRRIGATION"</span>, <span class="st">"mechanized_tilling"</span>, <span class="st">"REGION"</span>, <span class="st">"STATE"</span>, <span class="st">"VILLAGE"</span>, </span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>                <span class="st">"VILLAGE_CROP"</span>, <span class="st">"with_paddy"</span>, <span class="st">"paddy_prct"</span>, <span class="st">"VAR_TYPE"</span>, <span class="st">"VAR_NAME"</span>, </span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>                <span class="st">"OP_MAIN_PROD_QTY"</span>, <span class="st">"OP_MAIN_PROD_UNIT"</span>, <span class="st">"hand_weeding_plot"</span>, </span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>                <span class="st">"hand_weeding_hh"</span>, <span class="st">"AREA_HH_SQ"</span>, <span class="st">"PLOT_AREA_SQ"</span>, <span class="st">"CROP_AREA_SQ"</span>,</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>                <span class="st">"SOIL_TYPE"</span>, <span class="st">"SOIL_DEPTH"</span>, <span class="st">"SOIL_FERT"</span>, <span class="st">"SOIL_DEGR"</span>, <span class="st">"SLOPE"</span>)</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Regrouper l'utilisation de machines (variable mechanized) au niveau du champ</span></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>Cultivation_plot <span class="ot">&lt;-</span> Cultivation_expand <span class="sc">|&gt;</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(<span class="fu">across</span>(<span class="fu">all_of</span>(group_vars))) <span class="sc">|&gt;</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">mechanized =</span> <span class="fu">any</span>(mechanized), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>cols_existantes <span class="ot">&lt;-</span> <span class="fu">intersect</span>(cols_sum_plot, <span class="fu">colnames</span>(Cultivation_plot))</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a>Cultivation_plot <span class="ot">&lt;-</span> <span class="fu">sum_cols_labor</span>(Cultivation_plot, <span class="fu">c</span>(group_vars, <span class="st">"mechanized"</span>), cols_existantes)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="au-niveau-du-ménage" class="level2">
+<h2 class="anchored" data-anchor-id="au-niveau-du-ménage">Au niveau du ménage</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>Cultivation_hh <span class="ot">&lt;-</span> Cultivation_expand</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>group_vars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"VDS_ID"</span>, <span class="st">"CASTE_GROUP"</span>, <span class="st">"SEASON"</span>, <span class="st">"AREA_HH"</span>, <span class="st">"REGION"</span>, <span class="st">"STATE"</span>, <span class="st">"VILLAGE"</span>, </span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>                <span class="st">"VILLAGE_CROP"</span>, <span class="st">"with_paddy"</span>, <span class="st">"paddy_prct"</span>, <span class="st">"AREA_HH_SQ"</span>, <span class="st">"hand_weeding_hh"</span>)</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>Cultivation_hh <span class="ot">&lt;-</span> <span class="fu">sum_cols_labor</span>(Cultivation_hh, group_vars, cols_existantes)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<hr>
+</section>
+</section>
+<section id="liens-extérieurs" class="level1">
+<h1>Liens extérieurs</h1>
+<section id="enregistrer-la-base-cultivation_expand" class="level2">
+<h2 class="anchored" data-anchor-id="enregistrer-la-base-cultivation_expand">Enregistrer la base Cultivation_expand</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Définir le chemin du dossier</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>folder_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">"Base de données générées"</span>, <span class="st">"Cultivation_expand"</span>)</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Créer le dossier s'il n'existe pas</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(folder_path)) {</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(folder_path, <span class="at">recursive =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Ajouter l'année au nom de fichier</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>fichier_base <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"Cultivation_expand_"</span>, annee)</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Enregistrer Cultivation_expand</span></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>  Cultivation_expand,</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(fichier_base, <span class="st">".csv"</span>)),</span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a><span class="fu">saveRDS</span>(</span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>  Cultivation_expand,</span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(fichier_base, <span class="st">".rds"</span>))</span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="enregistrer-les-bases-par-niveau" class="level2">
+<h2 class="anchored" data-anchor-id="enregistrer-les-bases-par-niveau">Enregistrer les bases par niveau</h2>
+<p><em>Cultivation_oper</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Définir le chemin du dossier</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>folder_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">"Base de données générées"</span>, <span class="st">"Cultivation_oper"</span>)</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Créer le dossier s'il n'existe pas</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(folder_path)) {</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(folder_path, <span class="at">recursive =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Enregistrer Cultivation_oper</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>name_table <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"Cultivation_oper_"</span>, annee)</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>  Cultivation_oper,</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(name_table, <span class="st">".csv"</span>)),</span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a><span class="fu">saveRDS</span>(</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>  Cultivation_oper,</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(name_table, <span class="st">".rds"</span>))</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Cultivation_plot</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Définir le chemin du dossier</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>folder_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">"Base de données générées"</span>, <span class="st">"Cultivation_plot"</span>)</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Créer le dossier s'il n'existe pas</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(folder_path)) {</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(folder_path, <span class="at">recursive =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Enregistrer Cultivation_plot</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>name_table <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"Cultivation_plot_"</span>, annee)</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>  Cultivation_plot,</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(name_table, <span class="st">".csv"</span>)),</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a><span class="fu">saveRDS</span>(</span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>  Cultivation_plot,</span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(name_table, <span class="st">".rds"</span>))</span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><em>Cultivation_hh</em></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Définir le chemin du dossier</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>folder_path <span class="ot">&lt;-</span> <span class="fu">here</span>(<span class="st">"Base de données générées"</span>, <span class="st">"Cultivation_hh"</span>)</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Créer le dossier s'il n'existe pas</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(folder_path)) {</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(folder_path, <span class="at">recursive =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Enregistrer Cultivation_hh</span></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>name_table <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"Cultivation_hh_"</span>, annee)</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>  Cultivation_hh,</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(name_table, <span class="st">".csv"</span>)),</span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">row.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a><span class="fu">saveRDS</span>(</span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>  Cultivation_hh,</span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">file =</span> <span class="fu">file.path</span>(folder_path, <span class="fu">paste0</span>(name_table, <span class="st">".rds"</span>))</span>
+<span id="cb37-19"><a href="#cb37-19" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

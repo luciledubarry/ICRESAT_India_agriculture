@@ -21,7 +21,7 @@ files_to_render <- c("Regression_labor", "Analysis_production", "Analysis_mecani
 for (file in files_to_render) {
   cat("Traitement du fichier :", file, "\n")
   quarto::quarto_render(
-    input = here("ICRESAT_database_analysis/scripts_all_years", paste0(file, ".qmd")),
+    input = here("ICRISAT_database_analysis/scripts_all_years", paste0(file, ".qmd")),
     output_file = paste0(file, ".html")
   )
   file_move(paste0(file, ".html"), path(output_dir, paste0(file, ".html")))

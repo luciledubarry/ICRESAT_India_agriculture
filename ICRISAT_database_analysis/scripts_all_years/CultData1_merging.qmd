@@ -6,7 +6,7 @@ format:
     theme: cosmo
 editor: source
 params:
-  annee: 2011  # par défaut
+  annee: 2014  # par défaut
 ---
 
 ```{r cleaning}
@@ -1591,7 +1591,7 @@ cat(" - Proportion sans équivalent :", prop_non_matched4, "%\n")
 Cultivation_wide <- Cultivation_wide |>
   left_join(Household_info |> select(VDS_ID, CASTE, CASTE_GROUP), by = "VDS_ID") |>
   mutate(
-    CASTE_GROUP = recode(CASTE_GROUP, `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER", `MINORITIES` = "OTHER"))
+    CASTE_GROUP = recode(CASTE_GROUP, `St` = "ST", `Sc` = "SC", `Sbc` = "BC", `SBC` = "BC", `Obc` = "BC", `Bc` = "BC", `Fc` = "FC", `OBC` = "BC", `EBC` = "BC", `SBC` = "BC", `SBC/SEBC/EBC` = "BC", `Nt` = "OTHER", `NT` = "OTHER", `Minorities` = "OTHER", `VJ` = "OTHER", `MINORITIES` = "OTHER"))
 ```
 
 Je regarde le nombre de n/a pour la caste dans Cultivation.  
